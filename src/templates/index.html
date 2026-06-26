@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AS 1288 Glass Thickness Calculator — Duce Timber Windows and Doors</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.35.0/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<!-- ========== HEADER ========== -->
+<div class="app-header">
+    <div class="header-text">
+    <div class="header-title">AS 1288 Glass Thickness Calculator</div>
+    <div class="header-sub">Wind Loads Only — Internal Use</div>
+</div>
+<img src="{{ url_for('static', filename='duce_logo.png') }}" 
+     class="header-logo" alt="Duce Timber Windows and Doors">
+</div>
+
+<!-- ========== MODE SELECTOR ========== -->
+<div class="mode-bar">
+    <button class="mode-btn active" id="btn-mode1" onclick="switchMode('mode1')">
+        <span class="mode-btn-label">Find minimum thickness</span>
+        <span class="mode-btn-desc">I haven't specified the glass yet</span>
+    </button>
+    <button class="mode-btn" id="btn-mode2" onclick="switchMode('mode2')">
+        <span class="mode-btn-label">Check my glass is thick enough</span>
+        <span class="mode-btn-desc">I have a specification to verify</span>
+    </button>
+</div>
+
+<!-- ========== MAIN BODY ========== -->
+<div class="main-body">
+
+    <!-- ===== INPUTS PANEL ===== -->
+    <div class="inputs-panel" id="inputs-panel">
+
+        <!-- Safety Glass -->
+        <div class="section-label">Safety Glass Area Check <span class="beta-tag">Beta</span></div>
+        <div class="field-group">
+            <label class="field-label">Safety glass required?
+                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check panel area limits per AS 1288 Table 5.1. 4-edge supported panels only in this version.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="sg-no" onclick="setSafetyGlass(false)">No</button>
+                <button class="toggle-btn" id="sg-yes" onclick="setSafetyGlass(true)">Yes</button>
+            </div>
+        </div>
+        <div class="sg-disclaimer" id="sg-disclaimer" style="display:none;">
+            This feature is in Beta. Safety glass requirement is declared by the user. This tool does not assess whether safety glass is required for this application. The user is responsible for determining applicability in accordance with AS 1288 and relevant building codes. 2-edge supported panels are not covered in this version. There may be other governing requirements that restrict glass dimensions and thickness for human impact considerations. Please refer to Section 5 of AS 1288 to confirm those details.
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-label">Bushfire Filter (BAL) <span class="beta-tag">Beta</span></div>
+        <div class="field-group">
+            <label class="field-label">Bushfire requirement applies?
+                <span class="tip" data-tip="Select Yes if this opening is subject to a Bushfire Attack Level (BAL) requirement under AS 3959. The tool will restrict glass options and apply minimum thickness rules accordingly.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="bf-no" onclick="setBushfire(false)">No</button>
+                <button class="toggle-btn" id="bf-yes" onclick="setBushfire(true)">Yes</button>
+            </div>
+        </div>
+
+        <div id="bf-inputs" style="display:none;">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">BAL level
+                        <span class="tip" data-tip="Bushfire Attack Level per AS 3959, as determined by a site assessment.">?</span>
+                    </label>
+                    <select class="field-select" id="bf-level" onchange="onBushfireInputsChanged()">
+                        <option value="12.5">BAL-12.5</option>
+                        <option value="19">BAL-19</option>
+                        <option value="29">BAL-29</option>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Element type
+                        <span class="tip" data-tip="Whether this opening is a window or a door. Bushfire requirements differ between the two.">?</span>
+                    </label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="bf-window" onclick="setBushfireElement('Window')">Window</button>
+                        <button class="toggle-btn" id="bf-door" onclick="setBushfireElement('Door')">Door</button>
+                    </div>
+                </div>
+            </div>
+            <div class="sg-disclaimer" id="bf-conditional-note" style="display:none;"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Panel Dimensions -->
+        <div class="section-label">Panel Dimensions</div>
+        <div class="field-row-2">
+            <div class="field-group">
+                <label class="field-label">Height (mm)
+                    <span class="tip" data-tip="Overall height of the glass panel in millimetres, measured between framing members.">?</span>
+                </label>
+                <input class="field-input" type="number" id="height_mm" placeholder="e.g. 1200" min="1">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Width (mm)
+                    <span class="tip" data-tip="Overall width of the glass panel in millimetres, measured between framing members.">?</span>
+                </label>
+                <input class="field-input" type="number" id="width_mm" placeholder="e.g. 900" min="1">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Support Condition -->
+        <div class="section-label">Support Condition</div>
+        <div class="field-group">
+            <label class="field-label">Supported edges
+                <span class="tip" data-tip="How many edges of the glass are held by the frame. Most windows and doors are 4-edge supported. Select 2-edge for glass supported only at the top and bottom, or left and right sides only.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="support-4edge" onclick="setSupport('4-edge')">4-edge</button>
+                <button class="toggle-btn" id="support-2edge" onclick="setSupport('2-edge')">2-edge</button>
+            </div>
+        </div>
+
+        <!-- Span direction — only shown for 2-edge -->
+        <div class="field-group" id="span-direction-row" style="display:none;">
+            <label class="field-label">Span direction
+                <span class="tip" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="span-height" onclick="setSpan('height')">Height is the span</button>
+                <button class="toggle-btn" id="span-width" onclick="setSpan('width')">Width is the span</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Wind Load -->
+        <div class="section-label">Wind Load</div>
+        <div class="field-group">
+            <label class="field-label">Input method
+                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="wind-pressure" onclick="setWindMethod('pressure')">Pressures (AS 1170.2)</button>
+                <button class="toggle-btn" id="wind-nc" onclick="setWindMethod('nc')">N/C Rating (AS 4055)</button>
+            </div>
+        </div>
+
+        <!-- Direct pressure inputs -->
+        <div id="pressure-inputs">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">ULS pressure (kPa)
+                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals. This is the peak wind load the glass must resist without failure. Obtain from your AS 1170.2 wind analysis.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="uls_pa" placeholder="e.g. 2.0" min="0" step="0.01">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">SLS pressure (kPa)
+                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals. This is the wind load used to check deflection limits. Obtain from your AS 1170.2 wind analysis.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="sls_pa" placeholder="e.g. 0.8" min="0" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <!-- N/C rating inputs -->
+        <div id="nc-inputs" style="display:none;">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">Wind classification
+                        <span class="tip" data-tip="Wind classification from AS 4055. N ratings apply to non-cyclonic regions. C ratings apply to cyclonic regions. If unsure, check with your local council or a wind engineer.">?</span>
+                    </label>
+                    <select class="field-select" id="nc_rating">
+                        <option value="">Select rating</option>
+                        <option>N1</option><option>N2</option><option>N3</option>
+                        <option>N4</option><option>N5</option><option>N6</option>
+                        <option>C1</option><option>C2</option><option>C3</option><option>C4</option>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Window location
+                        <span class="tip" data-tip="General applies to most window and door positions on a building. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    </label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="loc-general" onclick="setLocation('General')">General</button>
+                        <button class="toggle-btn" id="loc-corner" onclick="setLocation('Corner')">Corner</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- ===== MODE 1 SPECIFIC INPUTS ===== -->
+        <div id="mode1-inputs">
+            <div class="section-label">Glazing Configuration</div>
+            <div class="field-group">
+                <label class="field-label">Configuration
+                    <span class="tip" id="glazing-tip" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. The calculator assumes all panes are the same thickness to find the minimum.">?</span>
+                </label>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" id="glaz-single" onclick="setGlazing('single')">Single</button>
+                    <button class="toggle-btn" id="glaz-double" onclick="setGlazing('double')">IGU Double</button>
+                    <button class="toggle-btn" id="glaz-triple" onclick="setGlazing('triple')">IGU Triple</button>
+                </div>
+            </div>
+
+            <div class="section-label" style="margin-top:14px;">Glass Type(s) to Check</div>
+            <div class="field-group">
+                <label class="field-label">Select one or more
+                    <span class="tip" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type.">?</span>
+                </label>
+                <div id="glass-type-checkboxes">
+                    <!-- Populated by JS based on safety glass toggle -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MODE 2 SPECIFIC INPUTS ===== -->
+        <div id="mode2-inputs" style="display:none;">
+            <div class="section-label">Glazing Configuration</div>
+            <div class="field-group">
+                <label class="field-label">Configuration
+                    <span class="tip" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. Enter the actual thickness for each pane individually.">?</span>
+                </label>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" id="m2-glaz-single" onclick="setMode2Glazing('single')">Single</button>
+                    <button class="toggle-btn" id="m2-glaz-double" onclick="setMode2Glazing('double')">IGU Double</button>
+                    <button class="toggle-btn" id="m2-glaz-triple" onclick="setMode2Glazing('triple')">IGU Triple</button>
+                </div>
+            </div>
+
+            <div id="pane-inputs">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button class="calc-btn" id="calc-btn" onclick="runCalculation()">Calculate</button>
+        <button class="clear-btn" onclick="clearFields()">Clear fields</button>
+
+    </div>
+
+    <!-- ===== RESULTS PANEL ===== -->
+    <div class="results-panel" id="results-panel">
+        <div class="results-header">
+            <div class="section-label" style="margin-bottom:0;">Results</div>
+            <button class="report-btn-top" id="report-btn" style="display:none;" onclick="generateReport()">
+                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+            </button>
+        </div>
+
+        <!-- Warning bar — shown when inputs change after a calculation -->
+        <div class="warning-bar" id="warning-bar" style="display:none;">
+            <span class="warning-icon">⚠</span>
+            <span>Inputs have changed — recalculate to update results</span>
+        </div>
+
+        <!-- Results content -->
+        <div id="results-content">
+            <div class="results-placeholder">
+                <div class="placeholder-icon">◻</div>
+                <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ========== FOOTER NOTE ========== -->
+<div class="footer-note">
+    <span class="footer-icon">ℹ</span>
+    <span>Human impact requirements not considered. Results are for wind load resistance only — AS 1288 Section 4.</span>
+</div>
+
+<!-- ========== TOOLTIP POPUP ========== -->
+<div class="tooltip-popup" id="tooltip-popup"></div>
+
+<!-- ========== HIDDEN SNAPSHOT TEMPLATE (used for copy-as-image) ========== -->
+<div id="snapshot-container" style="position:absolute; left:-9999px; top:-9999px;"></div>
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+
+// ---------------------------------------------------------------------------
+// STATE
+// ---------------------------------------------------------------------------
+
+const state = {
+    mode:               'mode1',
+    support:            '4-edge',
+    spanDimension:      'height',
+    windMethod:         'pressure',
+    ncLocation:         'General',
+    glazingConfig:      'single',
+    mode2GlazingConfig: 'single',
+    safetyGlass:        false,
+    bushfire:           false,
+    balLevel:           '12.5',
+    balElement:         'Window',
+    lastResults:        null,
+    inputsChanged:      false
+};
+
+const BAL_CONDITIONAL_NOTES = {
+    '12.5_Window': 'Glass within 400mm of ground, or another structure within 18 degrees of horizontal, must be safety glass, minimum 4mm.',
+    '19_Window': 'Glass within 400mm of ground, or another structure within 18 degrees of horizontal, must be Monolithic Toughened, minimum 5mm.'
+};
+
+const BAL_ELIGIBLE_TYPES = {
+    '12.5_Door': [['Monolithic','Toughened'],['Laminated','Annealed'],['Laminated','Heat-strengthened'],['Laminated','Toughened']],
+    '19_Door': [['Monolithic','Toughened']],
+    '29_Window': [['Monolithic','Toughened']],
+    '29_Door': [['Monolithic','Toughened']]
+};
+
+function getBalEligibleTypes() {
+    if (!state.bushfire) return null;
+    const key = `${state.balLevel}_${state.balElement}`;
+    return BAL_ELIGIBLE_TYPES[key] || null;
+}
+
+// ---------------------------------------------------------------------------
+// MODE SWITCHING
+// ---------------------------------------------------------------------------
+
+function switchMode(mode) {
+    state.mode = mode;
+
+    document.getElementById('btn-mode1').classList.toggle('active', mode === 'mode1');
+    document.getElementById('btn-mode2').classList.toggle('active', mode === 'mode2');
+    document.getElementById('mode1-inputs').style.display = mode === 'mode1' ? 'block' : 'none';
+    document.getElementById('mode2-inputs').style.display = mode === 'mode2' ? 'block' : 'none';
+
+    // Update glazing tip for mode 2
+    const tip = document.getElementById('glazing-tip');
+    if (tip) {
+        tip.dataset.tip = mode === 'mode1'
+            ? "Single glazed has one pane of glass. IGU Double has two panes. IGU Triple has three panes. The calculator assumes all panes are the same thickness to find the minimum."
+            : "Single glazed has one pane of glass. IGU Double has two panes. IGU Triple has three panes. Enter the actual thickness for each pane individually.";
+    }
+
+    markInputsChanged();
+}
+
+// ---------------------------------------------------------------------------
+// SUPPORT CONDITION
+// ---------------------------------------------------------------------------
+
+function setSupport(val) {
+    state.support = val;
+    document.getElementById('support-4edge').classList.toggle('active', val === '4-edge');
+    document.getElementById('support-2edge').classList.toggle('active', val === '2-edge');
+    document.getElementById('span-direction-row').style.display = val === '2-edge' ? 'block' : 'none';
+    markInputsChanged();
+}
+
+function setSpan(val) {
+    state.spanDimension = val;
+    document.getElementById('span-height').classList.toggle('active', val === 'height');
+    document.getElementById('span-width').classList.toggle('active', val === 'width');
+    markInputsChanged();
+}
+
+// ---------------------------------------------------------------------------
+// WIND METHOD
+// ---------------------------------------------------------------------------
+
+function setWindMethod(val) {
+    state.windMethod = val;
+    document.getElementById('wind-pressure').classList.toggle('active', val === 'pressure');
+    document.getElementById('wind-nc').classList.toggle('active', val === 'nc');
+    document.getElementById('pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
+    document.getElementById('nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+    markInputsChanged();
+}
+
+function setLocation(val) {
+    state.ncLocation = val;
+    document.getElementById('loc-general').classList.toggle('active', val === 'General');
+    document.getElementById('loc-corner').classList.toggle('active',  val === 'Corner');
+    markInputsChanged();
+}
+
+// ---------------------------------------------------------------------------
+// SAFETY GLASS
+// ---------------------------------------------------------------------------
+
+function setSafetyGlass(val) {
+    state.safetyGlass = val;
+    document.getElementById('sg-no').classList.toggle('active',  !val);
+    document.getElementById('sg-yes').classList.toggle('active',  val);
+    document.getElementById('sg-disclaimer').style.display = val ? 'block' : 'none';
+
+    updateTwoEdgeAvailability();
+
+    buildGlassTypeCheckboxes();
+    buildPaneInputs();
+    markInputsChanged();
+}
+
+function updateTwoEdgeAvailability() {
+    // 2-edge support is not available when Safety Glass or Bushfire is on
+    const twoEdgeBtn = document.getElementById('support-2edge');
+    const restricted = state.safetyGlass || state.bushfire;
+    if (restricted) {
+        twoEdgeBtn.style.display = 'none';
+        if (state.support === '2-edge') {
+            setSupport('4-edge');
+        }
+    } else {
+        twoEdgeBtn.style.display = '';
+    }
+}
+
+function setBushfire(val) {
+    state.bushfire = val;
+    document.getElementById('bf-no').classList.toggle('active', !val);
+    document.getElementById('bf-yes').classList.toggle('active', val);
+    document.getElementById('bf-inputs').style.display = val ? 'block' : 'none';
+    onBushfireInputsChanged();
+    buildGlassTypeCheckboxes();
+    buildPaneInputs();
+    updateTwoEdgeAvailability();
+    markInputsChanged();
+}
+
+function setBushfireElement(val) {
+    state.balElement = val;
+    document.getElementById('bf-window').classList.toggle('active', val === 'Window');
+    document.getElementById('bf-door').classList.toggle('active', val === 'Door');
+    onBushfireInputsChanged();
+    buildGlassTypeCheckboxes();
+    buildPaneInputs();
+    markInputsChanged();
+}
+
+function onBushfireInputsChanged() {
+    state.balLevel = document.getElementById('bf-level').value;
+    const noteKey = `${state.balLevel}_${state.balElement}`;
+    const noteEl = document.getElementById('bf-conditional-note');
+    if (state.bushfire && BAL_CONDITIONAL_NOTES[noteKey]) {
+        noteEl.textContent = BAL_CONDITIONAL_NOTES[noteKey];
+        noteEl.style.display = 'block';
+    } else {
+        noteEl.style.display = 'none';
+    }
+    buildGlassTypeCheckboxes();
+    buildPaneInputs();
+    markInputsChanged();
+}
+
+// ---------------------------------------------------------------------------
+// GLAZING CONFIG — MODE 1
+// ---------------------------------------------------------------------------
+
+function setGlazing(val) {
+    state.glazingConfig = val;
+    document.getElementById('glaz-single').classList.toggle('active', val === 'single');
+    document.getElementById('glaz-double').classList.toggle('active', val === 'double');
+    document.getElementById('glaz-triple').classList.toggle('active', val === 'triple');
+    markInputsChanged();
+}
+
+// ---------------------------------------------------------------------------
+// GLAZING CONFIG — MODE 2
+// ---------------------------------------------------------------------------
+
+function setMode2Glazing(val) {
+    state.mode2GlazingConfig = val;
+    document.getElementById('m2-glaz-single').classList.toggle('active', val === 'single');
+    document.getElementById('m2-glaz-double').classList.toggle('active', val === 'double');
+    document.getElementById('m2-glaz-triple').classList.toggle('active', val === 'triple');
+    buildPaneInputs();
+    markInputsChanged();
+}
+
+function buildPaneInputs() {
+    const config = state.mode2GlazingConfig;
+    const labels = config === 'single' ? ['Single']
+                 : config === 'double' ? ['Outer', 'Inner']
+                 : ['Outer', 'Middle', 'Inner'];
+
+    const baseTypes = state.safetyGlass ? [
+        ['Monolithic', 'Toughened',         'Monolithic Toughened'],
+        ['Laminated',  'Annealed',           'Laminated Annealed'],
+        ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+        ['Laminated',  'Toughened',          'Laminated Toughened'],
+    ] : [
+        ['Monolithic', 'Annealed',           'Monolithic Annealed'],
+        ['Monolithic', 'Toughened',          'Monolithic Toughened'],
+        ['Monolithic', 'Heat-strengthened',  'Monolithic Heat-strengthened'],
+        ['Laminated',  'Annealed',           'Laminated Annealed'],
+        ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+        ['Laminated',  'Toughened',          'Laminated Toughened'],
+    ];
+
+    const balEligible = getBalEligibleTypes();
+
+    const dotColors = { 'Outer': '#f47920', 'Middle': '#f4c020', 'Inner': '#888888', 'Single': '#f47920' };
+
+    let html = '';
+    labels.forEach((label, i) => {
+        const dotColor = dotColors[label] || '#888';
+        const isBushfirePane = (label === 'Outer' || label === 'Single');
+        let allTypes = baseTypes;
+        if (balEligible && isBushfirePane) {
+            allTypes = baseTypes.filter(t =>
+                balEligible.some(e => e[0] === t[0] && e[1] === t[1])
+            );
+        }
+        html += `
+        <div class="pane-block">
+            <div class="pane-header">
+                <span class="pane-dot" style="background:${dotColor}"></span>
+                <span class="pane-title">${label} pane</span>
+            </div>
+            <div class="pane-grid">
+                <div class="field-group">
+                    <label class="field-label">Glass type
+                        <span class="tip" data-tip="Select the glass type for the ${label.toLowerCase()} pane.">?</span>
+                    </label>
+                    <select class="field-select" id="pane-type-${i}" onchange="markInputsChanged()">
+                        ${allTypes.map(t => `<option value="${t[0]}|${t[1]}">${t[2]}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Actual thickness (mm)
+                        <span class="tip" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="pane-thickness-${i}"
+                           placeholder="e.g. 5.9" min="0" step="0.1" onchange="markInputsChanged()">
+                </div>
+            </div>
+        </div>`;
+    });
+
+    document.getElementById('pane-inputs').innerHTML = html;
+    attachTooltipListeners();
+}
+
+// ---------------------------------------------------------------------------
+// GLASS TYPE CHECKBOXES — MODE 1
+// ---------------------------------------------------------------------------
+
+function buildGlassTypeCheckboxes() {
+    let allTypes = state.safetyGlass ? [
+        ['Monolithic', 'Toughened',         'Monolithic Toughened'],
+        ['Laminated',  'Annealed',           'Laminated Annealed'],
+        ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+        ['Laminated',  'Toughened',          'Laminated Toughened'],
+    ] : [
+        ['Monolithic', 'Annealed',           'Monolithic Annealed'],
+        ['Monolithic', 'Toughened',          'Monolithic Toughened'],
+        ['Monolithic', 'Heat-strengthened',  'Monolithic Heat-strengthened'],
+        ['Laminated',  'Annealed',           'Laminated Annealed'],
+        ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+        ['Laminated',  'Toughened',          'Laminated Toughened'],
+    ];
+
+    const balEligible = getBalEligibleTypes();
+    if (balEligible) {
+        allTypes = allTypes.filter(t =>
+            balEligible.some(e => e[0] === t[0] && e[1] === t[1])
+        );
+    }
+
+    let html = '';
+    allTypes.forEach(t => {
+        const id = `gt-${t[0]}-${t[1]}`.replace(/\s/g, '-');
+        html += `
+        <label class="checkbox-row">
+            <input type="checkbox" id="${id}" value="${t[0]}|${t[1]}" onchange="markInputsChanged()">
+            <span>${t[2]}</span>
+        </label>`;
+    });
+
+    document.getElementById('glass-type-checkboxes').innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// INPUT CHANGE DETECTION
+// ---------------------------------------------------------------------------
+
+function markInputsChanged() {
+    if (state.lastResults) {
+        state.inputsChanged = true;
+        document.getElementById('warning-bar').style.display = 'flex';
+    }
+}
+
+function attachChangeListeners() {
+    ['height_mm', 'width_mm', 'uls_pa', 'sls_pa', 'nc_rating'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', markInputsChanged);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// CALCULATION
+// ---------------------------------------------------------------------------
+
+function runCalculation() {
+    const height = parseFloat(document.getElementById('height_mm').value);
+    const width  = parseFloat(document.getElementById('width_mm').value);
+
+    if (!height || !width || height <= 0 || width <= 0) {
+        showError('Please enter valid panel dimensions.');
+        return;
+    }
+
+    let payload = {
+        mode:                 state.mode,
+        height_mm:            height,
+        width_mm:             width,
+        support_condition:    state.support,
+        span_dimension:       state.spanDimension,
+        wind_method:          state.windMethod,
+        safety_glass_required: state.safetyGlass,
+        bushfire_required:    state.bushfire,
+        bal_level:            state.bushfire ? state.balLevel   : null,
+        element_type:         state.bushfire ? state.balElement : null
+    };
+
+    // Wind load
+    if (state.windMethod === 'pressure') {
+        const uls = parseFloat(document.getElementById('uls_pa').value);
+        const sls = parseFloat(document.getElementById('sls_pa').value);
+        if (!uls || !sls || uls <= 0 || sls <= 0) {
+            showError('Please enter valid ULS and SLS pressures.');
+            return;
+        }
+        payload.uls_pa = uls;
+        payload.sls_pa = sls;
+    } else {
+        const rating = document.getElementById('nc_rating').value;
+        if (!rating) {
+            showError('Please select a wind classification rating.');
+            return;
+        }
+        payload.nc_rating   = rating;
+        payload.nc_location = state.ncLocation;
+    }
+
+    if (state.mode === 'mode1') {
+        payload.glazing_config = state.glazingConfig;
+
+        const checkboxes = document.querySelectorAll('#glass-type-checkboxes input[type=checkbox]:checked');
+        if (checkboxes.length === 0) {
+            showError('Please select at least one glass type.');
+            return;
+        }
+        payload.selected_glass_types = Array.from(checkboxes).map(cb => cb.value.split('|'));
+
+    } else {
+        const config = state.mode2GlazingConfig;
+        const count  = config === 'single' ? 1 : config === 'double' ? 2 : 3;
+        const labels = config === 'single' ? ['Single'] : config === 'double' ? ['Outer', 'Inner'] : ['Outer', 'Middle', 'Inner'];
+
+        let panes = [];
+        for (let i = 0; i < count; i++) {
+            const typeVal = document.getElementById(`pane-type-${i}`).value;
+            const thick   = parseFloat(document.getElementById(`pane-thickness-${i}`).value);
+
+            if (!thick || thick <= 0) {
+                showError(`Please enter a valid thickness for the ${labels[i]} pane.`);
+                return;
+            }
+
+            const parts = typeVal.split('|');
+            panes.push({
+                label:               labels[i],
+                glass_type:          parts[0],
+                glass_subtype:       parts[1],
+                actual_thickness_mm: thick
+            });
+        }
+        payload.panes = panes;
+    }
+
+    // Store payload for report generation
+    state.lastPayload = payload;
+
+    // Show loading state
+    document.getElementById('calc-btn').textContent    = 'Calculating...';
+    document.getElementById('calc-btn').disabled       = true;
+    document.getElementById('results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+
+    fetch('/calculate', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('calc-btn').textContent = 'Calculate';
+        document.getElementById('calc-btn').disabled   = false;
+
+        // Whenever a response is received (success or failure), the
+        // warning bar is no longer relevant to the NEW attempt that just
+        // completed - it should only reappear if inputs change again
+        // after this point.
+        document.getElementById('warning-bar').style.display = 'none';
+
+        if (data.success) {
+            state.lastResults   = data;
+            state.inputsChanged = false;
+            renderResults(data, payload);
+            document.getElementById('report-btn').style.display = 'block';
+        } else if (data.error_type === 'OUT_OF_SCOPE_CALCULATION') {
+            document.getElementById('results-content').innerHTML = `
+                <div class="error-box">
+                    <strong>This wind pressure is outside the scope of AS 1288 for this glass type.</strong><br><br>
+                    The applied pressure is too low for the standard's formula to produce a valid result at the thickness being checked. Please verify your wind pressure inputs, or consult AS 1288 directly for very low pressure scenarios.
+                </div>`;
+        } else {
+            showError(data.error || 'An error occurred during calculation.');
+        }
+    })
+    .catch(err => {
+        document.getElementById('calc-btn').textContent = 'Calculate';
+        document.getElementById('calc-btn').disabled   = false;
+        document.getElementById('warning-bar').style.display = 'none';
+        showError('Could not connect to the calculation server. Please try again.');
+    });
+}
+
+// ---------------------------------------------------------------------------
+// RENDER RESULTS
+// ---------------------------------------------------------------------------
+
+function renderResults(data, payload) {
+    const results = data.results;
+    const sg      = data.safety_glass_required;
+    let html      = '';
+
+    const windLoadLabel = payload.wind_method === 'pressure'
+        ? `ULS ${payload.uls_pa}kPa / SLS ${payload.sls_pa}kPa`
+        : `${payload.nc_rating} (${payload.nc_location})`;
+
+    const supportLabel = payload.support_condition === '4-edge'
+        ? '4-edge'
+        : `2-edge (span: ${payload.span_dimension})`;
+
+    if (data.mode === 'mode1') {
+        const gc = data.glazing_config;
+
+        results.forEach(r => {
+            const isPass    = r.status === 'PASS';
+            const cardClass = isPass ? 'pass' : 'fail';
+            const badgeIcon = isPass ? 'ti-circle-check' : 'ti-x';
+            const badgeText = r.status === 'SG_INELIGIBLE' ? 'Ineligible'
+                            : r.status === 'BAL_INELIGIBLE' ? 'Ineligible'
+                            : r.status === 'NO_COMPLIANT_THICKNESS' ? 'No solution'
+                            : isPass ? 'Pass' : 'Fail';
+
+            html += `<div class="result-card ${cardClass}">
+                <div class="result-card-header">
+                    <span class="result-glass-name">${r.glass_type} ${r.glass_subtype}</span>
+                    <span class="status-badge ${cardClass}">
+                        <i class="ti ${badgeIcon}" style="font-size:11px" aria-hidden="true"></i> ${badgeText}
+                    </span>
+                </div>`;
+
+            if (isPass) {
+                const cardId1 = `detail-${Math.random().toString(36).slice(2,9)}`;
+                const kPaneRowMode1 = gc !== 'single'
+                    ? `<div class="result-row"><span class="result-label">k_pane</span><span class="result-value">${r.k_pane.toFixed(4)}</span></div>`
+                    : '';
+                let detailRows1 = kPaneRowMode1;
+                detailRows1 += `<div class="result-row"><span class="result-label">ULS minimum thickness</span><span class="result-value">${r.uls_minimum_thickness_mm} mm</span></div>`;
+                detailRows1 += `<div class="result-row"><span class="result-label">SLS minimum thickness</span><span class="result-value">${r.sls_minimum_thickness_mm} mm</span></div>`;
+
+                if (r.annealed_area_flag) {
+                    detailRows1 += `<div class="flag-row">⚠ 3mm not permitted — panel area ${r.annealed_area_flag.actual_area}m² exceeds maximum ${r.annealed_area_flag.max_area}m². Minimum increased to 4mm.</div>`;
+                }
+
+                if (sg && r.sg_minimum_thickness_mm !== null && r.sg_minimum_thickness_mm !== undefined) {
+                    const sgLabel = r.sg_flag === 'EXTRAPOLATE'
+                        ? 'Exceeds Table 5.1 scope — manual extrapolation required'
+                        : `${r.sg_minimum_thickness_mm} mm`;
+                    detailRows1 += `<div class="result-row"><span class="result-label">Safety glass min thickness</span><span class="result-value">${sgLabel}</span></div>`;
+                }
+
+                if (r.bushfire_required && r.bal_minimum_thickness_mm !== null && r.bal_minimum_thickness_mm !== undefined) {
+                    detailRows1 += `<div class="result-row"><span class="result-label">Bushfire min thickness (BAL-${r.bal_level}, ${r.bal_element_type})</span><span class="result-value">${r.bal_minimum_thickness_mm} mm</span></div>`;
+                } else if (r.bushfire_required) {
+                    detailRows1 += `<div class="result-row"><span class="result-label">Bushfire (BAL-${r.bal_level}, ${r.bal_element_type})</span><span class="result-value">No restriction</span></div>`;
+                }
+
+                const snapRows1 = [
+                    { label: 'ULS minimum thickness', value: `${r.uls_minimum_thickness_mm} mm` },
+                    { label: 'SLS minimum thickness', value: `${r.sls_minimum_thickness_mm} mm` }
+                ];
+                if (sg && r.sg_minimum_thickness_mm !== null && r.sg_minimum_thickness_mm !== undefined) {
+                    snapRows1.push({ label: 'Safety glass min thickness', value: `${r.sg_minimum_thickness_mm} mm` });
+                }
+                if (r.bushfire_required && r.bal_minimum_thickness_mm !== null && r.bal_minimum_thickness_mm !== undefined) {
+                    snapRows1.push({ label: `Bushfire (BAL-${r.bal_level}, ${r.bal_element_type})`, value: `${r.bal_minimum_thickness_mm} mm` });
+                }
+                const snapInputs1 = {
+                    glassName: `${r.glass_type} ${r.glass_subtype}`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: supportLabel,
+                    windLoad: windLoadLabel,
+                    glazing: gc === 'double' ? 'IGU Double' : gc === 'triple' ? 'IGU Triple' : 'Single'
+                };
+                const snapHtml1 = buildSnapshotHTML(snapInputs1, snapRows1, 'Governing thickness', `${r.minimum_thickness_mm} mm`)
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                html += `<div id="${cardId1}" class="result-card-body" style="display:none;">${detailRows1}</div>
+                <div style="display:flex; gap:0;">
+                    <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer;" onclick="toggleAccordion('${cardId1}', this)">
+                        <span class="footer-pass-label">Final minimum thickness (governing)</span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span class="footer-pass-value">${r.minimum_thickness_mm} mm</span>
+                            <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
+                        </span>
+                    </button>
+                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml1}\`, this)' aria-label="Copy as image">
+                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
+                </div>`;
+
+            } else {
+                html += `<div class="result-card-body">
+                    <div class="result-message">${r.message}</div>
+                </div>`;
+            }
+
+            html += `</div>`;
+        });
+
+        if (gc === 'double' || gc === 'triple') {
+            html += `<div class="igu-note">IGU ${gc === 'double' ? 'Double' : 'Triple'} — minimum thickness applies to each pane equally. All panes assumed same glass type and thickness.</div>`;
+        }
+
+    } else {
+        const allPass   = results.every(r => r.status === 'PASS');
+        const bannerCls = allPass ? 'overall-pass' : 'overall-fail';
+        const bannerTxt = allPass
+            ? '<i class="ti ti-circle-check" aria-hidden="true"></i> All panes comply'
+            : '<i class="ti ti-alert-triangle" aria-hidden="true"></i> One or more panes do not comply — see details below';
+        html += `<div class="${bannerCls}">${bannerTxt}</div>`;
+
+        results.forEach(r => {
+            const isPass    = r.status === 'PASS';
+            const cardClass = isPass ? 'pass' : 'fail';
+            const badgeIcon = isPass ? 'ti-circle-check' : 'ti-x';
+
+            html += `<div class="result-card ${cardClass}">
+                <div class="result-card-header">
+                    <div>
+                        <div class="pane-label-tag">${r.pane_label} pane</div>
+                        <div class="result-glass-name">${r.glass_type} ${r.glass_subtype} — ${r.actual_thickness_mm}mm actual / ${r.nominal_thickness_mm}mm nominal</div>
+                    </div>
+                    <span class="status-badge ${cardClass}">
+                        <i class="ti ${badgeIcon}" style="font-size:11px" aria-hidden="true"></i> ${isPass ? 'Pass' : 'Fail'}
+                    </span>
+                </div>`;
+
+            const cardId2 = `detail-${Math.random().toString(36).slice(2,9)}`;
+            let hasMode2Detail = false;
+            if (r.k_pane !== null && r.k_pane !== undefined) {
+                hasMode2Detail = true;
+                const paneCount = results.length;
+                const kPaneRowMode2 = paneCount > 1
+                    ? `<div class="result-row"><span class="result-label">k_pane</span><span class="result-value">${r.k_pane.toFixed(4)}</span></div>`
+                    : '';
+                let detailRows2 = kPaneRowMode2;
+                detailRows2 += `<div class="result-row"><span class="result-label">Effective ULS</span><span class="result-value">${r.effective_uls_pa.toFixed(4)} kPa</span></div>`;
+                detailRows2 += `<div class="result-row"><span class="result-label">Effective SLS</span><span class="result-value">${r.effective_sls_pa.toFixed(4)} kPa</span></div>`;
+                detailRows2 += `<div class="result-row">
+                        <span class="result-label">ULS check</span>
+                        <span class="result-value ${r.uls_status === 'PASS' ? 'green' : 'red'}">${r.uls_status} (span ${r.span_mm.toFixed(0)}mm vs B_uls ${r.B_uls_mm.toFixed(0)}mm)</span>
+                    </div>`;
+                detailRows2 += `<div class="result-row">
+                        <span class="result-label">SLS check</span>
+                        <span class="result-value ${r.sls_status === 'PASS' ? 'green' : 'red'}">${r.sls_status} (span ${r.span_mm.toFixed(0)}mm vs B_sls ${r.B_sls_mm.toFixed(0)}mm)</span>
+                    </div>`;
+
+                if (r.annealed_area_flag) {
+                    detailRows2 += `<div class="flag-row">⚠ 3mm Annealed area restriction FAIL — actual ${r.annealed_area_flag.actual_area}m² vs max ${r.annealed_area_flag.max_area}m².</div>`;
+                }
+
+                if (sg && r.sg_status && r.sg_status !== 'N/A') {
+                    const sgText = r.sg_status === 'EXTRAPOLATE'
+                        ? 'Exceeds Table 5.1 scope — manual extrapolation required'
+                        : `${r.sg_status} (area ${r.panel_area_m2}m² vs max ${r.sg_max_area_m2}m²)`;
+                    detailRows2 += `<div class="result-row">
+                        <span class="result-label">Safety glass check</span>
+                        <span class="result-value ${r.sg_status === 'PASS' ? 'green' : 'red'}">${sgText}</span>
+                    </div>`;
+                }
+
+                if (r.bushfire_required && r.bal_level) {
+                    hasMode2Detail = true;
+                    if (r.bal_status !== null && r.bal_status !== undefined) {
+                        const balText = `${r.bal_status} (${r.nominal_thickness_mm}mm vs min ${r.bal_min_thickness_mm}mm)`;
+                        detailRows2 += `<div class="result-row">
+                            <span class="result-label">Bushfire check (BAL-${r.bal_level}, ${r.bal_element_type})</span>
+                            <span class="result-value ${r.bal_status === 'PASS' ? 'green' : 'red'}">${balText}</span>
+                        </div>`;
+                    } else {
+                        detailRows2 += `<div class="result-row">
+                            <span class="result-label">Bushfire (BAL-${r.bal_level}, ${r.bal_element_type})</span>
+                            <span class="result-value">No restriction</span>
+                        </div>`;
+                    }
+                }
+
+                html += `<div id="${cardId2}" class="result-card-body" style="display:none;">${detailRows2}</div>`;
+            }
+
+            if (isPass) {
+                const chevron2 = hasMode2Detail
+                    ? `<i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>`
+                    : '';
+                const onclick2 = hasMode2Detail ? `onclick="toggleAccordion('${cardId2}', this)"` : '';
+                const tag2 = hasMode2Detail ? 'button' : 'div';
+
+                const snapRows2 = [];
+                if (r.k_pane !== null && r.k_pane !== undefined && results.length > 1) {
+                    snapRows2.push({ label: 'k_pane', value: r.k_pane.toFixed(4) });
+                }
+                snapRows2.push({ label: 'ULS check', value: `${r.uls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_uls_mm.toFixed(0)}mm)` });
+                snapRows2.push({ label: 'SLS check', value: `${r.sls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_sls_mm.toFixed(0)}mm)` });
+                if (sg && r.sg_status && r.sg_status !== 'N/A') {
+                    snapRows2.push({ label: 'Safety glass check', value: r.sg_status });
+                }
+                if (r.bushfire_required && r.bal_level && r.bal_status) {
+                    snapRows2.push({ label: `Bushfire (BAL-${r.bal_level}, ${r.bal_element_type})`, value: r.bal_status });
+                }
+                const snapInputs2 = {
+                    glassName: `${r.pane_label}: ${r.glass_type} ${r.glass_subtype} (${r.nominal_thickness_mm}mm)`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: supportLabel,
+                    windLoad: windLoadLabel,
+                    glazing: results.length > 1 ? `IGU (${results.length} panes)` : 'Single'
+                };
+                const snapHtml2 = buildSnapshotHTML(snapInputs2, snapRows2, 'Overall result', 'Pass')
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                html += `<div style="display:flex; gap:0;">
+                    <${tag2} style="border:none; ${hasMode2Detail ? 'cursor:pointer;' : ''}" class="result-card-footer-pass main-action" ${onclick2}>
+                        <span class="footer-pass-label">Overall result</span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span class="footer-pass-value">Pass</span>
+                            ${chevron2}
+                        </span>
+                    </${tag2}>
+                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml2}\`, this)' aria-label="Copy as image">
+                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
+                </div>`;
+            } else if (r.status === 'INVALID' || r.status === 'ERROR' || r.status === 'SG_INELIGIBLE' || r.status === 'BAL_INELIGIBLE') {
+                html += `<div class="result-card-footer-fail">
+                    <div class="footer-fail-label">${r.message}</div>
+                </div>`;
+            } else {
+                const snapRowsFail = [];
+                if (r.k_pane !== null && r.k_pane !== undefined && results.length > 1) {
+                    snapRowsFail.push({ label: 'k_pane', value: r.k_pane.toFixed(4) });
+                }
+                snapRowsFail.push({ label: 'ULS check', value: `${r.uls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_uls_mm.toFixed(0)}mm)` });
+                if (r.sls_status) {
+                    snapRowsFail.push({ label: 'SLS check', value: `${r.sls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_sls_mm.toFixed(0)}mm)` });
+                }
+                if (sg && r.sg_status && r.sg_status !== 'N/A') {
+                    snapRowsFail.push({ label: 'Safety glass check', value: r.sg_status });
+                }
+                if (r.bushfire_required && r.bal_level && r.bal_status) {
+                    snapRowsFail.push({ label: `Bushfire (BAL-${r.bal_level}, ${r.bal_element_type})`, value: r.bal_status });
+                }
+                const snapInputsFail = {
+                    glassName: `${r.pane_label}: ${r.glass_type} ${r.glass_subtype} (${r.nominal_thickness_mm}mm)`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: supportLabel,
+                    windLoad: windLoadLabel,
+                    glazing: results.length > 1 ? `IGU (${results.length} panes)` : 'Single'
+                };
+
+                // Build a list of which specific checks failed at the input thickness
+                const failedChecks = [];
+                if (r.uls_status === 'FAIL') failedChecks.push('ULS');
+                if (r.sls_status === 'FAIL') failedChecks.push('SLS');
+                if (sg && r.sg_status === 'FAIL') failedChecks.push('Safety Glass');
+                if (r.bushfire_required && r.bal_status === 'FAIL') failedChecks.push('Bushfire');
+                const failedChecksText = failedChecks.length > 0
+                    ? failedChecks.join(' and ')
+                    : 'one or more checks';
+
+                const glassLabel = `${r.glass_type} ${r.glass_subtype}`;
+
+                let footerContentHtml;
+                if (r.next_compliant_thickness_mm) {
+                    footerContentHtml = `
+                        <span class="footer-fail-label"><strong style="color:#ff5555; font-size:13px;">${r.nominal_thickness_mm}mm ${glassLabel}</strong> fails ${failedChecksText} checks. Use <strong style="color:#3ddc6e; font-size:13px;">${r.next_compliant_thickness_mm}mm ${glassLabel}</strong> instead.
+                            
+                        </span>
+                        <i class="ti ti-chevron-down" style="font-size:16px; color:#cf6679; transition: transform 0.15s; flex-shrink:0; margin-left:12px;"></i>`;
+                } else {
+                    footerContentHtml = `
+                        <span class="footer-fail-label">
+                            <strong style="color:#ff5555; font-size:13px;">${r.nominal_thickness_mm}mm ${glassLabel}</strong> fails ${failedChecksText} checks. No compliant thickness found.
+                        </span>
+                        <i class="ti ti-chevron-down" style="font-size:16px; color:#cf6679; transition: transform 0.15s; flex-shrink:0; margin-left:12px;"></i>`;
+                }
+
+                const snapHtmlFail = buildSnapshotHTML(snapInputsFail, snapRowsFail, 'Recommended thickness',
+                    r.next_compliant_thickness_mm ? `${r.next_compliant_thickness_mm} mm` : 'No solution found')
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                if (hasMode2Detail) {
+                    html += `<div style="display:flex; gap:0;">
+                        <button class="result-card-footer-fail main-action" style="border:none; cursor:pointer; flex:1; display:flex; align-items:center; justify-content:space-between;" onclick="toggleAccordion('${cardId2}', this)">
+                            ${footerContentHtml}
+                        </button>
+                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
+                            <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
+                        </button>
+                    </div>`;
+                } else {
+                    html += `<div class="result-card-footer-fail" style="display:flex; align-items:center; justify-content:space-between;">
+                        ${footerContentHtml}
+                    </div>`;
+                }
+            }
+
+            html += `</div>`;
+        });
+    }
+
+    document.getElementById('results-content').innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// REPORT GENERATION
+// ---------------------------------------------------------------------------
+
+function generateReport() {
+    if (!state.lastResults || !state.lastPayload) return;
+
+    const payload = state.lastPayload;
+    const results = state.lastResults;
+
+    // Build labels for the report
+    const modeLabels = {
+        'mode1': 'Minimum Thickness Finder',
+        'mode2': 'Compliance Checker'
+    };
+    const glazingLabels = {
+        'single': 'Single Glazed',
+        'double': 'IGU Double',
+        'triple': 'IGU Triple'
+    };
+
+    const reportPayload = {
+        ...payload,
+        ...results,
+        mode_label:          modeLabels[payload.mode] || payload.mode,
+        wind_method_label:   payload.wind_method === 'pressure' ? 'Direct Pressures (AS 1170.2)' : 'N/C Rating (AS 4055)',
+        glazing_config_label: glazingLabels[payload.glazing_config || state.mode2GlazingConfig] || '',
+        wind_pressure_uls:   results.wind_pressure_uls,
+        wind_pressure_sls:   results.wind_pressure_sls
+    };
+
+    fetch('/generate_report', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(reportPayload)
+    })
+    .then(r => r.blob())
+    .then(blob => {
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'AS1288_Calculation_Report.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(() => showError('Could not generate report. Please try again.'));
+}
+
+function clearFields() {
+    // Clear all input fields
+    document.getElementById('height_mm').value    = '';
+    document.getElementById('width_mm').value     = '';
+    document.getElementById('uls_pa').value        = '';
+    document.getElementById('sls_pa').value        = '';
+    document.getElementById('nc_rating').value     = '';
+
+    // Reset all toggles to defaults
+    setSafetyGlass(false);
+    setSupport('4-edge');
+    setWindMethod('pressure');
+    setLocation('General');
+    setGlazing('single');
+    setMode2Glazing('single');
+
+    // Uncheck all glass type checkboxes
+    document.querySelectorAll('#glass-type-checkboxes input[type=checkbox]').forEach(cb => {
+        cb.checked = false;
+    });
+
+    // Clear results panel
+    document.getElementById('results-content').innerHTML = `
+        <div class="results-placeholder">
+            <div class="placeholder-icon">◻</div>
+            <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+        </div>`;
+    document.getElementById('report-btn').style.display  = 'none';
+    document.getElementById('warning-bar').style.display = 'none';
+
+    // Reset state
+    state.lastResults   = null;
+    state.inputsChanged = false;
+}
+
+// ---------------------------------------------------------------------------
+// ERROR DISPLAY
+// ---------------------------------------------------------------------------
+
+function showError(msg) {
+    document.getElementById('results-content').innerHTML =
+        `<div class="error-box">⚠ ${msg}</div>`;
+}
+
+function toggleAccordion(cardId, button) {
+    const detail = document.getElementById(cardId);
+    const chevron = button.querySelector('.ti-chevron-down');
+    if (!detail) return;
+    const isHidden = detail.style.display === 'none';
+    detail.style.display = isHidden ? 'block' : 'none';
+    if (chevron) {
+        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+}
+
+function buildSnapshotHTML(inputSummary, rows, governingLabel, governingValue) {
+    const rowsHtml = rows.map(r => `
+        <div style="display:flex; justify-content:space-between; padding:3px 0;">
+            <span style="color:#666; font-size:10px;">${r.label}</span>
+            <span style="color:#999; font-size:11px;">${r.value}</span>
+        </div>`).join('');
+
+    return `
+    <div style="background:#1a1a1a; border-radius:10px; padding:20px; width:380px; font-family:Arial, sans-serif; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #333;">
+            <div>
+                <div style="color:#fff; font-size:13px; font-weight:600;">${inputSummary.glassName}</div>
+                <div style="color:#777; font-size:10px; margin-top:1px;">AS 1288 Wind Load Calculation</div>
+            </div>
+            <img src="${window.location.origin}/static/duce_logo.png" style="height:22px;" />
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; margin-bottom:10px;">
+            <div style="color:#777; font-size:10px;">Panel</div>
+            <div style="color:#ccc; font-size:10px; text-align:right;">${inputSummary.panel}</div>
+            <div style="color:#777; font-size:10px;">Support</div>
+            <div style="color:#ccc; font-size:10px; text-align:right;">${inputSummary.support}</div>
+            <div style="color:#777; font-size:10px;">Wind load</div>
+            <div style="color:#ccc; font-size:10px; text-align:right;">${inputSummary.windLoad}</div>
+            <div style="color:#777; font-size:10px;">Glazing</div>
+            <div style="color:#ccc; font-size:10px; text-align:right;">${inputSummary.glazing}</div>
+        </div>
+        <div style="border-top:1px solid #2a2a2a; padding-top:8px;">
+            ${rowsHtml}
+        </div>
+        <div style="margin-top:10px; background:#0d2e18; border:1px solid #1a4a28; border-radius:6px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="color:#3a8a54; font-size:10px; font-weight:500;">${governingLabel}</span>
+            <span style="color:#3ddc6e; font-size:20px; font-weight:700;">${governingValue}</span>
+        </div>
+    </div>`;
+}
+
+async function copySnapshotAsImage(snapshotHtml, buttonEl) {
+    const container = document.getElementById('snapshot-container');
+    container.innerHTML = snapshotHtml;
+
+    const target = container.firstElementChild;
+
+    try {
+        const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
+        canvas.toBlob(async (blob) => {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                const originalText = buttonEl.innerHTML;
+                buttonEl.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i> Copied';
+                setTimeout(() => { buttonEl.innerHTML = originalText; }, 1800);
+            } catch (err) {
+                showError('Could not copy image to clipboard. Your browser may not support this feature.');
+            }
+        });
+    } catch (err) {
+        showError('Could not generate the image snapshot. Please try again.');
+    } finally {
+        container.innerHTML = '';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// TOOLTIPS
+// ---------------------------------------------------------------------------
+
+function attachTooltipListeners() {
+    document.querySelectorAll('.tip').forEach(el => {
+        el.addEventListener('mouseenter', e => {
+            const popup = document.getElementById('tooltip-popup');
+            popup.textContent  = e.target.dataset.tip;
+            popup.style.display = 'block';
+            const rect = e.target.getBoundingClientRect();
+            popup.style.left = `${rect.left + window.scrollX}px`;
+            popup.style.top  = `${rect.bottom + window.scrollY + 6}px`;
+        });
+        el.addEventListener('mouseleave', () => {
+            document.getElementById('tooltip-popup').style.display = 'none';
+        });
+    });
+}
+
+// ---------------------------------------------------------------------------
+// INITIALISE
+// ---------------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', () => {
+    buildGlassTypeCheckboxes();
+    buildPaneInputs();
+    attachChangeListeners();
+    attachTooltipListeners();
+});
+
+</script>
+</body>
+</html>

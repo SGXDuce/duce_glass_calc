@@ -1,0 +1,19 @@
+﻿Glass Type,Nominal Thickness (mm),Minimum Thickness (mm)
+Monolithic,3,2.8
+Monolithic,4,3.8
+Monolithic,5,4.8
+Monolithic,6,5.8
+Monolithic,8,7.7
+Monolithic,10,9.7
+Monolithic,12,11.7
+Monolithic,15,14.5
+Monolithic,19,18
+Monolithic,25,23.5
+Laminated,5,4.6
+Laminated,6,5.6
+Laminated,8,7.6
+Laminated,10,9.6
+Laminated,12,11.6
+Laminated,16,15.4
+Laminated,20,19.4
+Laminated,24,23.4
