@@ -40,6 +40,25 @@ def load_nominal_thickness_table(csv_path):
     return pd.read_csv(csv_path)
 
 
+def get_pressures_from_nc_rating(df_nc, rating, location):
+    """
+    Looks up ULS and SLS pressures in Pa for a given N/C rating and location.
+    Returns a dict with keys 'uls' and 'sls', or None if not found.
+    """
+    uls_rows = df_nc[(df_nc['Rating'] == rating) &
+                     (df_nc['Pressure Type'] == 'ULS')]
+    sls_rows = df_nc[(df_nc['Rating'] == rating) &
+                     (df_nc['Pressure Type'] == 'SLS')]
+
+    if len(uls_rows) == 0 or len(sls_rows) == 0:
+        return None
+
+    return {
+        'uls': float(uls_rows.iloc[0][location]),
+        'sls': float(sls_rows.iloc[0][location])
+    }
+
+
 def get_nominal_thickness(df_nominal, glass_type, actual_thickness_mm):
     """
     Converts an actual measured glass thickness to a nominal thickness
