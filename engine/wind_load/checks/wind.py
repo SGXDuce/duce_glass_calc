@@ -1,17 +1,12 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
-
-from constants import GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE
-from formulas import (
+from engine.wind_load.constants import GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE
+from engine.wind_load.formulas import (
     get_ar_interpolation_bounds, calculate_ar, calculate_span, get_kpane_for_config,
     get_c1_factor, get_uls_k_values, get_sls_k_values,
     calculate_uls_capacity, calculate_sls_capacity, calculate_kpane,
     check_bal_eligibility, get_bal_min_thickness, get_safety_glass_max_area
 )
-from data_loader import get_nominal_thickness
-from results import make_mode1_result, make_mode2_result
+from engine.shared.data_loader import get_nominal_thickness
+from engine.shared.results import make_mode1_result, make_mode2_result
 
 
 def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,

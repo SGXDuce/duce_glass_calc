@@ -1,11 +1,6 @@
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'checks'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
-
-from data_loader import load_table_data, load_nominal_thickness_table
-from wind import check_glass_type, check_pane_compliance
-from formulas import get_ar_interpolation_bounds, calculate_span, calculate_ar
+from engine.shared.data_loader import load_table_data, load_nominal_thickness_table
+from engine.wind_load.checks.wind import check_glass_type, check_pane_compliance
+from engine.wind_load.formulas import get_ar_interpolation_bounds, calculate_span, calculate_ar
 
 
 def run_calculation(csv_path, height_mm, width_mm, support_condition,

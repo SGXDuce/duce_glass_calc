@@ -1,4 +1,4 @@
-from constants import (
+from engine.wind_load.constants import (
     TABLE_AR_VALUES, BAL_RULES, SAFETY_GLASS_CATEGORY,
     SAFETY_GLASS_AREA_CAT1, SAFETY_GLASS_AREA_CAT2,
     KPANE_SINGLE, KPANE_DOUBLE, KPANE_TRIPLE,
