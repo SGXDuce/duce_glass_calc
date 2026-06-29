@@ -19,9 +19,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from calculator import run_calculation, run_compliance_check
+from engine.wind_load import run_calculation, run_compliance_check
 
 # ---------------------------------------------------------------------------
 # FILE PATHS

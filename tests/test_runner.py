@@ -6,13 +6,9 @@ import os
 import sys
 import pandas as pd
 
-# Add the src folder to the path so we can import calculator.py
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from calculator import (
-    run_calculation,
-    run_compliance_check
-)
+from engine.wind_load import run_calculation, run_compliance_check
 
 # ---------------------------------------------------------------------------
 # FILE PATHS
@@ -39,7 +35,7 @@ def resolve_wind_pressures(wind_method, uls_pa, sls_pa, rating, location):
         # convert to kPa here since calculator.py now expects kPa directly
         return float(uls_pa) / 1000, float(sls_pa) / 1000
     else:
-        from calculator import load_nc_table, get_pressures_from_nc_rating
+        from engine.shared.data_loader import load_nc_table, get_pressures_from_nc_rating
         df_nc = load_nc_table(nc_csv_path)
         pressures = get_pressures_from_nc_rating(df_nc, rating, location)
         if pressures is None:
