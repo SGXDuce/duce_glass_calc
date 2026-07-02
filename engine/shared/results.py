@@ -101,3 +101,35 @@ def make_mode2_result(status, pane_label=None,
         'sls_trace': sls_trace if sls_trace is not None else [],
         'sg_trace': sg_trace if sg_trace is not None else [],
     }
+
+
+def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_mm=None,
+                          wind_pressure_kpa=None, required_bite_mm=None, joint_type=None,
+                          mitre_angle_deg=None, nominal_monolithic=None, nominal_laminated=None,
+                          usable_bite_monolithic=None, usable_bite_laminated=None, message=None):
+    """
+    Builds a silicone bite result dictionary with a guaranteed, consistent set of keys.
+    Every return path in the silicone bite engine must use this function instead of
+    building its own dict, so a missing key is structurally impossible.
+    Same discipline as make_mode1_result() / make_mode2_result() — see Section 6.4
+    of the project summary for rationale.
+
+    Possible statuses: 'PASS' (calculation completed successfully),
+    'ANGLE_OUT_OF_RANGE' (angle outside 90-160), 'NO_COMPLIANT_THICKNESS' (required
+    bite exceeds all available sizes), 'INVALID' (bad input), 'ERROR' (unexpected).
+    """
+    return {
+        'status': status,
+        'angle_deg': angle_deg,
+        'f_factor': f_factor,
+        'governing_width_mm': governing_width_mm,
+        'wind_pressure_kpa': wind_pressure_kpa,
+        'required_bite_mm': required_bite_mm,
+        'joint_type': joint_type,
+        'mitre_angle_deg': mitre_angle_deg,
+        'nominal_monolithic': nominal_monolithic,
+        'nominal_laminated': nominal_laminated,
+        'usable_bite_monolithic': usable_bite_monolithic,
+        'usable_bite_laminated': usable_bite_laminated,
+        'message': message,
+    }
