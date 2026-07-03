@@ -104,9 +104,10 @@ def make_mode2_result(status, pane_label=None,
 
 
 def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_mm=None,
-                          wind_pressure_kpa=None, required_bite_mm=None, joint_type=None,
-                          mitre_angle_deg=None, nominal_monolithic=None, nominal_laminated=None,
-                          usable_bite_monolithic=None, usable_bite_laminated=None, message=None):
+                          wind_pressure_kpa=None, required_bite_mm=None, required_bite_raw_mm=None,
+                          joint_type=None, mitre_angle_deg=None, nominal_monolithic=None,
+                          nominal_laminated=None, usable_bite_monolithic=None,
+                          usable_bite_laminated=None, message=None):
     """
     Builds a silicone bite result dictionary with a guaranteed, consistent set of keys.
     Every return path in the silicone bite engine must use this function instead of
@@ -125,6 +126,7 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
         'governing_width_mm': governing_width_mm,
         'wind_pressure_kpa': wind_pressure_kpa,
         'required_bite_mm': required_bite_mm,
+        'required_bite_raw_mm': required_bite_raw_mm,
         'joint_type': joint_type,
         'mitre_angle_deg': mitre_angle_deg,
         'nominal_monolithic': nominal_monolithic,

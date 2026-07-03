@@ -9,7 +9,7 @@ from engine.silicone_bite.formulas import (
     calculate_f_factor,
     calculate_governing_width,
     calculate_required_bite,
-    find_min_nominal_for_bite,
+    find_min_nominal_for_usable_bite,
     apply_thickness_floor,
     calculate_mitre_angle,
     usable_bite,
@@ -70,14 +70,18 @@ def test_2():
     governing_width = calculate_governing_width(width_1, width_2)
     required_bite = calculate_required_bite(f_factor, governing_width, pressure)
 
-    nominal = find_min_nominal_for_bite(required_bite, TABLE_4_1_MONOLITHIC)
+    # CHANGED: was nominal=8 under the old raw-min_actual lookup. With the
+    # usable-bite-aware lookup, 8mm's usable bite (7.7 - 2mm chamfer = 5.7mm)
+    # no longer covers the 6.767mm requirement, so 10mm is now correctly
+    # selected (9.7 - 2mm = 7.7mm >= 6.767mm).
+    nominal, usable = find_min_nominal_for_usable_bite(required_bite, TABLE_4_1_MONOLITHIC, 'butt')
     nominal_floored = apply_thickness_floor(nominal)
 
     checks = [
         ('F factor', 0.5, f_factor, f_factor == 0.5),
         ('required bite (mm)', 6.767, round(required_bite, 3), close(required_bite, 6.767, 0.001)),
-        ('nominal thickness pre-floor (mm)', 8, nominal, nominal == 8),
-        ('nominal thickness post-floor (mm)', 8, nominal_floored, nominal_floored == 8),
+        ('nominal thickness pre-floor (mm)', 10, nominal, nominal == 10),
+        ('nominal thickness post-floor (mm)', 10, nominal_floored, nominal_floored == 10),
     ]
     return report('2', '90 deg butt joint (Appendix F)', checks)
 
@@ -148,7 +152,10 @@ def test_6():
     governing_width = calculate_governing_width(width_1, width_2)
     required_bite = calculate_required_bite(f_factor, governing_width, pressure)
 
-    nominal = find_min_nominal_for_bite(required_bite, TABLE_4_1_MONOLITHIC)
+    # Unaffected by the usable-bite fix: the requirement (238mm) is so far
+    # beyond even the largest size's raw min_actual (23.5mm) that subtracting
+    # a 2mm chamfer doesn't change the outcome - still no compliant size.
+    nominal, usable = find_min_nominal_for_usable_bite(required_bite, TABLE_4_1_MONOLITHIC, 'butt')
     nominal_floored = apply_thickness_floor(nominal)
 
     checks = [
@@ -160,22 +167,35 @@ def test_6():
 
 
 def test_7():
-    # 6mm floor applies - required bite is small enough for 4mm, but floor pushes to 6mm
+    # 6mm REQUIRED-BITE floor applies before the lookup (run_bite_calculation
+    # now floors required_bite_mm to 6.0 before searching the table, rather
+    # than flooring the resulting nominal afterwards).
+    #
+    # CHANGED: was nominal=4 pre-floor / 6 post-floor under the old raw
+    # min_actual lookup + after-the-fact nominal floor. With the corrected
+    # required-bite floor applied first (raw 2.0mm -> floored 6.0mm) and the
+    # usable-bite-aware lookup, neither 6mm (5.8-2=3.8mm) nor 8mm
+    # (7.7-2=5.7mm) monolithic clears 6.0mm usable bite - only 10mm does
+    # (9.7-2=7.7mm >= 6.0mm), so nominal=10 is now correctly selected.
     angle, width_1, width_2, pressure = 90, 200, 200, 4.2
 
     f_factor = calculate_f_factor(angle)
     governing_width = calculate_governing_width(width_1, width_2)
-    required_bite = calculate_required_bite(f_factor, governing_width, pressure)
+    required_bite_raw = calculate_required_bite(f_factor, governing_width, pressure)
+    required_bite_floored = max(required_bite_raw, 6.0)
 
-    nominal = find_min_nominal_for_bite(required_bite, TABLE_4_1_MONOLITHIC)
+    nominal, usable = find_min_nominal_for_usable_bite(
+        required_bite_floored, TABLE_4_1_MONOLITHIC, 'butt'
+    )
     nominal_floored = apply_thickness_floor(nominal)
 
     checks = [
-        ('required bite (mm)', 2.0, round(required_bite, 3), close(required_bite, 2.0, 0.001)),
-        ('nominal thickness pre-floor (mm)', 4, nominal, nominal == 4),
-        ('nominal thickness post-floor (mm)', 6, nominal_floored, nominal_floored == 6),
+        ('required bite raw (mm)', 2.0, round(required_bite_raw, 3), close(required_bite_raw, 2.0, 0.001)),
+        ('required bite floored (mm)', 6.0, required_bite_floored, required_bite_floored == 6.0),
+        ('nominal thickness (mm)', 10, nominal, nominal == 10),
+        ('nominal thickness post apply_thickness_floor (mm)', 10, nominal_floored, nominal_floored == 10),
     ]
-    return report('7', '6mm floor applies', checks)
+    return report('7', 'Required-bite floor applies before usable-bite lookup', checks)
 
 
 def test_8():
@@ -186,7 +206,7 @@ def test_8():
 
     expected_keys = {
         'angle_deg', 'f_factor', 'governing_width_mm', 'wind_pressure_kpa',
-        'required_bite_mm', 'joint_type', 'mitre_angle_deg',
+        'required_bite_mm', 'required_bite_raw_mm', 'joint_type', 'mitre_angle_deg',
         'nominal_monolithic', 'nominal_laminated',
         'usable_bite_monolithic', 'usable_bite_laminated',
     }
@@ -271,8 +291,19 @@ def test_12():
 
 
 def test_13():
-    # Mitred usable bite must exceed butt usable bite for identical inputs -
-    # confirms the mitre geometry advantage is correctly wired through
+    # CHANGED: previously asserted mitred usable_bite > butt usable_bite for
+    # the SAME nominal thickness, because the old (buggy) lookup selected the
+    # same nominal for both joint types and only usable_bite()'s formula
+    # differed. Now that find_min_nominal_for_usable_bite() is joint-type
+    # aware, butt and mitred can land on DIFFERENT nominals (butt needs more
+    # glass since it loses more contact area to the chamfer), so the old
+    # invariant no longer holds in general - e.g. for this case butt selects
+    # 25mm monolithic (usable 21.5mm) while mitred selects 19mm (usable
+    # 17.86mm), which is thinner and less usable bite, but still compliant.
+    #
+    # The invariant that DOES still hold is that mitred is at least as
+    # space-efficient as butt: it should never require a THICKER nominal for
+    # the same input geometry.
     butt_result = run_bite_calculation(
         width_1_mm=1400, width_2_mm=1400, angle_deg=130, wind_pressure_kpa=2.03,
         joint_type='butt'
@@ -282,24 +313,24 @@ def test_13():
         joint_type='mitred'
     )
 
-    mono_greater = mitred_result['usable_bite_monolithic'] > butt_result['usable_bite_monolithic']
-    lam_greater = mitred_result['usable_bite_laminated'] > butt_result['usable_bite_laminated']
+    mono_ok = mitred_result['nominal_monolithic'] <= butt_result['nominal_monolithic']
+    lam_ok = mitred_result['nominal_laminated'] <= butt_result['nominal_laminated']
 
     checks = [
         (
-            'usable_bite_monolithic: mitred > butt',
-            f"> {butt_result['usable_bite_monolithic']}",
-            mitred_result['usable_bite_monolithic'],
-            mono_greater,
+            'nominal_monolithic: mitred <= butt',
+            f"<= {butt_result['nominal_monolithic']}",
+            mitred_result['nominal_monolithic'],
+            mono_ok,
         ),
         (
-            'usable_bite_laminated: mitred > butt',
-            f"> {butt_result['usable_bite_laminated']}",
-            mitred_result['usable_bite_laminated'],
-            lam_greater,
+            'nominal_laminated: mitred <= butt',
+            f"<= {butt_result['nominal_laminated']}",
+            mitred_result['nominal_laminated'],
+            lam_ok,
         ),
     ]
-    return report('13', 'Mitred usable bite > butt usable bite for same inputs', checks)
+    return report('13', 'Mitred never requires a thicker nominal than butt for same inputs', checks)
 
 
 def test_14():
@@ -356,6 +387,67 @@ def test_15():
     return report('15', 'Result dict structural consistency', checks)
 
 
+def test_16():
+    # Case A from hand calculations - 90 deg butt joint
+    result = run_bite_calculation(
+        width_1_mm=600, width_2_mm=600, angle_deg=90, wind_pressure_kpa=2.0,
+        joint_type='butt'
+    )
+
+    checks = [
+        (
+            'required_bite_raw_mm', 2.857, round(result['required_bite_raw_mm'], 3),
+            close(result['required_bite_raw_mm'], 2.857, 0.001),
+        ),
+        (
+            'required_bite_mm (floored)', 6.0, result['required_bite_mm'],
+            result['required_bite_mm'] == 6.0,
+        ),
+        (
+            'nominal_monolithic', 10, result['nominal_monolithic'],
+            result['nominal_monolithic'] == 10,
+        ),
+        (
+            'nominal_laminated', 10, result['nominal_laminated'],
+            result['nominal_laminated'] == 10,
+        ),
+    ]
+    return report('16', 'Case A - 90 deg butt joint (hand calculation)', checks)
+
+
+def test_17():
+    # Case B from hand calculations - 130 deg mitred joint
+    result = run_bite_calculation(
+        width_1_mm=600, width_2_mm=600, angle_deg=130, wind_pressure_kpa=2.0,
+        joint_type='mitred'
+    )
+
+    checks = [
+        (
+            'required_bite_raw_mm', 6.76, round(result['required_bite_raw_mm'], 2),
+            close(result['required_bite_raw_mm'], 6.76, 0.01),
+        ),
+        (
+            'required_bite_mm (no flooring needed)', result['required_bite_raw_mm'],
+            result['required_bite_mm'],
+            result['required_bite_mm'] == result['required_bite_raw_mm'],
+        ),
+        (
+            'mitre_angle_deg', 25.0, result['mitre_angle_deg'],
+            result['mitre_angle_deg'] == 25.0,
+        ),
+        (
+            'nominal_monolithic', 10, result['nominal_monolithic'],
+            result['nominal_monolithic'] == 10,
+        ),
+        (
+            'nominal_laminated', 10, result['nominal_laminated'],
+            result['nominal_laminated'] == 10,
+        ),
+    ]
+    return report('17', 'Case B - 130 deg mitred joint (hand calculation)', checks)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -369,6 +461,7 @@ def run_tests():
     tests = [
         test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8,
         test_9, test_10, test_11, test_12, test_13, test_14, test_15,
+        test_16, test_17,
     ]
     results = [t() for t in tests]
 

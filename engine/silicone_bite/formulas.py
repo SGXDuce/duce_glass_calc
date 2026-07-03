@@ -48,7 +48,8 @@ def calculate_required_bite(f_factor, governing_width_mm, wind_pressure_kpa, sig
     return bite_mm
 
 
-def find_min_nominal_for_bite(required_bite_mm, thickness_table):
+def _find_min_nominal_by_raw_thickness(required_bite_mm, thickness_table):
+    # Legacy — compares against raw min_actual. Use find_min_nominal_for_usable_bite instead.
     # Comparison is against worst-case minimum actual thickness per AS 1288
     # Table 4.1, not the nominal label - see Table 9.1 Note 1.
     for nominal in sorted(thickness_table):
@@ -94,6 +95,32 @@ def usable_bite(minimum_actual_mm, mitre_angle_deg=None, chamfer_mm=CHAMFER_ALLO
     return minimum_actual_mm - chamfer_mm
 
 
+def find_min_nominal_for_usable_bite(required_bite_mm, thickness_table, joint_type,
+                                      mitre_angle_deg=None, chamfer_mm=CHAMFER_ALLOWANCE_MM):
+    """
+    Returns the smallest nominal thickness whose USABLE bite (after chamfer
+    and mitre deduction) satisfies the required bite.
+
+    For butt joints: usable bite = min_actual - chamfer
+    For mitred joints: usable bite = min_actual / cos(mitre_angle) - chamfer
+
+    This is different from comparing against raw min_actual — chamfer reduces
+    the available contact surface, so thicker glass may be needed.
+
+    Returns (nominal_thickness, usable_bite_value) tuple, or (None, None)
+    if no available size satisfies the requirement.
+    """
+    for nominal in sorted(thickness_table):
+        min_actual = thickness_table[nominal]
+        if joint_type == 'mitred':
+            usable = usable_bite(min_actual, mitre_angle_deg=mitre_angle_deg, chamfer_mm=chamfer_mm)
+        else:
+            usable = usable_bite(min_actual, chamfer_mm=chamfer_mm)
+        if usable >= required_bite_mm:
+            return nominal, usable
+    return None, None
+
+
 def _normalise_joint_type(joint_type):
     normalised = joint_type.strip().lower()
     if normalised == 'mitre':
@@ -122,37 +149,27 @@ def run_bite_calculation(width_1_mm, width_2_mm, angle_deg, wind_pressure_kpa, j
         return make_silicone_result(status='ANGLE_OUT_OF_RANGE', angle_deg=angle_deg, message=str(e))
 
     governing_width_mm = calculate_governing_width(width_1_mm, width_2_mm)
-    required_bite_mm = calculate_required_bite(f_factor, governing_width_mm, wind_pressure_kpa)
-
-    nominal_monolithic = find_min_nominal_for_bite(required_bite_mm, TABLE_4_1_MONOLITHIC)
-    nominal_laminated = find_min_nominal_for_bite(required_bite_mm, TABLE_4_1_LAMINATED)
-
-    nominal_monolithic = apply_thickness_floor(nominal_monolithic)
-    nominal_laminated = apply_thickness_floor(nominal_laminated)
+    required_bite_raw_mm = calculate_required_bite(f_factor, governing_width_mm, wind_pressure_kpa)
+    required_bite_mm = max(required_bite_raw_mm, 6.0)
 
     mitre_angle_deg = calculate_mitre_angle(angle_deg)
 
-    usable_bite_monolithic = None
-    if nominal_monolithic is not None:
-        min_actual_mono = TABLE_4_1_MONOLITHIC[nominal_monolithic]
-        if joint_type == 'mitred':
-            usable_bite_monolithic = usable_bite(min_actual_mono, mitre_angle_deg=mitre_angle_deg)
-        else:
-            usable_bite_monolithic = usable_bite(min_actual_mono)
+    nominal_monolithic, usable_bite_monolithic = find_min_nominal_for_usable_bite(
+        required_bite_mm, TABLE_4_1_MONOLITHIC, joint_type, mitre_angle_deg=mitre_angle_deg
+    )
+    nominal_laminated, usable_bite_laminated = find_min_nominal_for_usable_bite(
+        required_bite_mm, TABLE_4_1_LAMINATED, joint_type, mitre_angle_deg=mitre_angle_deg
+    )
 
-    usable_bite_laminated = None
-    if nominal_laminated is not None:
-        min_actual_lam = TABLE_4_1_LAMINATED[nominal_laminated]
-        if joint_type == 'mitred':
-            usable_bite_laminated = usable_bite(min_actual_lam, mitre_angle_deg=mitre_angle_deg)
-        else:
-            usable_bite_laminated = usable_bite(min_actual_lam)
+    nominal_monolithic = apply_thickness_floor(nominal_monolithic)
+    nominal_laminated = apply_thickness_floor(nominal_laminated)
 
     if nominal_monolithic is None and nominal_laminated is None:
         return make_silicone_result(
             status='NO_COMPLIANT_THICKNESS',
             angle_deg=angle_deg, f_factor=f_factor, governing_width_mm=governing_width_mm,
             wind_pressure_kpa=wind_pressure_kpa, required_bite_mm=required_bite_mm,
+            required_bite_raw_mm=required_bite_raw_mm,
             joint_type=joint_type, mitre_angle_deg=mitre_angle_deg,
             nominal_monolithic=nominal_monolithic, nominal_laminated=nominal_laminated,
             usable_bite_monolithic=usable_bite_monolithic, usable_bite_laminated=usable_bite_laminated,
@@ -163,6 +180,7 @@ def run_bite_calculation(width_1_mm, width_2_mm, angle_deg, wind_pressure_kpa, j
         status='PASS',
         angle_deg=angle_deg, f_factor=f_factor, governing_width_mm=governing_width_mm,
         wind_pressure_kpa=wind_pressure_kpa, required_bite_mm=required_bite_mm,
+        required_bite_raw_mm=required_bite_raw_mm,
         joint_type=joint_type, mitre_angle_deg=mitre_angle_deg,
         nominal_monolithic=nominal_monolithic, nominal_laminated=nominal_laminated,
         usable_bite_monolithic=usable_bite_monolithic, usable_bite_laminated=usable_bite_laminated,
