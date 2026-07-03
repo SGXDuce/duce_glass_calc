@@ -1,4 +1,4 @@
-﻿Glass Type,Height Min,Height Max,Width Restricted,Width Max,Thicness Min,Butt Joints max
+﻿Glass Type,Height Min,Height Max,Width Restricted,Width Max,Thickness Min,Butt Joints max
 Annealed,0,1.2,No,Null,6,Null
 Annealed,1.2,1.6,No,Null,8,Null
 Annealed,1.6,2,No,Null,10,Null
