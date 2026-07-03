@@ -1,0 +1,33 @@
+﻿Glass Type,Height Min,Height Max,Width Restricted,Width Max,Thicness Min,Butt Joints max
+Annealed,0,1.2,No,Null,6,Null
+Annealed,1.2,1.6,No,Null,8,Null
+Annealed,1.6,2,No,Null,10,Null
+Annealed,2,2.5,Yes,1,10,1
+Heat Strengthened,0,1.2,No,Null,6,Null
+Heat Strengthened,1.2,1.6,No,Null,8,Null
+Heat Strengthened,1.6,2,No,Null,10,Null
+Heat Strengthened,2,2.5,Yes,1.2,10,1
+Toughened,0,1.2,No,Null,6,Null
+Toughened,1.2,1.6,No,Null,6,Null
+Toughened,1.6,2,Yes,1.2,6,2
+Toughened,1.6,2,No,Null,8,Null
+Toughened,2,2.5,Yes,1.2,8,2
+Toughened,2,2.5,No,Null,10,Null
+Toughened,2.5,2.8,Yes,1.2,10,2
+Toughened,2.5,2.8,No,Null,12,Null
+Toughened,2.8,3.2,Yes,1.2,12,2
+Toughened,2.8,3.2,No,Null,15,Null
+Toughened,3.2,3.6,Yes,1.2,15,2
+Toughened,3.2,3.6,No,Null,19,Null
+Laminated,0,1.2,No,Null,6,Null
+Laminated,1.2,1.6,No,Null,6,Null
+Laminated,1.6,2,Yes,1.2,6,2
+Laminated,1.6,2,No,Null,8,Null
+Laminated,2,2.5,Yes,1.2,8,2
+Laminated,2,2.5,No,Null,10,Null
+Laminated,2.5,2.8,Yes,1.2,10,2
+Laminated,2.5,2.8,No,Null,12,Null
+Laminated,2.8,3.2,Yes,1.2,12,2
+Laminated,2.8,3.2,No,Null,16,Null
+Laminated,3.2,3.6,Yes,1.2,16,2
+Laminated,3.2,3.6,No,Null,20,Null
