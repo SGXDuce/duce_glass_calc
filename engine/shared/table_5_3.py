@@ -26,7 +26,7 @@ def load_table_5_3(csv_path):
     df = pd.read_csv(csv_path, encoding='utf-8-sig')
     df = df.replace('Null', None)
 
-    numeric_columns = ['Height Min', 'Height Max', 'Width Max', 'Thicness Min', 'Butt Joints max']
+    numeric_columns = ['Height Min', 'Height Max', 'Width Max', 'Thickness Min', 'Butt Joints max']
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
@@ -125,8 +125,8 @@ def check_table_5_3(height_m, glass_type, panel_width_m, num_butt_joints, table_
             'glass_type_used': glass_type_used,
         }
 
-    best_row = qualifying_rows.loc[qualifying_rows['Thicness Min'].idxmin()]
-    min_thickness_mm = int(best_row['Thicness Min'])
+    best_row = qualifying_rows.loc[qualifying_rows['Thickness Min'].idxmin()]
+    min_thickness_mm = int(best_row['Thickness Min'])
     max_width_m = None if pd.isna(best_row['Width Max']) else float(best_row['Width Max'])
     max_butt_joints = None if pd.isna(best_row['Butt Joints max']) else int(best_row['Butt Joints max'])
 
