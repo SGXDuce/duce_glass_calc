@@ -14,7 +14,7 @@ from engine.silicone_bite.formulas import (
     calculate_mitre_angle,
     usable_bite,
 )
-from engine.silicone_bite.constants import TABLE_4_1_MONOLITHIC, TABLE_4_1_LAMINATED
+from engine.shared.table_4_1 import TABLE_4_1_MONOLITHIC, TABLE_4_1_LAMINATED
 from engine.silicone_bite import run_bite_calculation
 
 

@@ -135,3 +135,39 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
         'usable_bite_laminated': usable_bite_laminated,
         'message': message,
     }
+
+
+def make_structural_glazing_result(status, height_m=None, width_m=None,
+                                    glass_thickness_nominal_mm=None, pz_kpa=None,
+                                    sealed_edges=None, wind_span_m=None,
+                                    dead_load_perimeter_m=None, wind_bite_mm=None,
+                                    dead_load_bite_mm=None, governing_bite_mm=None,
+                                    nominal_monolithic=None, nominal_laminated=None,
+                                    message=None):
+    """
+    Builds a structural glazing result dictionary with a guaranteed,
+    consistent set of keys. Every return path in run_structural_glazing_calculation()
+    must use this function instead of building its own dict, so a missing
+    key is structurally impossible. Same discipline as make_silicone_result()
+    - see Section 6.4 of the project summary for rationale.
+
+    Possible statuses: 'PASS' (calculation completed successfully),
+    'NO_COMPLIANT_THICKNESS' (required bite exceeds all available sizes for
+    both glass types), 'CONFIGURATION_OUT_OF_SCOPE' (unsupported sealed_edges value).
+    """
+    return {
+        'status': status,
+        'height_m': height_m,
+        'width_m': width_m,
+        'glass_thickness_nominal_mm': glass_thickness_nominal_mm,
+        'pz_kpa': pz_kpa,
+        'sealed_edges': sealed_edges,
+        'wind_span_m': wind_span_m,
+        'dead_load_perimeter_m': dead_load_perimeter_m,
+        'wind_bite_mm': wind_bite_mm,
+        'dead_load_bite_mm': dead_load_bite_mm,
+        'governing_bite_mm': governing_bite_mm,
+        'nominal_monolithic': nominal_monolithic,
+        'nominal_laminated': nominal_laminated,
+        'message': message,
+    }

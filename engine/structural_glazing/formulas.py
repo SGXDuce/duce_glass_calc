@@ -1,0 +1,122 @@
+# AS 1288 Glass Thickness Calculator
+# engine/structural_glazing/formulas.py
+#
+# Pure math for flat, angle-free structural glazing bite sizing per AS 1288
+# Appendix F (wind load) and the dead load shear formula (Section 12.11 of
+# the project summary). No side effects, no Flask/UI imports.
+#
+# NOTE: No thickness deduction is applied in this module. This is pending
+# confirmation from Michael (domain expert) on whether edge polishing on
+# frame-bonded glazing edges requires a deduction analogous to the faceted
+# engine's chamfer allowance. If confirmed, add the deduction here as a
+# separate constant — do not reuse CHAMFER_ALLOWANCE_MM from the faceted
+# engine without checking the mechanism and magnitude are the same.
+
+from engine.structural_glazing.constants import (
+    SIGMA_S,
+    MIN_NOMINAL_THICKNESS,
+    GLASS_DENSITY_KG_M3,
+    GRAVITY_M_S2,
+    ALLOWABLE_DEAD_LOAD_STRESS_PA,
+)
+from engine.shared.table_4_1 import (
+    TABLE_4_1_MONOLITHIC,
+    TABLE_4_1_LAMINATED,
+    find_min_nominal_for_bite,
+)
+from engine.shared.results import make_structural_glazing_result
+
+SUPPORTED_SEALED_EDGES = ('full_perimeter', 'verticals_only')
+
+
+def calculate_wind_bite(pz_kpa, span_m):
+    # AS 1288 Appendix F: t = 0.5 x Pz x B / sigma_s
+    return 0.5 * pz_kpa * span_m / SIGMA_S
+
+
+def calculate_dead_load_bite(glass_thickness_m, height_m, width_m, sealed_perimeter_m):
+    # Dead load shear formula (Section 12.11): the panel's own weight,
+    # carried in shear by the bonded perimeter, rather than tension from wind.
+    panel_weight_n = GLASS_DENSITY_KG_M3 * GRAVITY_M_S2 * glass_thickness_m * height_m * width_m
+    bite_m = panel_weight_n / (sealed_perimeter_m * ALLOWABLE_DEAD_LOAD_STRESS_PA)
+    return bite_m * 1000  # metres -> mm
+
+
+def apply_thickness_floor(nominal_thickness, floor=MIN_NOMINAL_THICKNESS):
+    # Dow Corning structural silicone seals start at 6mm. Applies to both
+    # monolithic and laminated (same policy as the faceted engine).
+    if nominal_thickness is None:
+        return None
+    return max(nominal_thickness, floor)
+
+
+def run_structural_glazing_calculation(height_m, width_m, glass_thickness_nominal_mm,
+                                        pz_kpa, sealed_edges):
+    """
+    Main entry point: sizes the structural silicone bite for a flat,
+    angle-free panel against both wind load (Appendix F) and dead load
+    (Section 12.11), and looks up the governing (larger) bite against
+    Table 4.1 for both monolithic and laminated glass.
+
+    sealed_edges determines which edges are bonded and therefore which
+    span/perimeter values apply:
+    - 'full_perimeter': all four edges sealed. Wind spans whichever
+      direction is worse (larger of width/height); dead load is carried
+      by the full bonded perimeter.
+    - 'verticals_only': only the two vertical edges sealed. Wind spans
+      horizontally between them (width); dead load is carried only by
+      the two vertical edges (2 x height).
+
+    Every return path goes through make_structural_glazing_result() - see
+    Section 6.4 of the project summary.
+    """
+    if sealed_edges not in SUPPORTED_SEALED_EDGES:
+        return make_structural_glazing_result(
+            status='CONFIGURATION_OUT_OF_SCOPE',
+            sealed_edges=sealed_edges,
+            message=(
+                f"sealed_edges '{sealed_edges}' is not supported - "
+                f"expected one of {SUPPORTED_SEALED_EDGES}"
+            ),
+        )
+
+    if sealed_edges == 'full_perimeter':
+        wind_span_m = max(width_m, height_m)
+        dead_load_perimeter_m = 2 * height_m + 2 * width_m
+    else:  # 'verticals_only'
+        wind_span_m = width_m
+        dead_load_perimeter_m = 2 * height_m
+
+    wind_bite_mm = calculate_wind_bite(pz_kpa, wind_span_m)
+
+    glass_thickness_m = glass_thickness_nominal_mm / 1000
+    dead_load_bite_mm = calculate_dead_load_bite(
+        glass_thickness_m, height_m, width_m, dead_load_perimeter_m
+    )
+
+    governing_bite_mm = max(wind_bite_mm, dead_load_bite_mm)
+
+    nominal_monolithic = find_min_nominal_for_bite(governing_bite_mm, TABLE_4_1_MONOLITHIC)
+    nominal_laminated = find_min_nominal_for_bite(governing_bite_mm, TABLE_4_1_LAMINATED)
+
+    nominal_monolithic = apply_thickness_floor(nominal_monolithic)
+    nominal_laminated = apply_thickness_floor(nominal_laminated)
+
+    common_fields = dict(
+        height_m=height_m, width_m=width_m,
+        glass_thickness_nominal_mm=glass_thickness_nominal_mm, pz_kpa=pz_kpa,
+        sealed_edges=sealed_edges, wind_span_m=wind_span_m,
+        dead_load_perimeter_m=dead_load_perimeter_m,
+        wind_bite_mm=wind_bite_mm, dead_load_bite_mm=dead_load_bite_mm,
+        governing_bite_mm=governing_bite_mm,
+        nominal_monolithic=nominal_monolithic, nominal_laminated=nominal_laminated,
+    )
+
+    if nominal_monolithic is None and nominal_laminated is None:
+        return make_structural_glazing_result(
+            status='NO_COMPLIANT_THICKNESS',
+            message='Required bite exceeds all available thicknesses for both monolithic and laminated glass',
+            **common_fields,
+        )
+
+    return make_structural_glazing_result(status='PASS', **common_fields)
