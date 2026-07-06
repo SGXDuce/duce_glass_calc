@@ -4,15 +4,18 @@
 # Pure math for structural silicone bite thickness sizing per AS 1288
 # Section 9 / Appendix F. No side effects, no Flask/UI imports.
 
-import math
 from math import cos, radians
 
 from engine.silicone_bite.constants import (
     SIGMA_S,
     MIN_NOMINAL_THICKNESS,
+)
+from engine.shared.table_4_1 import (
     TABLE_4_1_MONOLITHIC,
     TABLE_4_1_LAMINATED,
     CHAMFER_ALLOWANCE_MM,
+    usable_bite,
+    find_min_nominal_for_usable_bite,
 )
 from engine.shared.results import make_silicone_result
 
@@ -48,16 +51,6 @@ def calculate_required_bite(f_factor, governing_width_mm, wind_pressure_kpa, sig
     return bite_mm
 
 
-def _find_min_nominal_by_raw_thickness(required_bite_mm, thickness_table):
-    # Legacy — compares against raw min_actual. Use find_min_nominal_for_usable_bite instead.
-    # Comparison is against worst-case minimum actual thickness per AS 1288
-    # Table 4.1, not the nominal label - see Table 9.1 Note 1.
-    for nominal in sorted(thickness_table):
-        if thickness_table[nominal] >= required_bite_mm:
-            return nominal
-    return None
-
-
 def apply_thickness_floor(nominal_thickness, floor=MIN_NOMINAL_THICKNESS):
     # Dow Corning structural silicone seals start at 6mm. Confirmed by
     # Michael to apply to both monolithic and laminated.
@@ -74,51 +67,6 @@ def calculate_mitre_angle(joint_angle_deg):
     So a 90 deg joint gives a 45 deg mitre angle.
     """
     return (180 - joint_angle_deg) / 2
-
-
-def usable_bite(minimum_actual_mm, mitre_angle_deg=None, chamfer_mm=CHAMFER_ALLOWANCE_MM):
-    """
-    Calculates the usable silicone bite length from a glass edge.
-
-    For butt/lap joints: usable bite = minimum actual thickness - chamfer
-    For mitred joints: usable bite = (minimum actual thickness / cos(mitre angle)) - chamfer
-
-    The mitre angle is NOT the joint angle — it is derived from the joint angle:
-    mitre_angle = (180 - joint_angle) / 2
-    So a 90° joint gives a 45° mitre angle.
-
-    Mitred edges provide more usable bite per mm of glass because the diagonal
-    cut surface is longer than the flat edge thickness.
-    """
-    if mitre_angle_deg is not None:
-        return minimum_actual_mm / math.cos(math.radians(mitre_angle_deg)) - chamfer_mm
-    return minimum_actual_mm - chamfer_mm
-
-
-def find_min_nominal_for_usable_bite(required_bite_mm, thickness_table, joint_type,
-                                      mitre_angle_deg=None, chamfer_mm=CHAMFER_ALLOWANCE_MM):
-    """
-    Returns the smallest nominal thickness whose USABLE bite (after chamfer
-    and mitre deduction) satisfies the required bite.
-
-    For butt joints: usable bite = min_actual - chamfer
-    For mitred joints: usable bite = min_actual / cos(mitre_angle) - chamfer
-
-    This is different from comparing against raw min_actual — chamfer reduces
-    the available contact surface, so thicker glass may be needed.
-
-    Returns (nominal_thickness, usable_bite_value) tuple, or (None, None)
-    if no available size satisfies the requirement.
-    """
-    for nominal in sorted(thickness_table):
-        min_actual = thickness_table[nominal]
-        if joint_type == 'mitred':
-            usable = usable_bite(min_actual, mitre_angle_deg=mitre_angle_deg, chamfer_mm=chamfer_mm)
-        else:
-            usable = usable_bite(min_actual, chamfer_mm=chamfer_mm)
-        if usable >= required_bite_mm:
-            return nominal, usable
-    return None, None
 
 
 def _normalise_joint_type(joint_type):
