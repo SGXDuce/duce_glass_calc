@@ -1,4 +1,8 @@
-from engine.wind_load.constants import GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE
+from engine.wind_load.constants import (
+    GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE,
+    TABLE_5_3_GLASS_TYPE_MAP, UNFRAMED_EDGE_JOINT_COUNTS,
+    TABLE_5_3_SAFETY_GLASS_INELIGIBLE,
+)
 from engine.wind_load.formulas import (
     get_ar_interpolation_bounds, calculate_ar, calculate_span, get_kpane_for_config,
     get_c1_factor, get_uls_k_values, get_sls_k_values,
@@ -7,6 +11,97 @@ from engine.wind_load.formulas import (
 )
 from engine.shared.data_loader import get_nominal_thickness
 from engine.shared.results import make_mode1_result, make_mode2_result
+from engine.shared.table_5_3 import check_table_5_3
+
+
+def check_table_5_3_thickness(df_5_3, glass_type, glass_subtype, height_mm, width_mm,
+                              unframed_edge_condition, thickness_list):
+    """
+    Runs an independent AS 1288 Table 5.3 search for one glass type, for
+    2-edge/3-edge support conditions only (Table 5.3 replaces Table 5.1
+    entirely in this branch - Section 14.2 of the project summary).
+
+    check_table_5_3() itself is a single row-band lookup, not a
+    per-thickness pass/fail test - it directly returns the minimum nominal
+    thickness required for a given height/width/joint-count combination.
+    This function still performs its own independent scan of the glass
+    type's full available thickness range, ascending from thinnest (per
+    Section 7.6 - not starting from any other check's result), rather than
+    assuming the raw Table 5.3 figure is itself a size this glass type
+    actually offers.
+
+    Returns a dict:
+        'status': 'COMPLIANT' (a stocked nominal thickness satisfies Table 5.3),
+                  'NON_COMPLIANT' (no stocked thickness satisfies it, OR no
+                  Table 5.3 row satisfies the width/joint-count constraints
+                  for this height band),
+                  'NOT_PERMITTED' (this glass type is not permitted at all at
+                  this height under Table 5.3 - a hard gate, not solvable by
+                  choosing a thicker glass; see Section 14.2, "Table 5.3 can
+                  act as a gate")
+        'minimum_thickness_mm': the thinnest compliant nominal thickness, or None
+        'trace': list of per-candidate results (COMPLIANT path), or a single
+                 entry describing the row-level result (NON_COMPLIANT /
+                 NOT_PERMITTED path, since there's nothing to iterate over)
+        'message': human-readable explanation
+    """
+    glass_type_5_3 = TABLE_5_3_GLASS_TYPE_MAP.get((glass_type, glass_subtype))
+    if glass_type_5_3 is None:
+        return {
+            'status': 'NOT_PERMITTED',
+            'minimum_thickness_mm': None,
+            'trace': [],
+            'message': f'{glass_type} {glass_subtype} has no Table 5.3 mapping.',
+        }
+
+    num_butt_joints = UNFRAMED_EDGE_JOINT_COUNTS[unframed_edge_condition]
+    height_m = height_mm / 1000.0
+    width_m = width_mm / 1000.0
+
+    row_result = check_table_5_3(height_m, glass_type_5_3, width_m, num_butt_joints, df_5_3)
+
+    if row_result['status'] in ('NOT_PERMITTED', 'NON_COMPLIANT'):
+        return {
+            'status': row_result['status'],
+            'minimum_thickness_mm': None,
+            'trace': [{
+                'check': 'TABLE_5_3',
+                'height_m': height_m, 'width_m': width_m,
+                'num_butt_joints': num_butt_joints,
+                'result': row_result['status'],
+                'message': row_result['message'],
+            }],
+            'message': row_result['message'],
+        }
+
+    # COMPLIANT row found - scan this glass type's own available thickness
+    # list, ascending, for the first nominal size that actually satisfies
+    # the required minimum (mirrors the ULS/SLS/SG search pattern).
+    required_min_mm = row_result['min_thickness_mm']
+    trace = []
+    for thickness in thickness_list:
+        result = 'PASS' if thickness >= required_min_mm else 'FAIL'
+        trace.append({
+            'check': 'TABLE_5_3',
+            'thickness': thickness,
+            'required_min_thickness_mm': required_min_mm,
+            'result': result,
+        })
+        if result == 'PASS':
+            return {
+                'status': 'COMPLIANT',
+                'minimum_thickness_mm': thickness,
+                'trace': trace,
+                'message': row_result['message'],
+            }
+
+    return {
+        'status': 'NON_COMPLIANT',
+        'minimum_thickness_mm': None,
+        'trace': trace,
+        'message': f'No available nominal thickness for {glass_type} {glass_subtype} '
+                   f'satisfies the Table 5.3 minimum of {required_min_mm}mm.',
+    }
 
 
 def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
@@ -14,10 +109,19 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
                      wind_pressure_uls, wind_pressure_sls,
                      glazing_config, safety_glass_required=False,
                      bushfire_required=False, bal_level=None,
-                     element_type=None):
+                     element_type=None, unframed_edge_condition=None,
+                     df_5_3=None):
     """
     Runs ULS, SLS, and optionally Safety Glass Area Check for one glass type.
     Finds the minimum compliant thickness across all active checks.
+
+    unframed_edge_condition: None (default - Table 5.3 does not apply),
+    '2-edge', or '3-edge'. Independent of support_condition, which the wind
+    formulas only ever see as '4-edge'/'2-edge' (3-edge is treated as
+    2-edge for wind bending - Section 14.2). When set, Table 5.3 runs
+    instead of the Table 5.1 Safety Glass Area Check above, and its result
+    enters the governing max() alongside ULS/SLS. df_5_3 (the loaded Table
+    5.3 dataframe) must be supplied whenever unframed_edge_condition is set.
 
     Returns a dict describing the full result for that glass type.
     """
@@ -51,7 +155,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
             glazing_config=glazing_config, k_pane=k_pane,
         )
 
-    # --- Safety glass eligibility check ---
+    # --- Safety glass eligibility check (Table 5.1, 4-edge only) ---
     if safety_glass_required and support_condition == '4-edge':
         if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
             return make_mode1_result(
@@ -60,6 +164,25 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
                 message=f'{glass_type} {glass_subtype} is not classified as '
                         f'safety glass and cannot be used when safety glass '
                         f'is required.',
+                glazing_config=glazing_config, k_pane=k_pane,
+                safety_glass_required=safety_glass_required,
+            )
+
+    # --- Safety glass eligibility check (Table 5.3, 2-edge/3-edge only) ---
+    # A separate rule from the Table 5.1 check above - Table 5.3 replaces
+    # Table 5.1 entirely in this branch (Section 14.2). Frontend hook: when
+    # Pathway 2's UI is built, its safety-glass toggle must filter the
+    # glass-type checkbox list against TABLE_5_3_SAFETY_GLASS_INELIGIBLE
+    # (not SAFETY_GLASS_INELIGIBLE) whenever the 2-edge/3-edge selector is
+    # active - same two-place filtering discipline as Section 6.2.
+    if safety_glass_required and unframed_edge_condition in ('2-edge', '3-edge'):
+        if (glass_type, glass_subtype) in TABLE_5_3_SAFETY_GLASS_INELIGIBLE:
+            return make_mode1_result(
+                status='SG_INELIGIBLE',
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                message=f'{glass_type} {glass_subtype} is not classified as '
+                        f'safety glass under AS 1288 Table 5.3 and cannot be '
+                        f'used when safety glass is required.',
                 glazing_config=glazing_config, k_pane=k_pane,
                 safety_glass_required=safety_glass_required,
             )
@@ -246,6 +369,71 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
                 bushfire_required=bushfire_required,
             )
 
+    # --- STEP 4: TABLE 5.3 CHECK (2-edge/3-edge only) ---
+    # Replaces the Table 5.1 Safety Glass Area Check above entirely for
+    # this branch (Section 14.2) - the two never both run for the same
+    # glass type, since support_condition == '4-edge' gates Table 5.1 and
+    # unframed_edge_condition in ('2-edge', '3-edge') gates this.
+    table_5_3_minimum_thickness = None
+    table_5_3_trace = []
+
+    if unframed_edge_condition in ('2-edge', '3-edge'):
+        if df_5_3 is None:
+            return make_mode1_result(
+                status='ERROR',
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                message='Table 5.3 data was not supplied for a 2-edge/3-edge calculation.',
+                uls_minimum_thickness_mm=uls_minimum_thickness,
+                sls_minimum_thickness_mm=sls_minimum_thickness,
+                glazing_config=glazing_config, k_pane=k_pane,
+                uls_trace=uls_trace, sls_trace=sls_trace,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+                bushfire_required=bushfire_required,
+            )
+
+        table_5_3_result = check_table_5_3_thickness(
+            df_5_3, glass_type, glass_subtype, height_mm, width_mm,
+            unframed_edge_condition, thickness_list
+        )
+        table_5_3_trace = table_5_3_result['trace']
+
+        if table_5_3_result['status'] == 'NOT_PERMITTED':
+            # A hard gate (Section 14.2) - this glass type/height/width/
+            # joint-count combination is never permitted under Table 5.3,
+            # no matter how thick the glass is. Distinct status, same
+            # dedicated-status pattern as SG_INELIGIBLE/BAL_INELIGIBLE.
+            return make_mode1_result(
+                status='TABLE_5_3_NOT_PERMITTED',
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                message=table_5_3_result['message'],
+                uls_minimum_thickness_mm=uls_minimum_thickness,
+                sls_minimum_thickness_mm=sls_minimum_thickness,
+                glazing_config=glazing_config, k_pane=k_pane,
+                uls_trace=uls_trace, sls_trace=sls_trace,
+                table_5_3_trace=table_5_3_trace,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+                bushfire_required=bushfire_required,
+            )
+
+        if table_5_3_result['status'] == 'NON_COMPLIANT':
+            return make_mode1_result(
+                status='NO_COMPLIANT_THICKNESS',
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                message=table_5_3_result['message'],
+                uls_minimum_thickness_mm=uls_minimum_thickness,
+                sls_minimum_thickness_mm=sls_minimum_thickness,
+                glazing_config=glazing_config, k_pane=k_pane,
+                uls_trace=uls_trace, sls_trace=sls_trace,
+                table_5_3_trace=table_5_3_trace,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+                bushfire_required=bushfire_required,
+            )
+
+        table_5_3_minimum_thickness = table_5_3_result['minimum_thickness_mm']
+
     # --- Bushfire (BAL) minimum thickness check ---
     # This governs if higher than the wind load / safety glass result,
     # following the same "highest of all active checks" pattern.
@@ -258,6 +446,8 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
         candidates_with_bal.append(sg_minimum_thickness)
     if bal_minimum_thickness is not None:
         candidates_with_bal.append(bal_minimum_thickness)
+    if table_5_3_minimum_thickness is not None:
+        candidates_with_bal.append(table_5_3_minimum_thickness)
     final_thickness = max(candidates_with_bal)
 
     return make_mode1_result(
@@ -269,6 +459,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
         sls_minimum_thickness_mm=sls_minimum_thickness,
         sg_minimum_thickness_mm=sg_minimum_thickness,
         bal_minimum_thickness_mm=bal_minimum_thickness,
+        table_5_3_minimum_thickness_mm=table_5_3_minimum_thickness,
         bal_level=bal_level if bushfire_required else None,
         bal_element_type=element_type if bushfire_required else None,
         glazing_config=glazing_config,
@@ -280,6 +471,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
         uls_trace=uls_trace,
         sls_trace=sls_trace,
         sg_trace=sg_trace if safety_glass_required and support_condition == '4-edge' else [],
+        table_5_3_trace=table_5_3_trace,
     )
 
 
@@ -291,10 +483,24 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                           pane_label, glazing_config,
                           safety_glass_required=False,
                           bushfire_required=False, bal_level=None,
-                          element_type=None):
+                          element_type=None, unframed_edge_condition=None,
+                          df_5_3=None):
     """
     Checks whether a single pane of known thickness passes ULS, SLS,
     and optionally Safety Glass Area Check.
+
+    unframed_edge_condition: None (default - Table 5.3 does not apply),
+    '2-edge', or '3-edge'. When set, Table 5.3 checks this pane's specific
+    nominal thickness against the AS 1288 row-band minimum instead of
+    running the Table 5.1 Safety Glass Area Check (Section 14.2). df_5_3
+    (the loaded Table 5.3 dataframe) must be supplied whenever
+    unframed_edge_condition is set.
+
+    KNOWN SCOPE GAP: the "next compliant thickness" search below re-verifies
+    ULS/SLS/Safety-Glass per candidate but does NOT yet re-verify Table 5.3
+    per candidate - a recommended next_compliant_thickness_mm could in
+    theory still fail Table 5.3. Flagged rather than silently assumed
+    correct; revisit when Pathway 2's UI is built.
 
     Returns a dict describing the full compliance result for this pane.
     """
@@ -353,7 +559,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
             safety_glass_required=safety_glass_required,
         )
 
-    # --- Safety glass eligibility ---
+    # --- Safety glass eligibility (Table 5.1, 4-edge only) ---
     if safety_glass_required and support_condition == '4-edge':
         if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
             return make_mode2_result(
@@ -365,6 +571,27 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                 message=f'{glass_type} {glass_subtype} is not classified as '
                         f'safety glass and cannot be used when safety glass '
                         f'is required.',
+                span_mm=span,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+            )
+
+    # --- Safety glass eligibility (Table 5.3, 2-edge/3-edge only) ---
+    # A separate rule from the Table 5.1 check above - see the matching
+    # comment in check_glass_type(). Frontend hook: same as noted there,
+    # Pathway 2's Mode 2 pane dropdown must filter against
+    # TABLE_5_3_SAFETY_GLASS_INELIGIBLE, not SAFETY_GLASS_INELIGIBLE.
+    if safety_glass_required and unframed_edge_condition in ('2-edge', '3-edge'):
+        if (glass_type, glass_subtype) in TABLE_5_3_SAFETY_GLASS_INELIGIBLE:
+            return make_mode2_result(
+                status='SG_INELIGIBLE',
+                pane_label=pane_label,
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                actual_thickness_mm=actual_thickness_mm,
+                nominal_thickness_mm=nominal_thickness,
+                message=f'{glass_type} {glass_subtype} is not classified as '
+                        f'safety glass under AS 1288 Table 5.3 and cannot be '
+                        f'used when safety glass is required.',
                 span_mm=span,
                 panel_area_m2=round(panel_area, 4),
                 safety_glass_required=safety_glass_required,
@@ -391,6 +618,96 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                 bushfire_required=bushfire_required,
                 bal_level=bal_level, bal_element_type=element_type,
             )
+
+    # --- Table 5.3 check (2-edge/3-edge only) ---
+    # Replaces the Table 5.1 Safety Glass Area Check for this branch
+    # (Section 14.2). Unlike Mode 1's search, Mode 2 already knows the
+    # pane's nominal thickness - this checks that specific thickness
+    # against the row-band minimum rather than searching for one.
+    table_5_3_status = None
+    table_5_3_min_thickness = None
+    table_5_3_trace = []
+
+    if unframed_edge_condition in ('2-edge', '3-edge'):
+        if df_5_3 is None:
+            return make_mode2_result(
+                status='ERROR',
+                pane_label=pane_label,
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                actual_thickness_mm=actual_thickness_mm,
+                nominal_thickness_mm=nominal_thickness,
+                message='Table 5.3 data was not supplied for a 2-edge/3-edge calculation.',
+                span_mm=span,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+            )
+
+        glass_type_5_3 = TABLE_5_3_GLASS_TYPE_MAP.get((glass_type, glass_subtype))
+        if glass_type_5_3 is None:
+            row_result = {
+                'status': 'NOT_PERMITTED',
+                'min_thickness_mm': None,
+                'message': f'{glass_type} {glass_subtype} has no Table 5.3 mapping.',
+            }
+        else:
+            num_butt_joints = UNFRAMED_EDGE_JOINT_COUNTS[unframed_edge_condition]
+            row_result = check_table_5_3(
+                height_mm / 1000.0, glass_type_5_3, width_mm / 1000.0,
+                num_butt_joints, df_5_3
+            )
+
+        table_5_3_trace = [{
+            'check': 'TABLE_5_3',
+            'nominal_thickness': nominal_thickness,
+            'required_min_thickness_mm': row_result.get('min_thickness_mm'),
+            'result': row_result['status'],
+            'message': row_result['message'],
+        }]
+
+        if row_result['status'] == 'NOT_PERMITTED':
+            # A hard gate (Section 14.2), same dedicated-status pattern as
+            # SG_INELIGIBLE/BAL_INELIGIBLE - not solvable by a thicker pane.
+            return make_mode2_result(
+                status='TABLE_5_3_NOT_PERMITTED',
+                pane_label=pane_label,
+                glass_type=glass_type, glass_subtype=glass_subtype,
+                actual_thickness_mm=actual_thickness_mm,
+                nominal_thickness_mm=nominal_thickness,
+                message=row_result['message'],
+                span_mm=span,
+                panel_area_m2=round(panel_area, 4),
+                safety_glass_required=safety_glass_required,
+                table_5_3_trace=table_5_3_trace,
+            )
+
+        if row_result['status'] == 'NON_COMPLIANT':
+            table_5_3_status = 'FAIL'
+        else:
+            table_5_3_min_thickness = row_result['min_thickness_mm']
+
+            # If no stocked nominal thickness for this glass type reaches
+            # the Table 5.3 minimum, no candidate the next-compliant search
+            # could try would ever pass either - this is a genuine
+            # NO_COMPLIANT_THICKNESS case (Section 7.6/Mode 1's existing
+            # pattern), not just this pane's specific thickness failing.
+            available_thicknesses_5_3 = GLASS_TYPE_THICKNESSES.get((glass_type, glass_subtype), [])
+            if available_thicknesses_5_3 and max(available_thicknesses_5_3) < table_5_3_min_thickness:
+                return make_mode2_result(
+                    status='NO_COMPLIANT_THICKNESS',
+                    pane_label=pane_label,
+                    glass_type=glass_type, glass_subtype=glass_subtype,
+                    actual_thickness_mm=actual_thickness_mm,
+                    nominal_thickness_mm=nominal_thickness,
+                    message=f'No available nominal thickness for {glass_type} '
+                            f'{glass_subtype} satisfies the Table 5.3 minimum '
+                            f'of {table_5_3_min_thickness}mm.',
+                    span_mm=span,
+                    panel_area_m2=round(panel_area, 4),
+                    safety_glass_required=safety_glass_required,
+                    table_5_3_trace=table_5_3_trace,
+                )
+
+            table_5_3_status = 'PASS' if nominal_thickness >= table_5_3_min_thickness else 'FAIL'
 
     # --- k_pane calculation ---
     k_pane = calculate_kpane(actual_thickness_mm, all_actual_thicknesses)
@@ -508,7 +825,8 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
     any_fail = (
         uls_status == 'FAIL' or
         sls_status == 'FAIL' or
-        sg_status == 'FAIL'
+        sg_status == 'FAIL' or
+        table_5_3_status == 'FAIL'
     )
 
     if any_fail:
@@ -519,7 +837,6 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                 continue
 
             candidate_trace = {'thickness': candidate, 'checks': []}
-            candidate_pass  = True
 
             # ULS check
             ck = get_uls_k_values(
@@ -589,6 +906,36 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                 next_compliant_trace.append(candidate_trace)
                 continue
 
+            # Table 5.3 check (2-edge/3-edge only) - table_5_3_min_thickness
+            # is a fixed value from the row lookup above (height/width/joint
+            # count don't change per candidate), so this is a per-candidate
+            # comparison only, not a per-candidate recalculation. A None
+            # value here means the row itself was NON_COMPLIANT (unsolvable
+            # by any thickness), so every candidate fails it.
+            if unframed_edge_condition in ('2-edge', '3-edge'):
+                candidate_5_3_result = (
+                    'PASS' if table_5_3_min_thickness is not None
+                    and candidate >= table_5_3_min_thickness else 'FAIL'
+                )
+                candidate_trace['checks'].append({
+                    'check':                    'TABLE_5_3',
+                    'thickness':                candidate,
+                    'required_min_thickness_mm': table_5_3_min_thickness,
+                    'result':                   candidate_5_3_result
+                })
+                if candidate_5_3_result == 'FAIL':
+                    candidate_trace['overall'] = 'FAIL'
+                    # Distinguish the unsolvable-by-thickness row rejection
+                    # (NON_COMPLIANT - width/joint-count, not thickness) from
+                    # an ordinary too-thin candidate, so build_report() never
+                    # implies a thicker candidate could fix a gate failure.
+                    candidate_trace['fail_reason'] = (
+                        'TABLE_5_3_NOT_PERMITTED' if table_5_3_min_thickness is None
+                        else 'TABLE_5_3'
+                    )
+                    next_compliant_trace.append(candidate_trace)
+                    continue
+
             # Safety Glass Area check
             if safety_glass_required and support_condition == '4-edge':
                 cmax = get_safety_glass_max_area(
@@ -641,6 +988,8 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
         checks.append(sg_status)
     if bal_status is not None:
         checks.append(bal_status)
+    if table_5_3_status is not None:
+        checks.append(table_5_3_status)
 
     overall_status = 'PASS' if all(c == 'PASS' for c in checks) else 'FAIL'
 
@@ -669,6 +1018,9 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
         bal_level=bal_level if (bushfire_required and is_bushfire_pane) else None,
         bal_element_type=element_type if (bushfire_required and is_bushfire_pane) else None,
         bushfire_required=bushfire_required,
+        table_5_3_status=table_5_3_status,
+        table_5_3_min_thickness_mm=table_5_3_min_thickness,
         uls_trace=uls_trace, sls_trace=sls_trace,
         sg_trace=sg_trace if safety_glass_required and support_condition == '4-edge' else [],
+        table_5_3_trace=table_5_3_trace,
     )

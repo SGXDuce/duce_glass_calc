@@ -4,13 +4,15 @@ def make_mode1_result(status, glass_type=None, glass_subtype=None,
                       sls_minimum_thickness_mm=None,
                       sg_minimum_thickness_mm=None,
                       bal_minimum_thickness_mm=None,
+                      table_5_3_minimum_thickness_mm=None,
                       bal_level=None, bal_element_type=None,
                       glazing_config=None, k_pane=None,
                       annealed_area_flag=None, sg_flag=None,
                       panel_area_m2=None,
                       safety_glass_required=False,
                       bushfire_required=False,
-                      uls_trace=None, sls_trace=None, sg_trace=None):
+                      uls_trace=None, sls_trace=None, sg_trace=None,
+                      table_5_3_trace=None):
     """
     Builds a Mode 1 result dictionary with a guaranteed, consistent set
     of keys. Every return path in check_glass_type() must call this
@@ -29,6 +31,7 @@ def make_mode1_result(status, glass_type=None, glass_subtype=None,
         'sls_minimum_thickness_mm': sls_minimum_thickness_mm,
         'sg_minimum_thickness_mm': sg_minimum_thickness_mm,
         'bal_minimum_thickness_mm': bal_minimum_thickness_mm,
+        'table_5_3_minimum_thickness_mm': table_5_3_minimum_thickness_mm,
         'bal_level': bal_level,
         'bal_element_type': bal_element_type,
         'glazing_config': glazing_config,
@@ -41,6 +44,7 @@ def make_mode1_result(status, glass_type=None, glass_subtype=None,
         'uls_trace': uls_trace if uls_trace is not None else [],
         'sls_trace': sls_trace if sls_trace is not None else [],
         'sg_trace': sg_trace if sg_trace is not None else [],
+        'table_5_3_trace': table_5_3_trace if table_5_3_trace is not None else [],
     }
 
 
@@ -59,7 +63,9 @@ def make_mode2_result(status, pane_label=None,
                       bal_status=None, bal_min_thickness_mm=None,
                       bal_level=None, bal_element_type=None,
                       bushfire_required=False,
-                      uls_trace=None, sls_trace=None, sg_trace=None):
+                      table_5_3_status=None, table_5_3_min_thickness_mm=None,
+                      uls_trace=None, sls_trace=None, sg_trace=None,
+                      table_5_3_trace=None):
     """
     Builds a Mode 2 result dictionary with a guaranteed, consistent set
     of keys. Every return path in check_pane_compliance() must call this
@@ -95,10 +101,13 @@ def make_mode2_result(status, pane_label=None,
         'bal_level': bal_level,
         'bal_element_type': bal_element_type,
         'bushfire_required': bushfire_required,
+        'table_5_3_status': table_5_3_status,
+        'table_5_3_min_thickness_mm': table_5_3_min_thickness_mm,
         'status': status,
         'message': message,
         'uls_trace': uls_trace if uls_trace is not None else [],
         'sls_trace': sls_trace if sls_trace is not None else [],
+        'table_5_3_trace': table_5_3_trace if table_5_3_trace is not None else [],
         'sg_trace': sg_trace if sg_trace is not None else [],
     }
 

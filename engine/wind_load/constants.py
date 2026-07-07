@@ -86,6 +86,50 @@ C1_FACTORS = {
 TABLE_AR_VALUES = [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 5.0]
 
 # ---------------------------------------------------------------------------
+# TABLE 5.3 (unframed side edges / partly framed glazing) - a human impact
+# check for 2-edge and 3-edge support conditions ONLY. Table 5.3 replaces
+# Table 5.1 (the Safety Glass Area Check above) entirely in this branch -
+# see Section 14.2 of the project summary. It never runs for 4-edge.
+# ---------------------------------------------------------------------------
+
+# Maps this engine's (glass_type, glass_subtype) tuples onto the glass type
+# strings used as row keys in data/Table_5_3.csv. Confirmed directly against
+# the live CSV (not assumed from prose): the CSV's own column value is
+# 'Heat Strengthened' (space, capital S, no hyphen) - a real mismatch trap
+# against this engine's 'Heat-strengthened'. Laminated Toughened maps to the
+# literal string 'Laminated Toughened', which check_table_5_3() itself
+# further redirects to the Toughened rows per Table 5.3 Note 2 (see
+# engine/shared/table_5_3.py's GLASS_TYPE_LOOKUP_OVERRIDES).
+TABLE_5_3_GLASS_TYPE_MAP = {
+    ('Monolithic', 'Annealed'):          'Annealed',
+    ('Monolithic', 'Heat-strengthened'): 'Heat Strengthened',
+    ('Monolithic', 'Toughened'):         'Toughened',
+    ('Laminated',  'Annealed'):          'Laminated',
+    ('Laminated',  'Heat-strengthened'): 'Laminated',
+    ('Laminated',  'Toughened'):         'Laminated Toughened',
+}
+
+# 3-edge is treated as 2-edge for wind load bending (Section 4 / Section
+# 14.2) - the wind_load engine's own support_condition parameter never
+# carries a '3-edge' value. Table 5.3's "maximum vertical butt joints"
+# column distinguishes them for human impact instead: 2-edge = 2 unframed
+# vertical edges = 2 joints, 3-edge = 1 unframed vertical edge = 1 joint.
+UNFRAMED_EDGE_JOINT_COUNTS = {
+    '2-edge': 2,
+    '3-edge': 1,
+}
+
+# Safety glass eligibility WITHIN Table 5.3 (Section 14.2 / v1.11 changelog).
+# This is a separate rule from SAFETY_GLASS_INELIGIBLE above, which governs
+# the Table 5.1 check (4-edge only, a different table entirely). Currently
+# identical in practice, but kept as its own list since the two tables'
+# eligibility rules are independent business rules that could diverge later.
+TABLE_5_3_SAFETY_GLASS_INELIGIBLE = [
+    ('Monolithic', 'Annealed'),
+    ('Monolithic', 'Heat-strengthened'),
+]
+
+# ---------------------------------------------------------------------------
 # IGU LOAD SHARING CONSTANTS (Mode 1 - equal thickness assumption)
 # ---------------------------------------------------------------------------
 
