@@ -20,6 +20,70 @@
      class="header-logo" alt="Duce Timber Windows and Doors">
 </div>
 
+<!-- ========================================================================
+     LANDING PAGE — four-pathway selection (v1.11)
+     This is the new entry point: the user picks which AS 1288 configuration
+     they have (Section 14's decision tree) before any calculation UI shows.
+     Shown by default on page load. Routes to one of the pathway placeholder
+     views below via showPathway(); "Back to selection" returns here.
+     ======================================================================== -->
+<div id="landing-view">
+    <div class="landing-intro">
+        <div class="landing-title">Select your glazing configuration</div>
+        <div class="landing-sub">Choose the pathway that matches your job — each leads to its own calculation.</div>
+    </div>
+    <div class="pathway-grid">
+
+        <!-- Pathway 1 — Fully Framed -->
+        <button class="pathway-tile" id="tile-pathway1" onclick="showPathway('pathway1')">
+            <div class="pathway-tile-image">Image placeholder — Pathway Fully Framed</div>
+            <div class="pathway-tile-label">Fully Framed</div>
+            <div class="pathway-tile-desc">4-edge structural framing on all sides</div>
+        </button>
+
+        <!-- Pathway 2 — Partly Framed, Exposed Edges -->
+        <button class="pathway-tile" id="tile-pathway2" onclick="showPathway('pathway2')">
+            <div class="pathway-tile-image">Image placeholder — Pathway Partly Framed, Exposed Edges</div>
+            <div class="pathway-tile-label">Partly Framed — Exposed Edges</div>
+            <div class="pathway-tile-desc">2 or 3 edges framed, remaining edge(s) unframed or weathersealed only</div>
+        </button>
+
+        <!-- Pathway 3 — Partly Framed, Silicone Joints -->
+        <button class="pathway-tile" id="tile-pathway3" onclick="showPathway('pathway3')">
+            <div class="pathway-tile-image">Image placeholder — Pathway Silicone Joints</div>
+            <div class="pathway-tile-label">Partly Framed — Silicone Joints</div>
+            <div class="pathway-tile-desc">Structural silicone at a facet angle (90°–160°) between panels</div>
+        </button>
+
+        <!-- Pathway 4 — Structural Glazing (not yet built, tile disabled) -->
+        <button class="pathway-tile pathway-tile-disabled" id="tile-pathway4" disabled title="Coming soon">
+            <div class="pathway-tile-image">Image placeholder — Pathway Structural Glazing</div>
+            <div class="pathway-tile-label">Structural Glazing</div>
+            <div class="pathway-tile-desc">Flat glazing, no frame, structural silicone bonded to the surface</div>
+            <div class="pathway-tile-badge">Coming soon</div>
+        </button>
+
+    </div>
+</div><!-- /landing-view -->
+
+<!-- ========================================================================
+     PATHWAY 1 — FULLY FRAMED
+     The relocated Mode 1/2 wind-load calculator (v1.11 step 2). Identical
+     markup and behaviour to before, with one constraint: support condition
+     is locked to 4-edge for this pathway. The support-condition control
+     itself has been removed entirely from this view (v1.11 step 2 cleanup)
+     since there's nothing left to toggle — state.support still defaults to
+     '4-edge' (see const state in the script below), and setSupport()/
+     updateTwoEdgeAvailability() are unchanged, just null-guarded, for reuse
+     by Pathway 2 which still needs the underlying 4-edge/2-edge logic.
+     ======================================================================== -->
+<div id="pathway1-view" style="display:none;">
+<div class="back-to-selection-btn-row">
+    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
+</div>
+
+<div id="wind-engine-view">
+
 <!-- ========== MODE SELECTOR ========== -->
 <div class="mode-bar">
     <button class="mode-btn active" id="btn-mode1" onclick="switchMode('mode1')">
@@ -112,19 +176,14 @@
 
         <div class="divider"></div>
 
-        <!-- Support Condition -->
-        <div class="section-label">Support Condition</div>
-        <div class="field-group">
-            <label class="field-label">Supported edges
-                <span class="tip" data-tip="How many edges of the glass are held by the frame. Most windows and doors are 4-edge supported. Select 2-edge for glass supported only at the top and bottom, or left and right sides only.">?</span>
-            </label>
-            <div class="toggle-group">
-                <button class="toggle-btn active" id="support-4edge" onclick="setSupport('4-edge')">4-edge</button>
-                <button class="toggle-btn" id="support-2edge" onclick="setSupport('2-edge')">2-edge</button>
-            </div>
-        </div>
+        <!-- Support Condition control removed for Pathway 1 (Fully Framed) — nothing to
+             toggle here since 4-edge is the only valid condition. state.support still
+             defaults to '4-edge' (see const state below) and setSupport()/
+             updateTwoEdgeAvailability() are untouched for Pathway 2's future use; they
+             now null-guard their DOM lookups since #support-4edge/#support-2edge no
+             longer exist in this view. -->
 
-        <!-- Span direction — only shown for 2-edge -->
+        <!-- Span direction — only shown for 2-edge (unreachable in Pathway 1, kept for shared JS) -->
         <div class="field-group" id="span-direction-row" style="display:none;">
             <label class="field-label">Span direction
                 <span class="tip" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
@@ -272,6 +331,167 @@
 
 </div>
 
+</div><!-- /wind-engine-view -->
+</div><!-- /pathway1-view -->
+
+<div id="pathway2-view" class="pathway-placeholder-view" style="display:none;">
+    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
+    <div class="pathway-placeholder-text">Pathway 2 — Partly Framed, Exposed Edges — content to be built</div>
+</div>
+
+<div id="pathway3-view" class="pathway-placeholder-view" style="display:none;">
+    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
+    <div class="pathway-placeholder-text">Pathway 3 — Partly Framed, Silicone Joints — content to be built</div>
+</div>
+
+<!-- ========================================================================
+     LEGACY ENGINE SELECTOR + SILICONE BITE VIEW
+     The wind-load Mode 1/2 markup that used to live here has been relocated
+     into #pathway1-view (v1.11 step 2). This leftover engine-selector bar
+     now has nothing to switch to on the wind side (#wind-engine-view lives
+     in #pathway1-view now) — left as-is since it stays hidden and unlinked;
+     the silicone-engine-view portion is untouched, pending its own
+     relocation into #pathway3-view in a later step.
+     ======================================================================== -->
+<div id="legacy-calculator-view" style="display:none;">
+
+<!-- ========== ENGINE SELECTOR ========== -->
+<div class="mode-bar">
+    <button class="mode-btn active" id="btn-engine-wind" onclick="switchEngine('wind')">
+        <span class="mode-btn-label">Wind Load Calculator</span>
+        <span class="mode-btn-desc">AS 1288 Section 4 — bending &amp; deflection</span>
+    </button>
+    <button class="mode-btn" id="btn-engine-silicone" onclick="switchEngine('silicone')">
+        <span class="mode-btn-label">Silicone Bite Calculator</span>
+        <span class="mode-btn-desc">Structural silicone joint sizing</span>
+    </button>
+</div>
+
+<!-- ========== SILICONE BITE ENGINE ========== -->
+<div id="silicone-engine-view" style="display:none;">
+<div class="main-body">
+
+    <!-- ===== SILICONE INPUTS PANEL ===== -->
+    <div class="inputs-panel" id="silicone-inputs-panel">
+
+        <!-- Panel Dimensions -->
+        <div class="section-label">Panel Dimensions</div>
+        <div class="field-group">
+            <label class="field-label">Height (mm)
+                <span class="tip" data-tip="Overall panel height in millimetres. Not used by the bite calculation itself (per AS 1288 Section 9, the governing dimension is the larger panel width, not height) — collected here for future carry-over into the Wind Load Calculator.">?</span>
+            </label>
+            <input class="field-input" type="number" id="si_height_mm" placeholder="e.g. 1200" min="1">
+        </div>
+        <div class="field-row-2">
+            <div class="field-group">
+                <label class="field-label">Width 1 (mm)
+                    <span class="tip" data-tip="Width of one of the two panels meeting at the silicone joint, in millimetres.">?</span>
+                </label>
+                <input class="field-input" type="number" id="si_width_1_mm" placeholder="e.g. 600" min="1">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Width 2 (mm)
+                    <span class="tip" data-tip="Width of the other panel meeting at the silicone joint, in millimetres. The larger of Width 1 and Width 2 governs the bite calculation.">?</span>
+                </label>
+                <input class="field-input" type="number" id="si_width_2_mm" placeholder="e.g. 600" min="1">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Joint Geometry -->
+        <div class="section-label">Joint Geometry</div>
+        <div class="field-group">
+            <label class="field-label">Included angle (deg)
+                <span class="tip" data-tip="The included angle between the two adjacent glass panels, in degrees. Valid range is 90 to 160 degrees inclusive — AS 1288 Section 9 / Clause 9.3.3.1 scope. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.">?</span>
+            </label>
+            <input class="field-input" type="number" id="si_angle_deg" placeholder="e.g. 90" min="90" max="160" step="0.1">
+        </div>
+        <div class="field-group">
+            <label class="field-label">Joint type
+                <span class="tip" data-tip="Butt joint: glass edges are cut square. Mitred joint: glass edges are cut at an angle to meet flush, which increases the usable silicone bite for a given glass thickness.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="si-joint-butt" onclick="setSiliconeJointType('butt')">Butt</button>
+                <button class="toggle-btn" id="si-joint-mitred" onclick="setSiliconeJointType('mitred')">Mitred</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Wind Load -->
+        <div class="section-label">Wind Load</div>
+        <div class="field-group">
+            <label class="field-label">Input method
+                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressure if you have a wind engineer's report. Use N/C Rating if you are working from AS 4055 wind classifications. The silicone bite calculation uses the Ultimate Limit State (ULS) pressure only.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="si-wind-pressure" onclick="setSiliconeWindMethod('pressure')">Pressure (AS 1170.2)</button>
+                <button class="toggle-btn" id="si-wind-nc" onclick="setSiliconeWindMethod('nc')">N/C Rating (AS 4055)</button>
+            </div>
+        </div>
+
+        <!-- Direct pressure input -->
+        <div id="si-pressure-inputs">
+            <div class="field-group">
+                <label class="field-label">ULS pressure (kPa)
+                    <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals — the design wind pressure (Pz) used in the AS 1288 Section 9 bite formula.">?</span>
+                </label>
+                <input class="field-input" type="number" id="si_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01">
+            </div>
+        </div>
+
+        <!-- N/C rating inputs -->
+        <div id="si-nc-inputs" style="display:none;">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">Wind classification
+                        <span class="tip" data-tip="Wind classification from AS 4055. N ratings apply to non-cyclonic regions. C ratings apply to cyclonic regions.">?</span>
+                    </label>
+                    <select class="field-select" id="si_nc_rating">
+                        <option value="">Select rating</option>
+                        <option>N1</option><option>N2</option><option>N3</option>
+                        <option>N4</option><option>N5</option><option>N6</option>
+                        <option>C1</option><option>C2</option><option>C3</option><option>C4</option>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Corner / General
+                        <span class="tip" data-tip="General applies to most window and door positions on a building. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    </label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="si-loc-general" onclick="setSiliconeLocation('General')">General</button>
+                        <button class="toggle-btn" id="si-loc-corner" onclick="setSiliconeLocation('Corner')">Corner</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button class="calc-btn" id="si-calc-btn" onclick="runSiliconeCalculation()">Calculate</button>
+        <button class="clear-btn" onclick="clearSiliconeFields()">Clear fields</button>
+
+    </div>
+
+    <!-- ===== SILICONE RESULTS PANEL ===== -->
+    <div class="results-panel" id="silicone-results-panel">
+        <div class="results-header">
+            <div class="section-label" style="margin-bottom:0;">Results</div>
+        </div>
+
+        <div id="silicone-results-content">
+            <div class="results-placeholder">
+                <div class="placeholder-icon">◻</div>
+                <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div><!-- /silicone-engine-view -->
+
+</div><!-- /legacy-calculator-view -->
+
 <!-- ========== FOOTER NOTE ========== -->
 <div class="footer-note">
     <span class="footer-icon">ℹ</span>
@@ -292,6 +512,7 @@
 // ---------------------------------------------------------------------------
 
 const state = {
+    engine:             'wind',
     mode:               'mode1',
     support:            '4-edge',
     spanDimension:      'height',
@@ -305,6 +526,12 @@ const state = {
     balElement:         'Window',
     lastResults:        null,
     inputsChanged:      false
+};
+
+const siliconeState = {
+    jointType:  'butt',
+    windMethod: 'pressure',
+    ncLocation: 'General'
 };
 
 const BAL_CONDITIONAL_NOTES = {
@@ -349,13 +576,46 @@ function switchMode(mode) {
 }
 
 // ---------------------------------------------------------------------------
+// ENGINE SWITCHING (Wind Load vs Silicone Bite)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Landing page routing (v1.11) — shows one of the four pathways, or returns
+// to the landing page. Follows the same show/hide-via-display pattern as
+// switchEngine()/switchMode() below, rather than introducing a new mechanism.
+// ---------------------------------------------------------------------------
+function showLanding() {
+    document.getElementById('landing-view').style.display = 'block';
+    document.getElementById('pathway1-view').style.display = 'none';
+    document.getElementById('pathway2-view').style.display = 'none';
+    document.getElementById('pathway3-view').style.display = 'none';
+}
+
+function showPathway(pathway) {
+    document.getElementById('landing-view').style.display = 'none';
+    document.getElementById('pathway1-view').style.display = pathway === 'pathway1' ? 'block' : 'none';
+    document.getElementById('pathway2-view').style.display = pathway === 'pathway2' ? 'block' : 'none';
+    document.getElementById('pathway3-view').style.display = pathway === 'pathway3' ? 'block' : 'none';
+}
+
+function switchEngine(engine) {
+    state.engine = engine;
+    document.getElementById('btn-engine-wind').classList.toggle('active', engine === 'wind');
+    document.getElementById('btn-engine-silicone').classList.toggle('active', engine === 'silicone');
+    document.getElementById('wind-engine-view').style.display     = engine === 'wind'     ? 'block' : 'none';
+    document.getElementById('silicone-engine-view').style.display = engine === 'silicone' ? 'block' : 'none';
+}
+
+// ---------------------------------------------------------------------------
 // SUPPORT CONDITION
 // ---------------------------------------------------------------------------
 
 function setSupport(val) {
     state.support = val;
-    document.getElementById('support-4edge').classList.toggle('active', val === '4-edge');
-    document.getElementById('support-2edge').classList.toggle('active', val === '2-edge');
+    // Pathway 1 (Fully Framed) has no support-condition control in the DOM —
+    // these buttons only exist in pathways where 2-edge is a real option.
+    document.getElementById('support-4edge')?.classList.toggle('active', val === '4-edge');
+    document.getElementById('support-2edge')?.classList.toggle('active', val === '2-edge');
     document.getElementById('span-direction-row').style.display = val === '2-edge' ? 'block' : 'none';
     markInputsChanged();
 }
@@ -405,16 +665,18 @@ function setSafetyGlass(val) {
 }
 
 function updateTwoEdgeAvailability() {
-    // 2-edge support is not available when Safety Glass or Bushfire is on
+    // 2-edge support is not available when Safety Glass or Bushfire is on.
+    // No-op in pathways with no support-condition control in the DOM
+    // (e.g. Pathway 1 — Fully Framed, locked to 4-edge with nothing to hide).
     const twoEdgeBtn = document.getElementById('support-2edge');
     const restricted = state.safetyGlass || state.bushfire;
     if (restricted) {
-        twoEdgeBtn.style.display = 'none';
+        if (twoEdgeBtn) twoEdgeBtn.style.display = 'none';
         if (state.support === '2-edge') {
             setSupport('4-edge');
         }
     } else {
-        twoEdgeBtn.style.display = '';
+        if (twoEdgeBtn) twoEdgeBtn.style.display = '';
     }
 }
 
@@ -1120,6 +1382,184 @@ function clearFields() {
     // Reset state
     state.lastResults   = null;
     state.inputsChanged = false;
+}
+
+// ---------------------------------------------------------------------------
+// SILICONE BITE ENGINE
+// ---------------------------------------------------------------------------
+
+function setSiliconeJointType(val) {
+    siliconeState.jointType = val;
+    document.getElementById('si-joint-butt').classList.toggle('active', val === 'butt');
+    document.getElementById('si-joint-mitred').classList.toggle('active', val === 'mitred');
+}
+
+function setSiliconeWindMethod(val) {
+    siliconeState.windMethod = val;
+    document.getElementById('si-wind-pressure').classList.toggle('active', val === 'pressure');
+    document.getElementById('si-wind-nc').classList.toggle('active', val === 'nc');
+    document.getElementById('si-pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
+    document.getElementById('si-nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+}
+
+function setSiliconeLocation(val) {
+    siliconeState.ncLocation = val;
+    document.getElementById('si-loc-general').classList.toggle('active', val === 'General');
+    document.getElementById('si-loc-corner').classList.toggle('active',  val === 'Corner');
+}
+
+function runSiliconeCalculation() {
+    const width1 = parseFloat(document.getElementById('si_width_1_mm').value);
+    const width2 = parseFloat(document.getElementById('si_width_2_mm').value);
+    const angle  = parseFloat(document.getElementById('si_angle_deg').value);
+
+    if (!width1 || !width2 || width1 <= 0 || width2 <= 0) {
+        showSiliconeError('Please enter valid values for Width 1 and Width 2.');
+        return;
+    }
+    if (isNaN(angle)) {
+        showSiliconeError('Please enter the included angle between the two panels.');
+        return;
+    }
+    if (angle < 90 || angle > 160) {
+        showSiliconeError('Included angle must be between 90 and 160 degrees. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.');
+        return;
+    }
+
+    let payload = {
+        width_1_mm: width1,
+        width_2_mm: width2,
+        angle_deg:  angle,
+        joint_type: siliconeState.jointType,
+        wind_method: siliconeState.windMethod
+    };
+
+    if (siliconeState.windMethod === 'pressure') {
+        const uls = parseFloat(document.getElementById('si_uls_kpa').value);
+        if (!uls || uls <= 0) {
+            showSiliconeError('Please enter a valid ULS pressure.');
+            return;
+        }
+        payload.wind_pressure_kpa = uls;
+    } else {
+        const rating = document.getElementById('si_nc_rating').value;
+        if (!rating) {
+            showSiliconeError('Please select a wind classification rating.');
+            return;
+        }
+        payload.nc_rating   = rating;
+        payload.nc_location = siliconeState.ncLocation;
+    }
+
+    document.getElementById('si-calc-btn').textContent = 'Calculating...';
+    document.getElementById('si-calc-btn').disabled     = true;
+    document.getElementById('silicone-results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+
+    fetch('/calculate_silicone', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('si-calc-btn').textContent = 'Calculate';
+        document.getElementById('si-calc-btn').disabled     = false;
+
+        if (data.success) {
+            renderSiliconeResults(data.result);
+        } else {
+            showSiliconeError(data.error || 'An error occurred during calculation.');
+        }
+    })
+    .catch(() => {
+        document.getElementById('si-calc-btn').textContent = 'Calculate';
+        document.getElementById('si-calc-btn').disabled     = false;
+        showSiliconeError('Could not connect to the calculation server. Please try again.');
+    });
+}
+
+function renderSiliconeResults(r) {
+    const container = document.getElementById('silicone-results-content');
+
+    // ANGLE_OUT_OF_RANGE and INVALID are rejections, not calculation failures —
+    // rendered as a plain error box rather than a themed result card.
+    if (r.status === 'ANGLE_OUT_OF_RANGE' || r.status === 'INVALID') {
+        container.innerHTML = `<div class="error-box">⚠ ${r.message}</div>`;
+        return;
+    }
+
+    if (r.status === 'NO_COMPLIANT_THICKNESS') {
+        container.innerHTML = `<div class="result-card fail">
+            <div class="result-card-header">
+                <span class="result-glass-name">Structural Silicone Bite</span>
+                <span class="status-badge fail"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i> No solution</span>
+            </div>
+            <div class="result-card-body">
+                <div class="result-message">No available glass thickness satisfies the required silicone bite. ${r.message}</div>
+                <div class="result-row"><span class="result-label">Required bite</span><span class="result-value">${r.required_bite_mm.toFixed(2)} mm</span></div>
+                <div class="result-row"><span class="result-label">Governing width (B)</span><span class="result-value">${r.governing_width_mm} mm</span></div>
+                <div class="result-row"><span class="result-label">F factor</span><span class="result-value">${r.f_factor.toFixed(4)}</span></div>
+            </div>
+        </div>`;
+        return;
+    }
+
+    // PASS
+    const cardId = `si-detail-${Math.random().toString(36).slice(2, 9)}`;
+    const detailRows = `
+        <div class="result-row"><span class="result-label">Angle</span><span class="result-value">${r.angle_deg}&deg;</span></div>
+        <div class="result-row"><span class="result-label">F factor</span><span class="result-value">${r.f_factor.toFixed(4)}</span></div>
+        <div class="result-row"><span class="result-label">Governing width (B)</span><span class="result-value">${r.governing_width_mm} mm</span></div>
+        <div class="result-row"><span class="result-label">Wind pressure (Pz)</span><span class="result-value">${r.wind_pressure_kpa} kPa</span></div>
+        <div class="result-row"><span class="result-label">Required bite (raw)</span><span class="result-value">${r.required_bite_raw_mm.toFixed(2)} mm</span></div>
+        <div class="result-row"><span class="result-label">Required bite (6mm floor applied)</span><span class="result-value">${r.required_bite_mm.toFixed(2)} mm</span></div>
+        <div class="result-row"><span class="result-label">Joint type</span><span class="result-value">${r.joint_type === 'mitred' ? 'Mitred' : 'Butt'}</span></div>
+        ${r.joint_type === 'mitred' ? `<div class="result-row"><span class="result-label">Mitre angle</span><span class="result-value">${r.mitre_angle_deg.toFixed(1)}&deg;</span></div>` : ''}
+        <div class="result-row"><span class="result-label">Usable bite — monolithic</span><span class="result-value">${r.usable_bite_monolithic !== null ? r.usable_bite_monolithic.toFixed(2) + ' mm' : 'N/A'}</span></div>
+        <div class="result-row"><span class="result-label">Usable bite — laminated</span><span class="result-value">${r.usable_bite_laminated !== null ? r.usable_bite_laminated.toFixed(2) + ' mm' : 'N/A'}</span></div>
+    `;
+
+    const monoLabel = r.nominal_monolithic !== null ? `${r.nominal_monolithic}mm Monolithic` : 'No compliant monolithic thickness';
+    const lamLabel  = r.nominal_laminated  !== null ? `${r.nominal_laminated}mm Laminated`   : 'No compliant laminated thickness';
+
+    container.innerHTML = `<div class="result-card pass">
+        <div class="result-card-header">
+            <span class="result-glass-name">Structural Silicone Bite</span>
+            <span class="status-badge pass"><i class="ti ti-circle-check" style="font-size:11px" aria-hidden="true"></i> Pass</span>
+        </div>
+        <div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>
+        <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer; width:100%;" onclick="toggleAccordion('${cardId}', this)">
+            <span class="footer-pass-label">Minimum nominal thickness</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+                <span class="footer-pass-value" style="font-size:15px;">${monoLabel} / ${lamLabel}</span>
+                <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
+            </span>
+        </button>
+    </div>`;
+}
+
+function clearSiliconeFields() {
+    document.getElementById('si_height_mm').value  = '';
+    document.getElementById('si_width_1_mm').value = '';
+    document.getElementById('si_width_2_mm').value = '';
+    document.getElementById('si_angle_deg').value  = '';
+    document.getElementById('si_uls_kpa').value    = '';
+    document.getElementById('si_nc_rating').value  = '';
+
+    setSiliconeJointType('butt');
+    setSiliconeWindMethod('pressure');
+    setSiliconeLocation('General');
+
+    document.getElementById('silicone-results-content').innerHTML = `
+        <div class="results-placeholder">
+            <div class="placeholder-icon">◻</div>
+            <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+        </div>`;
+}
+
+function showSiliconeError(msg) {
+    document.getElementById('silicone-results-content').innerHTML =
+        `<div class="error-box">⚠ ${msg}</div>`;
 }
 
 // ---------------------------------------------------------------------------

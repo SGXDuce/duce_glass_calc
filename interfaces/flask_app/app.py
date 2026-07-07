@@ -9,6 +9,7 @@ import io
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from engine.wind_load import run_calculation, run_compliance_check
+from engine.silicone_bite import run_bite_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
 
 # ---------------------------------------------------------------------------
@@ -156,6 +157,50 @@ def calculate():
             'error': str(e),
             'error_type': 'OUT_OF_SCOPE_CALCULATION'
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/calculate_silicone', methods=['POST'])
+def calculate_silicone():
+    """
+    Receives silicone bite form data from the browser, runs the structural
+    silicone bite calculation, and returns the result as JSON. Fully
+    independent of the wind load engine's /calculate route and Mode 1/2 logic.
+    """
+    try:
+        data = request.get_json()
+
+        width_1_mm  = float(data.get('width_1_mm'))
+        width_2_mm  = float(data.get('width_2_mm'))
+        angle_deg   = float(data.get('angle_deg'))
+        joint_type  = data.get('joint_type', 'butt')
+        wind_method = data.get('wind_method')
+
+        # --- Resolve ULS wind pressure (Pz) ---
+        if wind_method == 'pressure':
+            wind_pressure_kpa = float(data.get('wind_pressure_kpa'))
+        else:
+            rating   = data.get('nc_rating')
+            location = data.get('nc_location')
+            pressures = get_pressures_from_nc_rating(NC_DF, rating, location)
+            if pressures is None:
+                return jsonify({
+                    'success': False,
+                    'error': f'Could not find pressure values for {rating} {location}.'
+                })
+            wind_pressure_kpa = pressures['uls']
+
+        result = run_bite_calculation(
+            width_1_mm        = width_1_mm,
+            width_2_mm        = width_2_mm,
+            angle_deg         = angle_deg,
+            wind_pressure_kpa = wind_pressure_kpa,
+            joint_type        = joint_type
+        )
+
+        return jsonify({'success': True, 'result': result})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
