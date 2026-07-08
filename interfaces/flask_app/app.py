@@ -31,6 +31,7 @@ else:
 CSV_PATH = os.path.join(DATA_DIR, 'Wind_Load_Check_Tables_Full.csv')
 NC_CSV_PATH = os.path.join(DATA_DIR, 'N_C_Tables.csv')
 NOMINAL_CSV_PATH = os.path.join(DATA_DIR, 'Table_4_1_Minimum_Glass_Thickness.csv')
+TABLE_5_3_CSV_PATH = os.path.join(DATA_DIR, 'Table_5_3.csv')
 
 
 print("Loading data tables...")
@@ -69,6 +70,7 @@ def calculate():
         bushfire_required     = data.get('bushfire_required', False)
         bal_level             = data.get('bal_level')
         element_type          = data.get('element_type')
+        unframed_edge_condition = data.get('unframed_edge_condition')
 
         # --- Resolve wind pressures ---
         if wind_method == 'pressure':
@@ -107,7 +109,9 @@ def calculate():
                 safety_glass_required = safety_glass_required,
                 bushfire_required     = bushfire_required,
                 bal_level             = bal_level,
-                element_type          = element_type
+                element_type          = element_type,
+                unframed_edge_condition = unframed_edge_condition,
+                csv_path_5_3          = TABLE_5_3_CSV_PATH if unframed_edge_condition else None
             )
 
             return jsonify({
@@ -138,7 +142,9 @@ def calculate():
                 safety_glass_required      = safety_glass_required,
                 bushfire_required          = bushfire_required,
                 bal_level                  = bal_level,
-                element_type               = element_type
+                element_type               = element_type,
+                unframed_edge_condition    = unframed_edge_condition,
+                csv_path_5_3               = TABLE_5_3_CSV_PATH if unframed_edge_condition else None
             )
 
             return jsonify({
@@ -255,6 +261,10 @@ def build_report(data):
     lines.append(f"Support Condition     : {data.get('support_condition')}")
     if data.get('support_condition') == '2-edge':
         lines.append(f"Span Dimension        : {data.get('span_dimension')}")
+    unframed_edge_condition = data.get('unframed_edge_condition')
+    if unframed_edge_condition:
+        lines.append(f"Unframed Edge Condition : {unframed_edge_condition} "
+                      f"(AS 1288 Table 5.3 human impact check)")
     lines.append(f"Wind Load Method      : {data.get('wind_method_label')}")
     lines.append(f"ULS Wind Pressure     : {data.get('wind_pressure_uls')} kPa")
     lines.append(f"SLS Wind Pressure     : {data.get('wind_pressure_sls')} kPa")
@@ -298,25 +308,78 @@ def build_report(data):
         res = entry.get('result')
 
         if chk in ('ULS', 'SLS'):
-            k1  = entry.get('k1')
-            k2  = entry.get('k2')
-            k3  = entry.get('k3')
-            k4  = entry.get('k4')
-            p   = entry.get('pressure_kpa')
-            B   = entry.get('B')
             sp  = entry.get('span')
+            B   = entry.get('B')
 
-            lines.append(f"  Thickness {t}mm — {res}")
-            lines.append(f"    k1={k1}, k2={k2}, k3={k3}, k4={k4}")
-            if chk == 'ULS':
-                lines.append(f"    B = {k1} x ({p} + {k2})^{k3} + {k4}")
+            if sp is None or B is None:
+                # Section 6.6's "uls_confirmed_passing" shortcut - a thinner
+                # candidate already passed ULS, so this thickness was never
+                # re-checked (only 'thickness'/'result'/'note' are present,
+                # no k-values/B/span). Render the note rather than crashing
+                # on a format spec against None.
+                lines.append(f"  Thickness {t}mm — {res}")
+                if entry.get('note'):
+                    lines.append(f"    {entry.get('note')}")
             else:
-                lines.append(f"    B = {t} x ({k1} x ({p} + {k2})^{k3} + {k4})")
-            lines.append(f"    B = {B} mm")
-            if res == 'PASS':
-                lines.append(f"    Span {sp:.0f}mm <= B {B}mm — PASS")
+                k1 = entry.get('k1')
+                k2 = entry.get('k2')
+                k3 = entry.get('k3')
+                k4 = entry.get('k4')
+                p  = entry.get('pressure_kpa')
+
+                lines.append(f"  Thickness {t}mm — {res}")
+                lines.append(f"    k1={k1}, k2={k2}, k3={k3}, k4={k4}")
+                if chk == 'ULS':
+                    lines.append(f"    B = {k1} x ({p} + {k2})^{k3} + {k4}")
+                else:
+                    lines.append(f"    B = {t} x ({k1} x ({p} + {k2})^{k3} + {k4})")
+                lines.append(f"    B = {B} mm")
+                if res == 'PASS':
+                    lines.append(f"    Span {sp:.0f}mm <= B {B}mm — PASS")
+                else:
+                    lines.append(f"    Span {sp:.0f}mm > B {B}mm — FAIL")
+
+        elif chk == 'TABLE_5_3':
+            # Table 5.3 trace entries take one of three shapes depending on
+            # which code path built them (engine/wind_load/checks/wind.py) -
+            # this branch renders whichever shape is present rather than
+            # assuming one, since the engine legitimately produces all three:
+            if 'height_m' in entry:
+                # Row-level gate result (Mode 1 / Mode 2 hard-gate path,
+                # before any thickness was tested) - NOT_PERMITTED or
+                # NON_COMPLIANT at the row-lookup stage itself.
+                lines.append(f"  Table 5.3 row lookup — {res}")
+                lines.append(f"    Height = {entry.get('height_m')}m, "
+                              f"Width = {entry.get('width_m')}m, "
+                              f"Butt joints = {entry.get('num_butt_joints')}")
+                lines.append(f"    {entry.get('message')}")
+            elif 'nominal_thickness' in entry:
+                # Mode 2's own-pane single-shot check (not a search). `res`
+                # here is the ROW lookup's own status (COMPLIANT/
+                # NON_COMPLIANT/NOT_PERMITTED - i.e. whether a valid Table
+                # 5.3 minimum exists for this height/width/joint-count row
+                # at all), not whether this specific nominal thickness
+                # satisfies it - that comparison is shown separately.
+                nt  = entry.get('nominal_thickness')
+                req = entry.get('required_min_thickness_mm')
+                lines.append(f"  Table 5.3 row lookup — {res}")
+                if req is not None:
+                    passes = nt is not None and nt >= req
+                    lines.append(f"    Required minimum (Table 5.3 row) = {req}mm")
+                    lines.append(f"    Nominal thickness {nt}mm {'>=' if passes else '<'} required {req}mm — {'PASS' if passes else 'FAIL'}")
+                lines.append(f"    {entry.get('message')}")
             else:
-                lines.append(f"    Span {sp:.0f}mm > B {B}mm — FAIL")
+                # Per-thickness ascending search (Mode 1's own search, or
+                # Mode 2's next-compliant-thickness search) - result is
+                # PASS / FAIL, same vocabulary as ULS/SLS.
+                req = entry.get('required_min_thickness_mm')
+                lines.append(f"  Thickness {t}mm — {res}")
+                if req is not None:
+                    lines.append(f"    Required minimum (Table 5.3 row) = {req}mm")
+                    if res == 'PASS':
+                        lines.append(f"    Thickness {t}mm >= required {req}mm — PASS")
+                    else:
+                        lines.append(f"    Thickness {t}mm < required {req}mm — FAIL")
 
         elif chk == 'SG':
             max_a    = entry.get('max_area')
@@ -333,6 +396,29 @@ def build_report(data):
                 lines.append(f"    Panel area {actual_a}m2 > max area {max_a}m2 — FAIL")
 
         lines.append('')
+
+    def active_checks_label(checks):
+        """
+        Builds a "passes X, Y and Z" label from the actual checks tested
+        at a next-compliant candidate, rather than a hardcoded "ULS and
+        SLS" string - Table 5.3 (Pathway 2) and Safety Glass (Pathway 1)
+        are only sometimes active, and a fixed string silently omits
+        whichever check actually governed the search.
+        """
+        check_labels = {
+            'ULS': 'ULS', 'SLS': 'SLS',
+            'TABLE_5_3': 'Table 5.3', 'SG': 'Safety Glass Area Check',
+        }
+        seen = []
+        for entry in checks:
+            label = check_labels.get(entry.get('check'), entry.get('check'))
+            if label and label not in seen:
+                seen.append(label)
+        if not seen:
+            return 'all active checks'
+        if len(seen) == 1:
+            return seen[0]
+        return ', '.join(seen[:-1]) + ' and ' + seen[-1]
 
     if mode == 'mode1':
         lines.append('RESULTS — MINIMUM THICKNESS')
@@ -372,12 +458,28 @@ def build_report(data):
                 # SLS trace
                 lines.append(f"SLS CHECK — {r.get('glass_type')} {r.get('glass_subtype')}")
                 lines.append(f"Formula: B = t x (k1 x (Ps + k2)^k3 + k4)")
-                lines.append(f"Starting from ULS minimum thickness {r.get('uls_minimum_thickness_mm')}mm")
+                lines.append(f"Independent search from thinnest available thickness "
+                              f"(not dependent on the ULS result — Section 7.6)")
                 lines.append('')
                 for entry in r.get('sls_trace', []):
                     format_trace_entry(entry, lines)
                 lines.append(f"SLS Minimum Thickness = {r.get('sls_minimum_thickness_mm')} mm")
                 lines.append('')
+
+                # Table 5.3 trace (2-edge/3-edge only — replaces Table 5.1
+                # entirely in this branch, Section 14.2). Labelled as its
+                # own section alongside ULS/SLS, not folded into a generic
+                # message.
+                if r.get('table_5_3_trace'):
+                    lines.append(f"TABLE 5.3 CHECK — AS 1288 Table 5.3 "
+                                  f"(Unframed Side Edges, {unframed_edge_condition})")
+                    lines.append(f"Independent search from thinnest available thickness "
+                                  f"(not dependent on ULS/SLS — Section 7.6)")
+                    lines.append('')
+                    for entry in r.get('table_5_3_trace', []):
+                        format_trace_entry(entry, lines)
+                    lines.append(f"Table 5.3 Minimum Thickness = {r.get('table_5_3_minimum_thickness_mm')} mm")
+                    lines.append('')
 
                 # 3mm Annealed area flag
                 if r.get('annealed_area_flag'):
@@ -390,7 +492,8 @@ def build_report(data):
                 # Safety Glass trace
                 if sg and r.get('sg_trace'):
                     lines.append(f"SAFETY GLASS AREA CHECK — AS 1288 Table 5.1")
-                    lines.append(f"Starting from wind load governing thickness")
+                    lines.append(f"Independent search from thinnest available thickness "
+                                  f"(not dependent on ULS/SLS — Section 7.6)")
                     lines.append('')
                     for entry in r.get('sg_trace', []):
                         format_trace_entry(entry, lines)
@@ -406,6 +509,16 @@ def build_report(data):
             else:
                 lines.append(f"Message: {r.get('message')}")
                 lines.append('')
+                # TABLE_5_3_NOT_PERMITTED / NO_COMPLIANT_THICKNESS (Table
+                # 5.3 branch) still carry a row-level trace even though no
+                # PASS was ever reached — show it labelled rather than
+                # leaving the raw message as the only explanation.
+                if r.get('status') in ('TABLE_5_3_NOT_PERMITTED', 'NO_COMPLIANT_THICKNESS') and r.get('table_5_3_trace'):
+                    lines.append(f"TABLE 5.3 CHECK — AS 1288 Table 5.3 "
+                                  f"(Unframed Side Edges, {unframed_edge_condition})")
+                    lines.append('')
+                    for entry in r.get('table_5_3_trace', []):
+                        format_trace_entry(entry, lines)
 
     else:
         lines.append('RESULTS — COMPLIANCE CHECK')
@@ -437,6 +550,27 @@ def build_report(data):
             lines.append('')
             for entry in r.get('sls_trace', []):
                 format_trace_entry(entry, lines)
+
+            # Table 5.3 trace (2-edge/3-edge only — replaces Table 5.1
+            # entirely in this branch, Section 14.2). Present even on the
+            # TABLE_5_3_NOT_PERMITTED hard-gate early return (which skips
+            # the k_pane/ULS/SLS block above but still carries a row-level
+            # trace) — labelled here rather than left as a bare status.
+            if r.get('table_5_3_trace'):
+                lines.append(f"TABLE 5.3 CHECK — AS 1288 Table 5.3 "
+                              f"(Unframed Side Edges, {unframed_edge_condition})")
+                lines.append('')
+                for entry in r.get('table_5_3_trace', []):
+                    format_trace_entry(entry, lines)
+                if r.get('table_5_3_status'):
+                    lines.append(f"Table 5.3 Result = {r.get('table_5_3_status')} "
+                                  f"(nominal {r.get('nominal_thickness_mm')}mm vs "
+                                  f"required {r.get('table_5_3_min_thickness_mm')}mm)")
+                    lines.append('')
+
+            if r.get('status') == 'TABLE_5_3_NOT_PERMITTED':
+                lines.append(f"Message: {r.get('message')}")
+                lines.append('')
 
             if r.get('annealed_area_flag'):
                 flag = r['annealed_area_flag']
@@ -471,21 +605,98 @@ def build_report(data):
 
                         if overall == 'PASS':
                             lines.append(f"  All active checks pass at {t}mm.")
-                            sg_suffix = ', and Safety Glass Area Check' if sg else ''
-                            lines.append(f"  Next compliant thickness = {t}mm — passes ULS and SLS{sg_suffix}.")
+                            checks_label = active_checks_label(candidate.get('checks', []))
+                            lines.append(f"  Next compliant thickness = {t}mm — passes {checks_label}.")
                         else:
                             reason = candidate.get('fail_reason', 'unknown check')
                             lines.append(f"  {t}mm does not pass all checks ({reason} failed). Moving to next thickness.")
                         lines.append('')
 
                 elif r.get('next_compliant_thickness_mm'):
-                    sg_suffix = ', and Safety Glass Area Check' if sg else ''
-                    lines.append(f"Next compliant thickness: {r.get('next_compliant_thickness_mm')}mm — passes ULS and SLS{sg_suffix}.")
+                    # Fallback path - next_compliant_trace is empty but a
+                    # thickness was still found. No per-candidate checks
+                    # list is available here to derive the label from
+                    # (see active_checks_label above), so it's built from
+                    # the pane's own active-check flags instead - same
+                    # "don't hardcode ULS/SLS" fix, applied with the best
+                    # information this branch actually has.
+                    check_names = ['ULS', 'SLS']
+                    if r.get('table_5_3_status') is not None:
+                        check_names.append('Table 5.3')
+                    if sg:
+                        check_names.append('Safety Glass Area Check')
+                    checks_label = check_names[0] if len(check_names) == 1 else ', '.join(check_names[:-1]) + ' and ' + check_names[-1]
+                    lines.append(f"Next compliant thickness: {r.get('next_compliant_thickness_mm')}mm — passes {checks_label}.")
                     lines.append('')
 
     lines.append(sep)
-    lines.append('NOTE: Human Impact requirements have not been considered.')
-    lines.append('Results are for Wind Load resistance only (AS 1288 Section 4).')
+    if unframed_edge_condition:
+        # Table 5.3 IS the human impact check for this pathway (Section
+        # 14.2) and was actually evaluated above - the generic "Human
+        # Impact has not been considered" note is wrong here (it describes
+        # Pathway 1, where only the beta Table 5.1 check exists). Summarise
+        # what ran and, where determinable, whether it governed.
+        lines.append('NOTE: AS 1288 Table 5.3 (unframed side edges) is the human impact')
+        lines.append(f'check for this configuration ({unframed_edge_condition}, Section 14.2)')
+        lines.append('and was evaluated above:')
+        for r in results:
+            if mode == 'mode1':
+                name    = f"{r.get('glass_type')} {r.get('glass_subtype')}"
+                t53_min = r.get('table_5_3_minimum_thickness_mm')
+                final   = r.get('minimum_thickness_mm')
+                if r.get('status') == 'PASS' and t53_min is not None:
+                    tie = ' — matches the final governing thickness' if t53_min == final else ' — did not govern (a wind check required more)'
+                    lines.append(f"  {name}: Table 5.3 minimum = {t53_min}mm{tie}.")
+                elif r.get('status') in ('TABLE_5_3_NOT_PERMITTED', 'NO_COMPLIANT_THICKNESS'):
+                    lines.append(f"  {name}: {r.get('message')}")
+            else:
+                name       = f"{r.get('pane_label')} pane ({r.get('glass_type')} {r.get('glass_subtype')})"
+                t53_status = r.get('table_5_3_status')
+                t53_min    = r.get('table_5_3_min_thickness_mm')
+                if t53_status:
+                    cause = ' — this is why the pane failed overall' if t53_status == 'FAIL' else ''
+                    lines.append(f"  {name}: Table 5.3 {t53_status} (nominal "
+                                  f"{r.get('nominal_thickness_mm')}mm vs required {t53_min}mm){cause}.")
+                elif r.get('status') == 'TABLE_5_3_NOT_PERMITTED':
+                    lines.append(f"  {name}: {r.get('message')}")
+    elif sg:
+        # Table 5.1 (Safety Glass area limits) DID run for this pathway
+        # whenever the toggle is on - the blanket "not considered" note is
+        # false in that case, same issue as Pathway 2's Table 5.3 note
+        # fixed earlier this session. Still flag it as Beta/partial (panel
+        # area limits only, not full Section 5) rather than dropping that
+        # caveat - only the "wasn't considered at all" claim was wrong.
+        lines.append('NOTE: AS 1288 Table 5.1 (Safety Glass area limits) was evaluated')
+        lines.append('for this configuration and is included above. This is a Beta,')
+        lines.append('partial check (panel area limits only) - it is not full AS 1288')
+        lines.append('Section 5 Human Impact compliance.')
+        for r in results:
+            if mode == 'mode1':
+                name   = f"{r.get('glass_type')} {r.get('glass_subtype')}"
+                sg_min = r.get('sg_minimum_thickness_mm')
+                final  = r.get('minimum_thickness_mm')
+                if r.get('status') == 'PASS' and r.get('sg_flag') == 'EXTRAPOLATE':
+                    lines.append(f"  {name}: Table 5.1 check exceeds scope - manual extrapolation required.")
+                elif r.get('status') == 'PASS' and sg_min is not None:
+                    tie = ' — matches the final governing thickness' if sg_min == final else ' — did not govern (a wind check required more)'
+                    lines.append(f"  {name}: Table 5.1 minimum = {sg_min}mm{tie}.")
+                elif r.get('status') == 'SG_INELIGIBLE':
+                    lines.append(f"  {name}: {r.get('message')}")
+            else:
+                name       = f"{r.get('pane_label')} pane ({r.get('glass_type')} {r.get('glass_subtype')})"
+                sg_status  = r.get('sg_status')
+                sg_max     = r.get('sg_max_area_m2')
+                panel_area = r.get('panel_area_m2')
+                if sg_status == 'EXTRAPOLATE':
+                    lines.append(f"  {name}: Table 5.1 check exceeds scope - manual extrapolation required.")
+                elif sg_status and sg_status != 'N/A':
+                    cause = ' — this is why the pane failed overall' if sg_status == 'FAIL' else ''
+                    lines.append(f"  {name}: Table 5.1 {sg_status} (panel area {panel_area}m2 vs max {sg_max}m2){cause}.")
+                elif r.get('status') == 'SG_INELIGIBLE':
+                    lines.append(f"  {name}: {r.get('message')}")
+    else:
+        lines.append('NOTE: Human Impact requirements have not been considered.')
+        lines.append('Results are for Wind Load resistance only (AS 1288 Section 4).')
     if sg:
         lines.append('')
         lines.append('NOTE: Safety glass requirement was declared by the user.')

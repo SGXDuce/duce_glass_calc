@@ -334,10 +334,228 @@
 </div><!-- /wind-engine-view -->
 </div><!-- /pathway1-view -->
 
-<div id="pathway2-view" class="pathway-placeholder-view" style="display:none;">
+<!-- ========================================================================
+     PATHWAY 2 — PARTLY FRAMED, EXPOSED EDGES (v1.13)
+     A copy of the Mode 1/2 wind-load calculator markup (same relocation
+     pattern as Pathway 1, v1.11 step 2), with its own IDs throughout (p2-*)
+     since it runs alongside Pathway 1 in the same DOM — reusing Pathway 1's
+     IDs would break both via duplicate-ID lookups. Own state object
+     (p2State) and dedicated JS functions, following the same
+     already-established precedent as the silicone-bite engine below
+     (siliconeState / setSilicone*() / runSiliconeCalculation()) rather than
+     parameterising the Pathway 1 functions.
+
+     Differences from Pathway 1 (Section 14.2):
+       - Support condition is a 2-edge / 3-edge selector, not 4-edge/2-edge.
+         Both selections set support_condition='2-edge' for the wind-load
+         formula (AS 1288 has no distinct 3-edge wind condition) while the
+         actual 2-edge/3-edge distinction is sent separately as
+         unframed_edge_condition, used only for the Table 5.3 joint-count
+         lookup (2-edge=2 joints, 3-edge=1 joint).
+       - No IGU option (Section 14.2 — product scope exclusion) — single
+         pane only in both modes, no glazing-config toggle.
+       - No Bushfire/BAL section (Section 14.2 — BAL requires fully framed
+         glazing).
+       - Safety glass toggle filters against TABLE_5_3_SAFETY_GLASS_INELIGIBLE
+         (mirrored client-side as P2_SG_INELIGIBLE below), not Table 5.1's
+         list — Table 5.3 replaces Table 5.1 entirely in this pathway.
+     ======================================================================== -->
+<div id="pathway2-view" style="display:none;">
+<div class="back-to-selection-btn-row">
     <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
-    <div class="pathway-placeholder-text">Pathway 2 — Partly Framed, Exposed Edges — content to be built</div>
 </div>
+
+<!-- ========== MODE SELECTOR ========== -->
+<div class="mode-bar">
+    <button class="mode-btn active" id="p2-btn-mode1" onclick="setP2Mode('mode1')">
+        <span class="mode-btn-label">Find minimum thickness</span>
+        <span class="mode-btn-desc">I haven't specified the glass yet</span>
+    </button>
+    <button class="mode-btn" id="p2-btn-mode2" onclick="setP2Mode('mode2')">
+        <span class="mode-btn-label">Check my glass is thick enough</span>
+        <span class="mode-btn-desc">I have a specification to verify</span>
+    </button>
+</div>
+
+<!-- ========== MAIN BODY ========== -->
+<div class="main-body">
+
+    <!-- ===== INPUTS PANEL ===== -->
+    <div class="inputs-panel" id="p2-inputs-panel">
+
+        <!-- Safety Glass -->
+        <div class="section-label">Safety Glass Check (Table 5.3) <span class="beta-tag">Beta</span></div>
+        <div class="field-group">
+            <label class="field-label">Safety glass required?
+                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.3 (unframed side edges) instead of Table 5.1.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p2-sg-no" onclick="setP2SafetyGlass(false)">No</button>
+                <button class="toggle-btn" id="p2-sg-yes" onclick="setP2SafetyGlass(true)">Yes</button>
+            </div>
+        </div>
+        <div class="sg-disclaimer" id="p2-sg-disclaimer" style="display:none;">
+            This feature is in Beta. Safety glass requirement is declared by the user. This tool does not assess whether safety glass is required for this application. The user is responsible for determining applicability in accordance with AS 1288 and relevant building codes. Please refer to Section 5 of AS 1288 to confirm those details.
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Panel Dimensions -->
+        <div class="section-label">Panel Dimensions</div>
+        <div class="field-row-2">
+            <div class="field-group">
+                <label class="field-label">Height (mm)
+                    <span class="tip" data-tip="Overall height of the glass panel in millimetres.">?</span>
+                </label>
+                <input class="field-input" type="number" id="p2_height_mm" placeholder="e.g. 1800" min="1">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Width (mm)
+                    <span class="tip" data-tip="Overall width of the glass panel in millimetres.">?</span>
+                </label>
+                <input class="field-input" type="number" id="p2_width_mm" placeholder="e.g. 1000" min="1">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Support Condition — 2-edge / 3-edge only in this pathway -->
+        <div class="section-label">Unframed Edge Condition</div>
+        <div class="field-group">
+            <label class="field-label">Edge configuration
+                <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Both are treated as 2-edge for the wind load bending check (AS 1288 has no distinct 3-edge wind condition) — the 2-edge/3-edge distinction is used for the Table 5.3 human impact check only.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p2-edge-2" onclick="setP2EdgeCondition('2-edge')">2-edge</button>
+                <button class="toggle-btn" id="p2-edge-3" onclick="setP2EdgeCondition('3-edge')">3-edge</button>
+            </div>
+        </div>
+
+        <!-- Span direction -->
+        <div class="field-group" id="p2-span-direction-row">
+            <label class="field-label">Span direction
+                <span class="tip" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p2-span-height" onclick="setP2Span('height')">Height is the span</button>
+                <button class="toggle-btn" id="p2-span-width" onclick="setP2Span('width')">Width is the span</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Wind Load -->
+        <div class="section-label">Wind Load</div>
+        <div class="field-group">
+            <label class="field-label">Input method
+                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p2-wind-pressure" onclick="setP2WindMethod('pressure')">Pressures (AS 1170.2)</button>
+                <button class="toggle-btn" id="p2-wind-nc" onclick="setP2WindMethod('nc')">N/C Rating (AS 4055)</button>
+            </div>
+        </div>
+
+        <!-- Direct pressure inputs -->
+        <div id="p2-pressure-inputs">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">ULS pressure (kPa)
+                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p2_uls_pa" placeholder="e.g. 2.0" min="0" step="0.01">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">SLS pressure (kPa)
+                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p2_sls_pa" placeholder="e.g. 0.8" min="0" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <!-- N/C rating inputs -->
+        <div id="p2-nc-inputs" style="display:none;">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">Wind classification
+                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
+                    </label>
+                    <select class="field-select" id="p2_nc_rating">
+                        <option value="">Select rating</option>
+                        <option>N1</option><option>N2</option><option>N3</option>
+                        <option>N4</option><option>N5</option><option>N6</option>
+                        <option>C1</option><option>C2</option><option>C3</option><option>C4</option>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Window location
+                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    </label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="p2-loc-general" onclick="setP2Location('General')">General</button>
+                        <button class="toggle-btn" id="p2-loc-corner" onclick="setP2Location('Corner')">Corner</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- ===== MODE 1 SPECIFIC INPUTS ===== -->
+        <div id="p2-mode1-inputs">
+            <div class="section-label">Glass Type(s) to Check</div>
+            <div class="field-group">
+                <label class="field-label">Select one or more
+                    <span class="tip" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type against Table 5.3.">?</span>
+                </label>
+                <div id="p2-glass-type-checkboxes">
+                    <!-- Populated by JS based on safety glass toggle -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MODE 2 SPECIFIC INPUTS ===== -->
+        <div id="p2-mode2-inputs" style="display:none;">
+            <div class="section-label">Glass Specification</div>
+            <div id="p2-pane-inputs">
+                <!-- Populated by JS — single pane only, no IGU in this pathway -->
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button class="calc-btn" id="p2-calc-btn" onclick="runP2Calculation()">Calculate</button>
+        <button class="clear-btn" onclick="clearP2Fields()">Clear fields</button>
+
+    </div>
+
+    <!-- ===== RESULTS PANEL ===== -->
+    <div class="results-panel" id="p2-results-panel">
+        <div class="results-header">
+            <div class="section-label" style="margin-bottom:0;">Results</div>
+            <button class="report-btn-top" id="p2-report-btn" style="display:none;" onclick="generateP2Report()">
+                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+            </button>
+        </div>
+
+        <!-- Warning bar — shown when inputs change after a calculation -->
+        <div class="warning-bar" id="p2-warning-bar" style="display:none;">
+            <span class="warning-icon">⚠</span>
+            <span>Inputs have changed — recalculate to update results</span>
+        </div>
+
+        <!-- Results content -->
+        <div id="p2-results-content">
+            <div class="results-placeholder">
+                <div class="placeholder-icon">◻</div>
+                <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</div><!-- /pathway2-view -->
 
 <div id="pathway3-view" class="pathway-placeholder-view" style="display:none;">
     <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
@@ -533,6 +751,32 @@ const siliconeState = {
     windMethod: 'pressure',
     ncLocation: 'General'
 };
+
+// Pathway 2 — Partly Framed, Exposed Edges (Section 14.2). Own state object,
+// same precedent as siliconeState above — kept independent of Pathway 1's
+// `state` rather than shared, since the two pathways have genuinely
+// different constraints (2-edge/3-edge vs 4-edge, no IGU, no bushfire).
+const p2State = {
+    mode:                 'mode1',
+    unframedEdgeCondition: '2-edge',
+    spanDimension:        'height',
+    windMethod:            'pressure',
+    ncLocation:             'General',
+    safetyGlass:           false,
+    lastResults:           null,
+    lastPayload:           null,
+    inputsChanged:          false
+};
+
+// Mirrors engine/wind_load/constants.py's TABLE_5_3_SAFETY_GLASS_INELIGIBLE —
+// Table 5.3's own eligibility rule, independent of Table 5.1's
+// SAFETY_GLASS_INELIGIBLE (Section 14.2 / v1.12 changelog). Currently the
+// same two types, kept as its own list since the two tables' rules are
+// independent business rules that could diverge later.
+const P2_SG_INELIGIBLE = [
+    ['Monolithic', 'Annealed'],
+    ['Monolithic', 'Heat-strengthened'],
+];
 
 const BAL_CONDITIONAL_NOTES = {
     '12.5_Window': 'Glass within 400mm of ground, or another structure within 18 degrees of horizontal, must be safety glass, minimum 4mm.',
@@ -1563,6 +1807,549 @@ function showSiliconeError(msg) {
 }
 
 // ---------------------------------------------------------------------------
+// PATHWAY 2 — PARTLY FRAMED, EXPOSED EDGES (Section 14.2)
+// ---------------------------------------------------------------------------
+
+function setP2Mode(mode) {
+    p2State.mode = mode;
+    document.getElementById('p2-btn-mode1').classList.toggle('active', mode === 'mode1');
+    document.getElementById('p2-btn-mode2').classList.toggle('active', mode === 'mode2');
+    document.getElementById('p2-mode1-inputs').style.display = mode === 'mode1' ? 'block' : 'none';
+    document.getElementById('p2-mode2-inputs').style.display = mode === 'mode2' ? 'block' : 'none';
+    markP2InputsChanged();
+}
+
+function setP2SafetyGlass(val) {
+    p2State.safetyGlass = val;
+    document.getElementById('p2-sg-no').classList.toggle('active', !val);
+    document.getElementById('p2-sg-yes').classList.toggle('active', val);
+    document.getElementById('p2-sg-disclaimer').style.display = val ? 'block' : 'none';
+    buildP2GlassTypeCheckboxes();
+    buildP2PaneInputs();
+    markP2InputsChanged();
+}
+
+function setP2EdgeCondition(val) {
+    p2State.unframedEdgeCondition = val;
+    document.getElementById('p2-edge-2').classList.toggle('active', val === '2-edge');
+    document.getElementById('p2-edge-3').classList.toggle('active', val === '3-edge');
+    markP2InputsChanged();
+}
+
+function setP2Span(val) {
+    p2State.spanDimension = val;
+    document.getElementById('p2-span-height').classList.toggle('active', val === 'height');
+    document.getElementById('p2-span-width').classList.toggle('active', val === 'width');
+    markP2InputsChanged();
+}
+
+function setP2WindMethod(val) {
+    p2State.windMethod = val;
+    document.getElementById('p2-wind-pressure').classList.toggle('active', val === 'pressure');
+    document.getElementById('p2-wind-nc').classList.toggle('active', val === 'nc');
+    document.getElementById('p2-pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
+    document.getElementById('p2-nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+    markP2InputsChanged();
+}
+
+function setP2Location(val) {
+    p2State.ncLocation = val;
+    document.getElementById('p2-loc-general').classList.toggle('active', val === 'General');
+    document.getElementById('p2-loc-corner').classList.toggle('active',  val === 'Corner');
+    markP2InputsChanged();
+}
+
+function markP2InputsChanged() {
+    if (p2State.lastResults) {
+        p2State.inputsChanged = true;
+        document.getElementById('p2-warning-bar').style.display = 'flex';
+    }
+}
+
+function getP2GlassTypes() {
+    const allTypes = [
+        ['Monolithic', 'Annealed',           'Monolithic Annealed'],
+        ['Monolithic', 'Toughened',          'Monolithic Toughened'],
+        ['Monolithic', 'Heat-strengthened',  'Monolithic Heat-strengthened'],
+        ['Laminated',  'Annealed',           'Laminated Annealed'],
+        ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+        ['Laminated',  'Toughened',          'Laminated Toughened'],
+    ];
+    if (!p2State.safetyGlass) return allTypes;
+    return allTypes.filter(t => !P2_SG_INELIGIBLE.some(e => e[0] === t[0] && e[1] === t[1]));
+}
+
+function buildP2GlassTypeCheckboxes() {
+    const allTypes = getP2GlassTypes();
+    let html = '';
+    allTypes.forEach(t => {
+        const id = `p2-gt-${t[0]}-${t[1]}`.replace(/\s/g, '-');
+        html += `
+        <label class="checkbox-row">
+            <input type="checkbox" id="${id}" value="${t[0]}|${t[1]}" onchange="markP2InputsChanged()">
+            <span>${t[2]}</span>
+        </label>`;
+    });
+    document.getElementById('p2-glass-type-checkboxes').innerHTML = html;
+}
+
+function buildP2PaneInputs() {
+    const allTypes = getP2GlassTypes();
+    document.getElementById('p2-pane-inputs').innerHTML = `
+        <div class="pane-block">
+            <div class="pane-header">
+                <span class="pane-dot" style="background:#f47920"></span>
+                <span class="pane-title">Single pane</span>
+            </div>
+            <div class="pane-grid">
+                <div class="field-group">
+                    <label class="field-label">Glass type
+                        <span class="tip" data-tip="Select the glass type for this pane.">?</span>
+                    </label>
+                    <select class="field-select" id="p2-pane-type-0" onchange="markP2InputsChanged()">
+                        ${allTypes.map(t => `<option value="${t[0]}|${t[1]}">${t[2]}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Actual thickness (mm)
+                        <span class="tip" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p2-pane-thickness-0"
+                           placeholder="e.g. 5.9" min="0" step="0.1" onchange="markP2InputsChanged()">
+                </div>
+            </div>
+        </div>`;
+    attachTooltipListeners();
+}
+
+function runP2Calculation() {
+    const height = parseFloat(document.getElementById('p2_height_mm').value);
+    const width  = parseFloat(document.getElementById('p2_width_mm').value);
+
+    if (!height || !width || height <= 0 || width <= 0) {
+        showP2Error('Please enter valid panel dimensions.');
+        return;
+    }
+
+    // Both 2-edge and 3-edge map to support_condition='2-edge' for the wind
+    // formula (AS 1288 has no distinct 3-edge wind condition, Section
+    // 14.2/v1.6) — unframed_edge_condition carries the real 2-edge/3-edge
+    // distinction separately, for the Table 5.3 joint-count lookup only.
+    let payload = {
+        mode:                    p2State.mode,
+        height_mm:               height,
+        width_mm:                width,
+        support_condition:       '2-edge',
+        unframed_edge_condition: p2State.unframedEdgeCondition,
+        span_dimension:          p2State.spanDimension,
+        wind_method:             p2State.windMethod,
+        safety_glass_required:   p2State.safetyGlass,
+        bushfire_required:       false,
+        bal_level:               null,
+        element_type:            null
+    };
+
+    if (p2State.windMethod === 'pressure') {
+        const uls = parseFloat(document.getElementById('p2_uls_pa').value);
+        const sls = parseFloat(document.getElementById('p2_sls_pa').value);
+        if (!uls || !sls || uls <= 0 || sls <= 0) {
+            showP2Error('Please enter valid ULS and SLS pressures.');
+            return;
+        }
+        payload.uls_pa = uls;
+        payload.sls_pa = sls;
+    } else {
+        const rating = document.getElementById('p2_nc_rating').value;
+        if (!rating) {
+            showP2Error('Please select a wind classification rating.');
+            return;
+        }
+        payload.nc_rating   = rating;
+        payload.nc_location = p2State.ncLocation;
+    }
+
+    if (p2State.mode === 'mode1') {
+        payload.glazing_config = 'single';
+
+        const checkboxes = document.querySelectorAll('#p2-glass-type-checkboxes input[type=checkbox]:checked');
+        if (checkboxes.length === 0) {
+            showP2Error('Please select at least one glass type.');
+            return;
+        }
+        payload.selected_glass_types = Array.from(checkboxes).map(cb => cb.value.split('|'));
+
+    } else {
+        const typeVal = document.getElementById('p2-pane-type-0').value;
+        const thick   = parseFloat(document.getElementById('p2-pane-thickness-0').value);
+
+        if (!thick || thick <= 0) {
+            showP2Error('Please enter a valid thickness for the pane.');
+            return;
+        }
+
+        const parts = typeVal.split('|');
+        payload.panes = [{
+            label:               'Single',
+            glass_type:          parts[0],
+            glass_subtype:       parts[1],
+            actual_thickness_mm: thick
+        }];
+    }
+
+    p2State.lastPayload = payload;
+
+    document.getElementById('p2-calc-btn').textContent = 'Calculating...';
+    document.getElementById('p2-calc-btn').disabled     = true;
+    document.getElementById('p2-results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+
+    fetch('/calculate', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('p2-calc-btn').textContent = 'Calculate';
+        document.getElementById('p2-calc-btn').disabled     = false;
+        document.getElementById('p2-warning-bar').style.display = 'none';
+
+        if (data.success) {
+            p2State.lastResults   = data;
+            p2State.inputsChanged = false;
+            renderP2Results(data, payload);
+            document.getElementById('p2-report-btn').style.display = 'block';
+        } else if (data.error_type === 'OUT_OF_SCOPE_CALCULATION') {
+            document.getElementById('p2-results-content').innerHTML = `
+                <div class="error-box">
+                    <strong>This wind pressure is outside the scope of AS 1288 for this glass type.</strong><br><br>
+                    The applied pressure is too low for the standard's formula to produce a valid result at the thickness being checked. Please verify your wind pressure inputs, or consult AS 1288 directly for very low pressure scenarios.
+                </div>`;
+        } else {
+            showP2Error(data.error || 'An error occurred during calculation.');
+        }
+    })
+    .catch(() => {
+        document.getElementById('p2-calc-btn').textContent = 'Calculate';
+        document.getElementById('p2-calc-btn').disabled     = false;
+        document.getElementById('p2-warning-bar').style.display = 'none';
+        showP2Error('Could not connect to the calculation server. Please try again.');
+    });
+}
+
+function renderP2Results(data, payload) {
+    const results = data.results;
+    const sg      = data.safety_glass_required;
+    let html      = '';
+
+    const windLoadLabel = payload.wind_method === 'pressure'
+        ? `ULS ${payload.uls_pa}kPa / SLS ${payload.sls_pa}kPa`
+        : `${payload.nc_rating} (${payload.nc_location})`;
+
+    const edgeLabel = `${payload.unframed_edge_condition} (span: ${payload.span_dimension})`;
+
+    if (data.mode === 'mode1') {
+        results.forEach(r => {
+            const isPass    = r.status === 'PASS';
+            const cardClass = isPass ? 'pass' : 'fail';
+            const badgeIcon = isPass ? 'ti-circle-check' : 'ti-x';
+            const badgeText = r.status === 'SG_INELIGIBLE' ? 'Ineligible'
+                            : r.status === 'TABLE_5_3_NOT_PERMITTED' ? 'Not permitted'
+                            : r.status === 'NO_COMPLIANT_THICKNESS' ? 'No solution'
+                            : isPass ? 'Pass' : 'Fail';
+
+            html += `<div class="result-card ${cardClass}">
+                <div class="result-card-header">
+                    <span class="result-glass-name">${r.glass_type} ${r.glass_subtype}</span>
+                    <span class="status-badge ${cardClass}">
+                        <i class="ti ${badgeIcon}" style="font-size:11px" aria-hidden="true"></i> ${badgeText}
+                    </span>
+                </div>`;
+
+            if (isPass) {
+                const cardId = `p2-detail-${Math.random().toString(36).slice(2,9)}`;
+                let detailRows = '';
+                detailRows += `<div class="result-row"><span class="result-label">ULS minimum thickness</span><span class="result-value">${r.uls_minimum_thickness_mm} mm</span></div>`;
+                detailRows += `<div class="result-row"><span class="result-label">SLS minimum thickness</span><span class="result-value">${r.sls_minimum_thickness_mm} mm</span></div>`;
+                detailRows += `<div class="result-row"><span class="result-label">Table 5.3 minimum thickness (${payload.unframed_edge_condition})</span><span class="result-value">${r.table_5_3_minimum_thickness_mm} mm</span></div>`;
+
+                if (r.annealed_area_flag) {
+                    detailRows += `<div class="flag-row">⚠ 3mm not permitted — panel area ${r.annealed_area_flag.actual_area}m² exceeds maximum ${r.annealed_area_flag.max_area}m². Minimum increased to 4mm.</div>`;
+                }
+
+                const snapRows = [
+                    { label: 'ULS minimum thickness', value: `${r.uls_minimum_thickness_mm} mm` },
+                    { label: 'SLS minimum thickness', value: `${r.sls_minimum_thickness_mm} mm` },
+                    { label: `Table 5.3 minimum thickness (${payload.unframed_edge_condition})`, value: `${r.table_5_3_minimum_thickness_mm} mm` }
+                ];
+                const snapInputs = {
+                    glassName: `${r.glass_type} ${r.glass_subtype}`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: edgeLabel,
+                    windLoad: windLoadLabel,
+                    glazing: 'Single'
+                };
+                const snapHtml = buildSnapshotHTML(snapInputs, snapRows, 'Governing thickness', `${r.minimum_thickness_mm} mm`)
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                html += `<div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>
+                <div style="display:flex; gap:0;">
+                    <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer;" onclick="toggleAccordion('${cardId}', this)">
+                        <span class="footer-pass-label">Final minimum thickness (governing)</span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span class="footer-pass-value">${r.minimum_thickness_mm} mm</span>
+                            <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
+                        </span>
+                    </button>
+                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
+                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
+                </div>`;
+            } else {
+                html += `<div class="result-card-body">
+                    <div class="result-message">${r.message}</div>
+                </div>`;
+            }
+
+            html += `</div>`;
+        });
+
+    } else {
+        const allPass   = results.every(r => r.status === 'PASS');
+        const bannerCls = allPass ? 'overall-pass' : 'overall-fail';
+        const bannerTxt = allPass
+            ? '<i class="ti ti-circle-check" aria-hidden="true"></i> Panel complies'
+            : '<i class="ti ti-alert-triangle" aria-hidden="true"></i> Panel does not comply — see details below';
+        html += `<div class="${bannerCls}">${bannerTxt}</div>`;
+
+        results.forEach(r => {
+            const isPass    = r.status === 'PASS';
+            const cardClass = isPass ? 'pass' : 'fail';
+            const badgeIcon = isPass ? 'ti-circle-check' : 'ti-x';
+            const badgeText = r.status === 'TABLE_5_3_NOT_PERMITTED' ? 'Not permitted'
+                            : r.status === 'NO_COMPLIANT_THICKNESS' ? 'No solution'
+                            : isPass ? 'Pass' : 'Fail';
+
+            html += `<div class="result-card ${cardClass}">
+                <div class="result-card-header">
+                    <div>
+                        <div class="result-glass-name">${r.glass_type} ${r.glass_subtype} — ${r.actual_thickness_mm}mm actual / ${r.nominal_thickness_mm}mm nominal</div>
+                    </div>
+                    <span class="status-badge ${cardClass}">
+                        <i class="ti ${badgeIcon}" style="font-size:11px" aria-hidden="true"></i> ${badgeText}
+                    </span>
+                </div>`;
+
+            const cardId = `p2-detail-${Math.random().toString(36).slice(2,9)}`;
+            let hasDetail = false;
+
+            if (r.k_pane !== null && r.k_pane !== undefined) {
+                hasDetail = true;
+                let detailRows = '';
+                detailRows += `<div class="result-row"><span class="result-label">Effective ULS</span><span class="result-value">${r.effective_uls_pa.toFixed(4)} kPa</span></div>`;
+                detailRows += `<div class="result-row"><span class="result-label">Effective SLS</span><span class="result-value">${r.effective_sls_pa.toFixed(4)} kPa</span></div>`;
+                detailRows += `<div class="result-row">
+                        <span class="result-label">ULS check</span>
+                        <span class="result-value ${r.uls_status === 'PASS' ? 'green' : 'red'}">${r.uls_status} (span ${r.span_mm.toFixed(0)}mm vs B_uls ${r.B_uls_mm.toFixed(0)}mm)</span>
+                    </div>`;
+                detailRows += `<div class="result-row">
+                        <span class="result-label">SLS check</span>
+                        <span class="result-value ${r.sls_status === 'PASS' ? 'green' : 'red'}">${r.sls_status} (span ${r.span_mm.toFixed(0)}mm vs B_sls ${r.B_sls_mm.toFixed(0)}mm)</span>
+                    </div>`;
+
+                if (r.table_5_3_status) {
+                    const t53Text = `${r.table_5_3_status} (nominal ${r.nominal_thickness_mm}mm vs min ${r.table_5_3_min_thickness_mm}mm)`;
+                    detailRows += `<div class="result-row">
+                        <span class="result-label">Table 5.3 check (${payload.unframed_edge_condition})</span>
+                        <span class="result-value ${r.table_5_3_status === 'PASS' ? 'green' : 'red'}">${t53Text}</span>
+                    </div>`;
+                }
+
+                if (r.annealed_area_flag) {
+                    detailRows += `<div class="flag-row">⚠ 3mm Annealed area restriction FAIL — actual ${r.annealed_area_flag.actual_area}m² vs max ${r.annealed_area_flag.max_area}m².</div>`;
+                }
+
+                html += `<div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>`;
+            }
+
+            if (isPass) {
+                const chevron = hasDetail
+                    ? `<i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>`
+                    : '';
+                const onclick = hasDetail ? `onclick="toggleAccordion('${cardId}', this)"` : '';
+                const tag = hasDetail ? 'button' : 'div';
+
+                const snapRows = [];
+                snapRows.push({ label: 'ULS check', value: `${r.uls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_uls_mm.toFixed(0)}mm)` });
+                snapRows.push({ label: 'SLS check', value: `${r.sls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_sls_mm.toFixed(0)}mm)` });
+                if (r.table_5_3_status) {
+                    snapRows.push({ label: `Table 5.3 check (${payload.unframed_edge_condition})`, value: r.table_5_3_status });
+                }
+                const snapInputs = {
+                    glassName: `${r.glass_type} ${r.glass_subtype} (${r.nominal_thickness_mm}mm)`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: edgeLabel,
+                    windLoad: windLoadLabel,
+                    glazing: 'Single'
+                };
+                const snapHtml = buildSnapshotHTML(snapInputs, snapRows, 'Overall result', 'Pass')
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                html += `<div style="display:flex; gap:0;">
+                    <${tag} style="border:none; ${hasDetail ? 'cursor:pointer;' : ''}" class="result-card-footer-pass main-action" ${onclick}>
+                        <span class="footer-pass-label">Overall result</span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span class="footer-pass-value">Pass</span>
+                            ${chevron}
+                        </span>
+                    </${tag}>
+                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
+                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
+                </div>`;
+            } else if (r.status === 'INVALID' || r.status === 'ERROR' || r.status === 'TABLE_5_3_NOT_PERMITTED') {
+                html += `<div class="result-card-footer-fail">
+                    <div class="footer-fail-label">${r.message}</div>
+                </div>`;
+            } else {
+                const failedChecks = [];
+                if (r.uls_status === 'FAIL') failedChecks.push('ULS');
+                if (r.sls_status === 'FAIL') failedChecks.push('SLS');
+                if (r.table_5_3_status === 'FAIL') failedChecks.push('Table 5.3');
+                const failedChecksText = failedChecks.length > 0 ? failedChecks.join(' and ') : 'one or more checks';
+
+                const glassLabel = `${r.glass_type} ${r.glass_subtype}`;
+
+                let footerContentHtml;
+                if (r.next_compliant_thickness_mm) {
+                    footerContentHtml = `
+                        <span class="footer-fail-label"><strong style="color:#ff5555; font-size:13px;">${r.nominal_thickness_mm}mm ${glassLabel}</strong> fails ${failedChecksText} checks. Use <strong style="color:#3ddc6e; font-size:13px;">${r.next_compliant_thickness_mm}mm ${glassLabel}</strong> instead.</span>
+                        <i class="ti ti-chevron-down" style="font-size:16px; color:#cf6679; transition: transform 0.15s; flex-shrink:0; margin-left:12px;"></i>`;
+                } else {
+                    footerContentHtml = `
+                        <span class="footer-fail-label"><strong style="color:#ff5555; font-size:13px;">${r.nominal_thickness_mm}mm ${glassLabel}</strong> fails ${failedChecksText} checks. No compliant thickness found.</span>
+                        <i class="ti ti-chevron-down" style="font-size:16px; color:#cf6679; transition: transform 0.15s; flex-shrink:0; margin-left:12px;"></i>`;
+                }
+
+                const snapRowsFail = [];
+                snapRowsFail.push({ label: 'ULS check', value: `${r.uls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_uls_mm.toFixed(0)}mm)` });
+                if (r.sls_status) {
+                    snapRowsFail.push({ label: 'SLS check', value: `${r.sls_status} (${r.span_mm.toFixed(0)}mm vs ${r.B_sls_mm.toFixed(0)}mm)` });
+                }
+                if (r.table_5_3_status) {
+                    snapRowsFail.push({ label: `Table 5.3 check (${payload.unframed_edge_condition})`, value: r.table_5_3_status });
+                }
+                const snapInputsFail = {
+                    glassName: `${r.glass_type} ${r.glass_subtype} (${r.nominal_thickness_mm}mm)`,
+                    panel: `${payload.height_mm} x ${payload.width_mm}mm`,
+                    support: edgeLabel,
+                    windLoad: windLoadLabel,
+                    glazing: 'Single'
+                };
+                const snapHtmlFail = buildSnapshotHTML(snapInputsFail, snapRowsFail, 'Recommended thickness',
+                    r.next_compliant_thickness_mm ? `${r.next_compliant_thickness_mm} mm` : 'No solution found')
+                    .replace(/`/g, '\\`').replace(/\n/g, '');
+
+                if (hasDetail) {
+                    html += `<div style="display:flex; gap:0;">
+                        <button class="result-card-footer-fail main-action" style="border:none; cursor:pointer; flex:1; display:flex; align-items:center; justify-content:space-between;" onclick="toggleAccordion('${cardId}', this)">
+                            ${footerContentHtml}
+                        </button>
+                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
+                            <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
+                        </button>
+                    </div>`;
+                } else {
+                    html += `<div class="result-card-footer-fail" style="display:flex; align-items:center; justify-content:space-between;">
+                        ${footerContentHtml}
+                    </div>`;
+                }
+            }
+
+            html += `</div>`;
+        });
+    }
+
+    document.getElementById('p2-results-content').innerHTML = html;
+}
+
+function clearP2Fields() {
+    document.getElementById('p2_height_mm').value = '';
+    document.getElementById('p2_width_mm').value  = '';
+    document.getElementById('p2_uls_pa').value     = '';
+    document.getElementById('p2_sls_pa').value     = '';
+    document.getElementById('p2_nc_rating').value  = '';
+
+    setP2SafetyGlass(false);
+    setP2EdgeCondition('2-edge');
+    setP2WindMethod('pressure');
+    setP2Location('General');
+    setP2Mode('mode1');
+
+    document.querySelectorAll('#p2-glass-type-checkboxes input[type=checkbox]').forEach(cb => {
+        cb.checked = false;
+    });
+
+    document.getElementById('p2-results-content').innerHTML = `
+        <div class="results-placeholder">
+            <div class="placeholder-icon">◻</div>
+            <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+        </div>`;
+    document.getElementById('p2-warning-bar').style.display = 'none';
+    document.getElementById('p2-report-btn').style.display  = 'none';
+
+    p2State.lastResults   = null;
+    p2State.lastPayload   = null;
+    p2State.inputsChanged = false;
+}
+
+function generateP2Report() {
+    if (!p2State.lastResults || !p2State.lastPayload) return;
+
+    const payload = p2State.lastPayload;
+    const results = p2State.lastResults;
+
+    const modeLabels = {
+        'mode1': 'Minimum Thickness Finder',
+        'mode2': 'Compliance Checker'
+    };
+
+    // buildSnapshotHTML()/copySnapshotAsImage() and /generate_report are
+    // fully generic already (Section 8.2) — no duplication or
+    // parameterisation needed, just building the same reportPayload shape
+    // Pathway 1's generateReport() builds, with Pathway 2's own labels.
+    const reportPayload = {
+        ...payload,
+        ...results,
+        mode_label:           modeLabels[payload.mode] || payload.mode,
+        wind_method_label:    payload.wind_method === 'pressure' ? 'Direct Pressures (AS 1170.2)' : 'N/C Rating (AS 4055)',
+        glazing_config_label: 'Single Glazed',
+        wind_pressure_uls:    results.wind_pressure_uls,
+        wind_pressure_sls:    results.wind_pressure_sls
+    };
+
+    fetch('/generate_report', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(reportPayload)
+    })
+    .then(r => r.blob())
+    .then(blob => {
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'AS1288_Calculation_Report.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(() => showP2Error('Could not generate report. Please try again.'));
+}
+
+function showP2Error(msg) {
+    document.getElementById('p2-results-content').innerHTML =
+        `<div class="error-box">⚠ ${msg}</div>`;
+}
+
+// ---------------------------------------------------------------------------
 // ERROR DISPLAY
 // ---------------------------------------------------------------------------
 
@@ -1673,6 +2460,8 @@ document.addEventListener('DOMContentLoaded', () => {
     buildGlassTypeCheckboxes();
     buildPaneInputs();
     attachChangeListeners();
+    buildP2GlassTypeCheckboxes();
+    buildP2PaneInputs();
     attachTooltipListeners();
 });
 
