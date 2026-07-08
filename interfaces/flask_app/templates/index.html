@@ -711,9 +711,14 @@
 </div><!-- /legacy-calculator-view -->
 
 <!-- ========== FOOTER NOTE ========== -->
-<div class="footer-note">
+<!-- Human-impact footer: absent entirely when the active pathway's safety
+     glass toggle is OFF (no assessment was made, so no message is shown -
+     see updateHumanImpactFooter()). When ON, shows a single sentence naming
+     whichever table actually ran (Table 5.1 for Pathway 1, Table 5.3 for
+     Pathway 2) - never both, since no case runs both simultaneously. -->
+<div class="footer-note" id="human-impact-footer" style="display:none;">
     <span class="footer-icon">ℹ</span>
-    <span>Human impact requirements not considered. Results are for wind load resistance only — AS 1288 Section 4.</span>
+    <span id="human-impact-footer-text"></span>
 </div>
 
 <!-- ========== TOOLTIP POPUP ========== -->
@@ -833,6 +838,7 @@ function showLanding() {
     document.getElementById('pathway1-view').style.display = 'none';
     document.getElementById('pathway2-view').style.display = 'none';
     document.getElementById('pathway3-view').style.display = 'none';
+    updateHumanImpactFooter(false, '');
 }
 
 function showPathway(pathway) {
@@ -840,6 +846,37 @@ function showPathway(pathway) {
     document.getElementById('pathway1-view').style.display = pathway === 'pathway1' ? 'block' : 'none';
     document.getElementById('pathway2-view').style.display = pathway === 'pathway2' ? 'block' : 'none';
     document.getElementById('pathway3-view').style.display = pathway === 'pathway3' ? 'block' : 'none';
+
+    // Human impact footer reflects whichever pathway is now visible - each
+    // pathway owns its own safety glass toggle state, so re-derive rather
+    // than leaving the previous pathway's wording on screen.
+    if (pathway === 'pathway1') {
+        updateHumanImpactFooter(state.safetyGlass, 'Table 5.1');
+    } else if (pathway === 'pathway2') {
+        updateHumanImpactFooter(p2State.safetyGlass, 'Table 5.3');
+    } else {
+        // Pathway 3 report/footer logic not yet built - no message until it is.
+        updateHumanImpactFooter(false, '');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// HUMAN IMPACT FOOTER
+// ---------------------------------------------------------------------------
+// Shared by Pathway 1 (Table 5.1) and Pathway 2 (Table 5.3). Absent entirely
+// when the active pathway's safety glass toggle is OFF - the tool performs
+// no human impact assessment in that case, so no message is shown (Section 5:
+// applicability is the user's responsibility, not the tool's, in every case).
+function updateHumanImpactFooter(active, tableName) {
+    const footer = document.getElementById('human-impact-footer');
+    const text   = document.getElementById('human-impact-footer-text');
+    if (active) {
+        text.textContent = `Safety glass requirements (${tableName}) have been applied to the thickness selection as declared by the user. This tool does not assess whether safety glass is required for this application. The user is responsible for determining applicability in accordance with AS 1288 Section 5 and relevant building codes.`;
+        footer.style.display = 'flex';
+    } else {
+        text.textContent = '';
+        footer.style.display = 'none';
+    }
 }
 
 function switchEngine(engine) {
@@ -900,6 +937,7 @@ function setSafetyGlass(val) {
     document.getElementById('sg-no').classList.toggle('active',  !val);
     document.getElementById('sg-yes').classList.toggle('active',  val);
     document.getElementById('sg-disclaimer').style.display = val ? 'block' : 'none';
+    updateHumanImpactFooter(val, 'Table 5.1');
 
     updateTwoEdgeAvailability();
 
@@ -1824,6 +1862,7 @@ function setP2SafetyGlass(val) {
     document.getElementById('p2-sg-no').classList.toggle('active', !val);
     document.getElementById('p2-sg-yes').classList.toggle('active', val);
     document.getElementById('p2-sg-disclaimer').style.display = val ? 'block' : 'none';
+    updateHumanImpactFooter(val, 'Table 5.3');
     buildP2GlassTypeCheckboxes();
     buildP2PaneInputs();
     markP2InputsChanged();

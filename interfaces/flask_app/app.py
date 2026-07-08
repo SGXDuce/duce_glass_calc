@@ -630,78 +630,21 @@ def build_report(data):
                     lines.append('')
 
     lines.append(sep)
-    if unframed_edge_condition:
-        # Table 5.3 IS the human impact check for this pathway (Section
-        # 14.2) and was actually evaluated above - the generic "Human
-        # Impact has not been considered" note is wrong here (it describes
-        # Pathway 1, where only the beta Table 5.1 check exists). Summarise
-        # what ran and, where determinable, whether it governed.
-        lines.append('NOTE: AS 1288 Table 5.3 (unframed side edges) is the human impact')
-        lines.append(f'check for this configuration ({unframed_edge_condition}, Section 14.2)')
-        lines.append('and was evaluated above:')
-        for r in results:
-            if mode == 'mode1':
-                name    = f"{r.get('glass_type')} {r.get('glass_subtype')}"
-                t53_min = r.get('table_5_3_minimum_thickness_mm')
-                final   = r.get('minimum_thickness_mm')
-                if r.get('status') == 'PASS' and t53_min is not None:
-                    tie = ' — matches the final governing thickness' if t53_min == final else ' — did not govern (a wind check required more)'
-                    lines.append(f"  {name}: Table 5.3 minimum = {t53_min}mm{tie}.")
-                elif r.get('status') in ('TABLE_5_3_NOT_PERMITTED', 'NO_COMPLIANT_THICKNESS'):
-                    lines.append(f"  {name}: {r.get('message')}")
-            else:
-                name       = f"{r.get('pane_label')} pane ({r.get('glass_type')} {r.get('glass_subtype')})"
-                t53_status = r.get('table_5_3_status')
-                t53_min    = r.get('table_5_3_min_thickness_mm')
-                if t53_status:
-                    cause = ' — this is why the pane failed overall' if t53_status == 'FAIL' else ''
-                    lines.append(f"  {name}: Table 5.3 {t53_status} (nominal "
-                                  f"{r.get('nominal_thickness_mm')}mm vs required {t53_min}mm){cause}.")
-                elif r.get('status') == 'TABLE_5_3_NOT_PERMITTED':
-                    lines.append(f"  {name}: {r.get('message')}")
-    elif sg:
-        # Table 5.1 (Safety Glass area limits) DID run for this pathway
-        # whenever the toggle is on - the blanket "not considered" note is
-        # false in that case, same issue as Pathway 2's Table 5.3 note
-        # fixed earlier this session. Still flag it as Beta/partial (panel
-        # area limits only, not full Section 5) rather than dropping that
-        # caveat - only the "wasn't considered at all" claim was wrong.
-        lines.append('NOTE: AS 1288 Table 5.1 (Safety Glass area limits) was evaluated')
-        lines.append('for this configuration and is included above. This is a Beta,')
-        lines.append('partial check (panel area limits only) - it is not full AS 1288')
-        lines.append('Section 5 Human Impact compliance.')
-        for r in results:
-            if mode == 'mode1':
-                name   = f"{r.get('glass_type')} {r.get('glass_subtype')}"
-                sg_min = r.get('sg_minimum_thickness_mm')
-                final  = r.get('minimum_thickness_mm')
-                if r.get('status') == 'PASS' and r.get('sg_flag') == 'EXTRAPOLATE':
-                    lines.append(f"  {name}: Table 5.1 check exceeds scope - manual extrapolation required.")
-                elif r.get('status') == 'PASS' and sg_min is not None:
-                    tie = ' — matches the final governing thickness' if sg_min == final else ' — did not govern (a wind check required more)'
-                    lines.append(f"  {name}: Table 5.1 minimum = {sg_min}mm{tie}.")
-                elif r.get('status') == 'SG_INELIGIBLE':
-                    lines.append(f"  {name}: {r.get('message')}")
-            else:
-                name       = f"{r.get('pane_label')} pane ({r.get('glass_type')} {r.get('glass_subtype')})"
-                sg_status  = r.get('sg_status')
-                sg_max     = r.get('sg_max_area_m2')
-                panel_area = r.get('panel_area_m2')
-                if sg_status == 'EXTRAPOLATE':
-                    lines.append(f"  {name}: Table 5.1 check exceeds scope - manual extrapolation required.")
-                elif sg_status and sg_status != 'N/A':
-                    cause = ' — this is why the pane failed overall' if sg_status == 'FAIL' else ''
-                    lines.append(f"  {name}: Table 5.1 {sg_status} (panel area {panel_area}m2 vs max {sg_max}m2){cause}.")
-                elif r.get('status') == 'SG_INELIGIBLE':
-                    lines.append(f"  {name}: {r.get('message')}")
-    else:
-        lines.append('NOTE: Human Impact requirements have not been considered.')
-        lines.append('Results are for Wind Load resistance only (AS 1288 Section 4).')
+    # Human impact footer (supersedes v1.13's wording entirely, per this
+    # session's decision): absent completely when the safety glass toggle
+    # is off - the tool made no human impact assessment, so no claim is
+    # made either way. When on, names whichever table actually governed
+    # this pathway (Table 5.3 for Pathway 2's unframed-edge configurations,
+    # Table 5.1 otherwise) - never both, since no case runs both at once.
+    # Must match the on-screen footer (updateHumanImpactFooter() in
+    # index.html) word for word.
     if sg:
-        lines.append('')
-        lines.append('NOTE: Safety glass requirement was declared by the user.')
-        lines.append('This tool does not assess whether safety glass is required.')
-        lines.append('Please refer to AS 1288 Section 5.')
+        table_ref = 'Table 5.3' if unframed_edge_condition else 'Table 5.1'
+        lines.append(f'NOTE: Safety glass requirements ({table_ref}) have been applied to the')
+        lines.append('thickness selection as declared by the user. This tool does not assess')
+        lines.append('whether safety glass is required for this application. The user is')
+        lines.append('responsible for determining applicability in accordance with AS 1288')
+        lines.append('Section 5 and relevant building codes.')
     lines.append(sep)
 
     return '\n'.join(lines)
