@@ -146,6 +146,54 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
     }
 
 
+def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=None,
+                          governing_thickness_mm=None,
+                          bite_thickness_mm=None,
+                          uls_thickness_mm=None, sls_thickness_mm=None,
+                          human_impact_thickness_mm=None, human_impact_table=None,
+                          angle_deg=None, corner_or_general=None,
+                          panel_area_m2=None,
+                          safety_glass_required=False,
+                          unframed_edge_condition=None,
+                          message=None,
+                          bite_trace=None, wind_trace=None, human_impact_trace=None):
+    """
+    Builds a Pathway 3 (combined bite/wind/human-impact) result dictionary
+    for a single glass subtype, with a guaranteed, consistent set of keys.
+    Every return path in run_pathway3_calculation() must call this instead
+    of building its own dict - same discipline as make_mode1_result() etc.,
+    see Section 6.4 of the project summary.
+
+    Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (short-circuited
+    at the broad-category level, Section 12.13 step 2), 'WIND_NO_COMPLIANT_THICKNESS',
+    'HUMAN_IMPACT_INELIGIBLE' (subtype not eligible for the applicable table -
+    bite/wind results still populated, governing_thickness_mm still computed
+    without the human impact figure), 'HUMAN_IMPACT_NOT_PERMITTED' (Table 5.3
+    hard gate), 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS', 'ERROR'.
+    """
+    return {
+        'subtype': subtype,
+        'glass_type': glass_type,
+        'glass_subtype': glass_subtype,
+        'status': status,
+        'message': message,
+        'governing_thickness_mm': governing_thickness_mm,
+        'bite_thickness_mm': bite_thickness_mm,
+        'uls_thickness_mm': uls_thickness_mm,
+        'sls_thickness_mm': sls_thickness_mm,
+        'human_impact_thickness_mm': human_impact_thickness_mm,
+        'human_impact_table': human_impact_table,
+        'angle_deg': angle_deg,
+        'corner_or_general': corner_or_general,
+        'panel_area_m2': panel_area_m2,
+        'safety_glass_required': safety_glass_required,
+        'unframed_edge_condition': unframed_edge_condition,
+        'bite_trace': bite_trace if bite_trace is not None else [],
+        'wind_trace': wind_trace if wind_trace is not None else [],
+        'human_impact_trace': human_impact_trace if human_impact_trace is not None else [],
+    }
+
+
 def make_structural_glazing_result(status, height_m=None, width_m=None,
                                     glass_thickness_nominal_mm=None, pz_kpa=None,
                                     sealed_edges=None, wind_span_m=None,
