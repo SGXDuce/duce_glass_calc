@@ -118,10 +118,12 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
     unframed_edge_condition: None (default - Table 5.3 does not apply),
     '2-edge', or '3-edge'. Independent of support_condition, which the wind
     formulas only ever see as '4-edge'/'2-edge' (3-edge is treated as
-    2-edge for wind bending - Section 14.2). When set, Table 5.3 runs
-    instead of the Table 5.1 Safety Glass Area Check above, and its result
-    enters the governing max() alongside ULS/SLS. df_5_3 (the loaded Table
-    5.3 dataframe) must be supplied whenever unframed_edge_condition is set.
+    2-edge for wind bending - Section 14.2). When set AND safety_glass_required
+    is True, Table 5.3 runs instead of the Table 5.1 Safety Glass Area Check
+    above, and its result enters the governing max() alongside ULS/SLS - both
+    human impact tables only run when safety glass is required. df_5_3 (the
+    loaded Table 5.3 dataframe) must be supplied whenever unframed_edge_condition
+    is set, regardless of safety_glass_required.
 
     Returns a dict describing the full result for that glass type.
     """
@@ -373,11 +375,14 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
     # Replaces the Table 5.1 Safety Glass Area Check above entirely for
     # this branch (Section 14.2) - the two never both run for the same
     # glass type, since support_condition == '4-edge' gates Table 5.1 and
-    # unframed_edge_condition in ('2-edge', '3-edge') gates this.
+    # unframed_edge_condition in ('2-edge', '3-edge') gates this. Both
+    # human-impact tables (5.1 and 5.3) are additionally gated on the
+    # safety_glass toggle, per the product decision that human impact
+    # checks only run when safety glass is required.
     table_5_3_minimum_thickness = None
     table_5_3_trace = []
 
-    if unframed_edge_condition in ('2-edge', '3-edge'):
+    if safety_glass_required and unframed_edge_condition in ('2-edge', '3-edge'):
         if df_5_3 is None:
             return make_mode1_result(
                 status='ERROR',
@@ -490,11 +495,12 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
     and optionally Safety Glass Area Check.
 
     unframed_edge_condition: None (default - Table 5.3 does not apply),
-    '2-edge', or '3-edge'. When set, Table 5.3 checks this pane's specific
-    nominal thickness against the AS 1288 row-band minimum instead of
-    running the Table 5.1 Safety Glass Area Check (Section 14.2). df_5_3
-    (the loaded Table 5.3 dataframe) must be supplied whenever
-    unframed_edge_condition is set.
+    '2-edge', or '3-edge'. When set AND safety_glass_required is True, Table
+    5.3 checks this pane's specific nominal thickness against the AS 1288
+    row-band minimum instead of running the Table 5.1 Safety Glass Area Check
+    (Section 14.2) - both human impact tables only run when safety glass is
+    required. df_5_3 (the loaded Table 5.3 dataframe) must be supplied
+    whenever unframed_edge_condition is set, regardless of safety_glass_required.
 
     KNOWN SCOPE GAP: the "next compliant thickness" search below re-verifies
     ULS/SLS/Safety-Glass per candidate but does NOT yet re-verify Table 5.3
@@ -623,12 +629,14 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
     # Replaces the Table 5.1 Safety Glass Area Check for this branch
     # (Section 14.2). Unlike Mode 1's search, Mode 2 already knows the
     # pane's nominal thickness - this checks that specific thickness
-    # against the row-band minimum rather than searching for one.
+    # against the row-band minimum rather than searching for one. Gated
+    # on safety_glass_required, same as Table 5.1 - both human impact
+    # tables only run when safety glass is toggled on.
     table_5_3_status = None
     table_5_3_min_thickness = None
     table_5_3_trace = []
 
-    if unframed_edge_condition in ('2-edge', '3-edge'):
+    if safety_glass_required and unframed_edge_condition in ('2-edge', '3-edge'):
         if df_5_3 is None:
             return make_mode2_result(
                 status='ERROR',
@@ -912,7 +920,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
             # comparison only, not a per-candidate recalculation. A None
             # value here means the row itself was NON_COMPLIANT (unsolvable
             # by any thickness), so every candidate fails it.
-            if unframed_edge_condition in ('2-edge', '3-edge'):
+            if safety_glass_required and unframed_edge_condition in ('2-edge', '3-edge'):
                 candidate_5_3_result = (
                     'PASS' if table_5_3_min_thickness is not None
                     and candidate >= table_5_3_min_thickness else 'FAIL'
