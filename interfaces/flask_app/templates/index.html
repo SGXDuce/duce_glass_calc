@@ -341,9 +341,10 @@
      since it runs alongside Pathway 1 in the same DOM — reusing Pathway 1's
      IDs would break both via duplicate-ID lookups. Own state object
      (p2State) and dedicated JS functions, following the same
-     already-established precedent as the silicone-bite engine below
-     (siliconeState / setSilicone*() / runSiliconeCalculation()) rather than
-     parameterising the Pathway 1 functions.
+     already-established precedent used throughout (own state object and
+     dedicated JS functions per pathway, e.g. Pathway 3's p3State /
+     setP3*() / runP3Calculation()) rather than parameterising the
+     Pathway 1 functions.
 
      Differences from Pathway 1 (Section 14.2):
        - Support condition is a 2-edge / 3-edge selector, not 4-edge/2-edge.
@@ -557,61 +558,76 @@
 </div>
 </div><!-- /pathway2-view -->
 
-<div id="pathway3-view" class="pathway-placeholder-view" style="display:none;">
-    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
-    <div class="pathway-placeholder-text">Pathway 3 — Partly Framed, Silicone Joints — content to be built</div>
-</div>
-
 <!-- ========================================================================
-     LEGACY ENGINE SELECTOR + SILICONE BITE VIEW
-     The wind-load Mode 1/2 markup that used to live here has been relocated
-     into #pathway1-view (v1.11 step 2). This leftover engine-selector bar
-     now has nothing to switch to on the wind side (#wind-engine-view lives
-     in #pathway1-view now) — left as-is since it stays hidden and unlinked;
-     the silicone-engine-view portion is untouched, pending its own
-     relocation into #pathway3-view in a later step.
-     ======================================================================== -->
-<div id="legacy-calculator-view" style="display:none;">
+     PATHWAY 3 — PARTLY FRAMED, SILICONE JOINTS (v1.15)
+     Faceted Structural Silicone, Section 14.3 / 12.13. A single combined
+     form (no mode-bar - bite, wind, and human impact all run together in
+     one server-side calculation, engine/combined/pathway3.py). Own IDs
+     throughout (p3-*), own state object (p3State), same relocation
+     precedent as Pathway 1/2 and the legacy silicone-bite form this
+     replaces (Section 8, v1.10 fields relocated here per Section 12.13).
 
-<!-- ========== ENGINE SELECTOR ========== -->
-<div class="mode-bar">
-    <button class="mode-btn active" id="btn-engine-wind" onclick="switchEngine('wind')">
-        <span class="mode-btn-label">Wind Load Calculator</span>
-        <span class="mode-btn-desc">AS 1288 Section 4 — bending &amp; deflection</span>
-    </button>
-    <button class="mode-btn" id="btn-engine-silicone" onclick="switchEngine('silicone')">
-        <span class="mode-btn-label">Silicone Bite Calculator</span>
-        <span class="mode-btn-desc">Structural silicone joint sizing</span>
-    </button>
+     Differences from Pathway 1/2:
+       - No support-condition selector - support is always 4-edge,
+         conditional on the silicone bite being satisfied (Section 14.3).
+       - 2-edge/3-edge selector is angle-reactive, not a fixed toggle -
+         only shown for 90 < angle <= 160 (Table 5.3's joint-count lookup;
+         Table 5.1 at exactly 90 deg has no joint-count concept).
+       - Glass type checkboxes offer all six subtypes (Monolithic and
+         Laminated combined), not four - Pathway 3 has no single fixed
+         eligible-types list the way Mode 2's IGU panes do.
+       - Safety glass ineligible list is identical for both Table 5.1 and
+         Table 5.3 (SAFETY_GLASS_INELIGIBLE == TABLE_5_3_SAFETY_GLASS_INELIGIBLE,
+         both = Monolithic Annealed/Heat-strengthened) - so the checkbox
+         filter reacts only to the safety glass toggle, not to angle.
+     ======================================================================== -->
+<div id="pathway3-view" style="display:none;">
+<div class="back-to-selection-btn-row">
+    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
 </div>
 
-<!-- ========== SILICONE BITE ENGINE ========== -->
-<div id="silicone-engine-view" style="display:none;">
 <div class="main-body">
 
-    <!-- ===== SILICONE INPUTS PANEL ===== -->
-    <div class="inputs-panel" id="silicone-inputs-panel">
+    <!-- ===== INPUTS PANEL ===== -->
+    <div class="inputs-panel" id="p3-inputs-panel">
+
+        <!-- Safety Glass -->
+        <div class="section-label">Human Impact Check <span class="beta-tag">Beta</span></div>
+        <div class="field-group">
+            <label class="field-label">Safety glass required?
+                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 at exactly 90 degrees, or Table 5.3 above 90 to 160 degrees.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p3-sg-no" onclick="setP3SafetyGlass(false)">No</button>
+                <button class="toggle-btn" id="p3-sg-yes" onclick="setP3SafetyGlass(true)">Yes</button>
+            </div>
+        </div>
+        <div class="sg-disclaimer" id="p3-sg-disclaimer" style="display:none;">
+            This feature is in Beta. Safety glass requirement is declared by the user. This tool does not assess whether safety glass is required for this application. The user is responsible for determining applicability in accordance with AS 1288 and relevant building codes. Please refer to Section 5 of AS 1288 to confirm those details.
+        </div>
+
+        <div class="divider"></div>
 
         <!-- Panel Dimensions -->
         <div class="section-label">Panel Dimensions</div>
         <div class="field-group">
             <label class="field-label">Height (mm)
-                <span class="tip" data-tip="Overall panel height in millimetres. Not used by the bite calculation itself (per AS 1288 Section 9, the governing dimension is the larger panel width, not height) — collected here for future carry-over into the Wind Load Calculator.">?</span>
+                <span class="tip" data-tip="Overall panel height in millimetres.">?</span>
             </label>
-            <input class="field-input" type="number" id="si_height_mm" placeholder="e.g. 1200" min="1">
+            <input class="field-input" type="number" id="p3_height_mm" placeholder="e.g. 1200" min="1">
         </div>
         <div class="field-row-2">
             <div class="field-group">
                 <label class="field-label">Width 1 (mm)
                     <span class="tip" data-tip="Width of one of the two panels meeting at the silicone joint, in millimetres.">?</span>
                 </label>
-                <input class="field-input" type="number" id="si_width_1_mm" placeholder="e.g. 600" min="1">
+                <input class="field-input" type="number" id="p3_width_1_mm" placeholder="e.g. 600" min="1">
             </div>
             <div class="field-group">
                 <label class="field-label">Width 2 (mm)
-                    <span class="tip" data-tip="Width of the other panel meeting at the silicone joint, in millimetres. The larger of Width 1 and Width 2 governs the bite calculation.">?</span>
+                    <span class="tip" data-tip="Width of the other panel meeting at the silicone joint, in millimetres. The larger of Width 1 and Width 2 governs both the bite and wind checks.">?</span>
                 </label>
-                <input class="field-input" type="number" id="si_width_2_mm" placeholder="e.g. 600" min="1">
+                <input class="field-input" type="number" id="p3_width_2_mm" placeholder="e.g. 600" min="1">
             </div>
         </div>
 
@@ -621,17 +637,28 @@
         <div class="section-label">Joint Geometry</div>
         <div class="field-group">
             <label class="field-label">Included angle (deg)
-                <span class="tip" data-tip="The included angle between the two adjacent glass panels, in degrees. Valid range is 90 to 160 degrees inclusive — AS 1288 Section 9 / Clause 9.3.3.1 scope. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.">?</span>
+                <span class="tip" data-tip="The included angle between the two adjacent glass panels, in degrees. Valid range is 90 to 160 degrees inclusive - AS 1288 Section 9 / Clause 9.3.3.1 scope. At exactly 90 degrees human impact uses Table 5.1; above 90 to 160 degrees it uses Table 5.3.">?</span>
             </label>
-            <input class="field-input" type="number" id="si_angle_deg" placeholder="e.g. 90" min="90" max="160" step="0.1">
+            <input class="field-input" type="number" id="p3_angle_deg" placeholder="e.g. 90" min="90" max="160" step="0.1" oninput="onP3AngleChanged()">
         </div>
         <div class="field-group">
             <label class="field-label">Joint type
                 <span class="tip" data-tip="Butt joint: glass edges are cut square. Mitred joint: glass edges are cut at an angle to meet flush, which increases the usable silicone bite for a given glass thickness.">?</span>
             </label>
             <div class="toggle-group">
-                <button class="toggle-btn active" id="si-joint-butt" onclick="setSiliconeJointType('butt')">Butt</button>
-                <button class="toggle-btn" id="si-joint-mitred" onclick="setSiliconeJointType('mitred')">Mitred</button>
+                <button class="toggle-btn active" id="p3-joint-butt" onclick="setP3JointType('butt')">Butt</button>
+                <button class="toggle-btn" id="p3-joint-mitred" onclick="setP3JointType('mitred')">Mitred</button>
+            </div>
+        </div>
+
+        <!-- Unframed edge condition - angle-reactive, hidden at exactly 90 deg -->
+        <div class="field-group" id="p3-edge-condition-row" style="display:none;">
+            <label class="field-label">Unframed edge condition (Table 5.3 joint count)
+                <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Used only for the Table 5.3 human impact joint-count lookup above 90 degrees - has no effect at exactly 90 degrees, where Table 5.1 applies instead (no joint-count concept).">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p3-edge-2" onclick="setP3EdgeCondition('2-edge')">2-edge</button>
+                <button class="toggle-btn" id="p3-edge-3" onclick="setP3EdgeCondition('3-edge')">3-edge</button>
             </div>
         </div>
 
@@ -641,32 +668,40 @@
         <div class="section-label">Wind Load</div>
         <div class="field-group">
             <label class="field-label">Input method
-                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressure if you have a wind engineer's report. Use N/C Rating if you are working from AS 4055 wind classifications. The silicone bite calculation uses the Ultimate Limit State (ULS) pressure only.">?</span>
+                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
             </label>
             <div class="toggle-group">
-                <button class="toggle-btn active" id="si-wind-pressure" onclick="setSiliconeWindMethod('pressure')">Pressure (AS 1170.2)</button>
-                <button class="toggle-btn" id="si-wind-nc" onclick="setSiliconeWindMethod('nc')">N/C Rating (AS 4055)</button>
+                <button class="toggle-btn active" id="p3-wind-pressure" onclick="setP3WindMethod('pressure')">Pressures (AS 1170.2)</button>
+                <button class="toggle-btn" id="p3-wind-nc" onclick="setP3WindMethod('nc')">N/C Rating (AS 4055)</button>
             </div>
         </div>
 
-        <!-- Direct pressure input -->
-        <div id="si-pressure-inputs">
-            <div class="field-group">
-                <label class="field-label">ULS pressure (kPa)
-                    <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals — the design wind pressure (Pz) used in the AS 1288 Section 9 bite formula.">?</span>
-                </label>
-                <input class="field-input" type="number" id="si_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01">
+        <!-- Direct pressure inputs -->
+        <div id="p3-pressure-inputs">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">ULS pressure (kPa)
+                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the wind bending check and the AS 1288 Section 9 bite formula.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p3_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">SLS pressure (kPa)
+                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p3_sls_kpa" placeholder="e.g. 0.8" min="0" step="0.01">
+                </div>
             </div>
         </div>
 
         <!-- N/C rating inputs -->
-        <div id="si-nc-inputs" style="display:none;">
+        <div id="p3-nc-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
                     <label class="field-label">Wind classification
-                        <span class="tip" data-tip="Wind classification from AS 4055. N ratings apply to non-cyclonic regions. C ratings apply to cyclonic regions.">?</span>
+                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
                     </label>
-                    <select class="field-select" id="si_nc_rating">
+                    <select class="field-select" id="p3_nc_rating">
                         <option value="">Select rating</option>
                         <option>N1</option><option>N2</option><option>N3</option>
                         <option>N4</option><option>N5</option><option>N6</option>
@@ -674,41 +709,63 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Corner / General
-                        <span class="tip" data-tip="General applies to most window and door positions on a building. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    <label class="field-label">Window location
+                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
                     </label>
                     <div class="toggle-group">
-                        <button class="toggle-btn active" id="si-loc-general" onclick="setSiliconeLocation('General')">General</button>
-                        <button class="toggle-btn" id="si-loc-corner" onclick="setSiliconeLocation('Corner')">Corner</button>
+                        <button class="toggle-btn active" id="p3-loc-general" onclick="setP3Location('General')">General</button>
+                        <button class="toggle-btn" id="p3-loc-corner" onclick="setP3Location('Corner')">Corner</button>
                     </div>
                 </div>
             </div>
         </div>
 
+        <div class="divider"></div>
+
+        <!-- Glass Types -->
+        <div class="section-label">Glass Type(s) to Check</div>
+        <div class="field-group">
+            <label class="field-label">Select one or more
+                <span class="tip" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from silicone bite, wind load, and (if safety glass is required) the applicable human impact table.">?</span>
+            </label>
+            <div id="p3-glass-type-checkboxes">
+                <!-- Populated by JS based on safety glass toggle -->
+            </div>
+        </div>
+
         <!-- Calculate Button -->
-        <button class="calc-btn" id="si-calc-btn" onclick="runSiliconeCalculation()">Calculate</button>
-        <button class="clear-btn" onclick="clearSiliconeFields()">Clear fields</button>
+        <button class="calc-btn" id="p3-calc-btn" onclick="runP3Calculation()">Calculate</button>
+        <button class="clear-btn" onclick="clearP3Fields()">Clear fields</button>
 
     </div>
 
-    <!-- ===== SILICONE RESULTS PANEL ===== -->
-    <div class="results-panel" id="silicone-results-panel">
+    <!-- ===== RESULTS PANEL ===== -->
+    <div class="results-panel" id="p3-results-panel">
         <div class="results-header">
             <div class="section-label" style="margin-bottom:0;">Results</div>
+            <button class="report-btn-top" id="p3-report-btn" style="display:none;" onclick="generateP3Report()">
+                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+            </button>
         </div>
 
-        <div id="silicone-results-content">
+        <!-- Warning bar — shown when inputs change after a calculation -->
+        <div class="warning-bar" id="p3-warning-bar" style="display:none;">
+            <span class="warning-icon">⚠</span>
+            <span>Inputs have changed — recalculate to update results</span>
+        </div>
+
+        <!-- Results content -->
+        <div id="p3-results-content">
             <div class="results-placeholder">
                 <div class="placeholder-icon">◻</div>
                 <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
             </div>
         </div>
+
     </div>
 
 </div>
-</div><!-- /silicone-engine-view -->
-
-</div><!-- /legacy-calculator-view -->
+</div><!-- /pathway3-view -->
 
 <!-- ========== FOOTER NOTE ========== -->
 <!-- Human-impact footer: absent entirely when the active pathway's safety
@@ -751,14 +808,24 @@ const state = {
     inputsChanged:      false
 };
 
-const siliconeState = {
-    jointType:  'butt',
-    windMethod: 'pressure',
-    ncLocation: 'General'
+// Pathway 3 — Faceted Structural Silicone (Section 14.3). Own state object,
+// same precedent as p2State below — kept independent of Pathway 1's `state`.
+// unframedEdgeCondition only matters (is actually sent/used) when angleDeg is
+// above 90 - see onP3AngleChanged()/setP3EdgeCondition() below.
+const p3State = {
+    safetyGlass:            false,
+    angleDeg:               null,
+    unframedEdgeCondition:  '2-edge',
+    jointType:              'butt',
+    windMethod:             'pressure',
+    ncLocation:             'General',
+    lastResults:            null,
+    lastPayload:            null,
+    inputsChanged:          false
 };
 
 // Pathway 2 — Partly Framed, Exposed Edges (Section 14.2). Own state object,
-// same precedent as siliconeState above — kept independent of Pathway 1's
+// same precedent as p3State above — kept independent of Pathway 1's
 // `state` rather than shared, since the two pathways have genuinely
 // different constraints (2-edge/3-edge vs 4-edge, no IGU, no bushfire).
 const p2State = {
@@ -825,13 +892,10 @@ function switchMode(mode) {
 }
 
 // ---------------------------------------------------------------------------
-// ENGINE SWITCHING (Wind Load vs Silicone Bite)
-// ---------------------------------------------------------------------------
-
 // ---------------------------------------------------------------------------
 // Landing page routing (v1.11) — shows one of the four pathways, or returns
 // to the landing page. Follows the same show/hide-via-display pattern as
-// switchEngine()/switchMode() below, rather than introducing a new mechanism.
+// switchMode() below, rather than introducing a new mechanism.
 // ---------------------------------------------------------------------------
 function showLanding() {
     document.getElementById('landing-view').style.display = 'block';
@@ -854,8 +918,14 @@ function showPathway(pathway) {
         updateHumanImpactFooter(state.safetyGlass, 'Table 5.1');
     } else if (pathway === 'pathway2') {
         updateHumanImpactFooter(p2State.safetyGlass, 'Table 5.3');
+    } else if (pathway === 'pathway3') {
+        // Table name depends on angle (exactly 90 -> Table 5.1, above 90
+        // to 160 -> Table 5.3) - re-derive from the current angle field
+        // rather than a fixed table name, since this pathway's applicable
+        // table can change as the user edits the angle.
+        const tableName = p3State.angleDeg === 90 ? 'Table 5.1' : 'Table 5.3';
+        updateHumanImpactFooter(p3State.safetyGlass, tableName);
     } else {
-        // Pathway 3 report/footer logic not yet built - no message until it is.
         updateHumanImpactFooter(false, '');
     }
 }
@@ -877,14 +947,6 @@ function updateHumanImpactFooter(active, tableName) {
         text.textContent = '';
         footer.style.display = 'none';
     }
-}
-
-function switchEngine(engine) {
-    state.engine = engine;
-    document.getElementById('btn-engine-wind').classList.toggle('active', engine === 'wind');
-    document.getElementById('btn-engine-silicone').classList.toggle('active', engine === 'silicone');
-    document.getElementById('wind-engine-view').style.display     = engine === 'wind'     ? 'block' : 'none';
-    document.getElementById('silicone-engine-view').style.display = engine === 'silicone' ? 'block' : 'none';
 }
 
 // ---------------------------------------------------------------------------
@@ -1667,180 +1729,381 @@ function clearFields() {
 }
 
 // ---------------------------------------------------------------------------
-// SILICONE BITE ENGINE
+// PATHWAY 3 — FACETED STRUCTURAL SILICONE (Section 14.3 / 12.13)
+// Replaces the old standalone Silicone Bite Engine view (v1.10) - that form
+// only ran the bite calculation alone; this pathway combines bite + wind +
+// human impact in one request via /calculate_pathway3, following the same
+// own-state/own-functions precedent as Pathway 2 (p3State / setP3*() /
+// runP3Calculation()) rather than parameterising any earlier pathway.
 // ---------------------------------------------------------------------------
 
-function setSiliconeJointType(val) {
-    siliconeState.jointType = val;
-    document.getElementById('si-joint-butt').classList.toggle('active', val === 'butt');
-    document.getElementById('si-joint-mitred').classList.toggle('active', val === 'mitred');
+const P3_SUBTYPES = [
+    ['Monolithic', 'Annealed',           'Monolithic Annealed'],
+    ['Monolithic', 'Toughened',          'Monolithic Toughened'],
+    ['Monolithic', 'Heat-strengthened',  'Monolithic Heat-strengthened'],
+    ['Laminated',  'Annealed',           'Laminated Annealed'],
+    ['Laminated',  'Heat-strengthened',  'Laminated Heat-strengthened'],
+    ['Laminated',  'Toughened',          'Laminated Toughened'],
+];
+
+// Identical to P2_SG_INELIGIBLE (confirmed: SAFETY_GLASS_INELIGIBLE ==
+// TABLE_5_3_SAFETY_GLASS_INELIGIBLE == Monolithic Annealed/Heat-strengthened)
+// - one static list covers both the Table 5.1 (90 deg) and Table 5.3
+// (>90-160 deg) branches, so this checkbox filter reacts only to the safety
+// glass toggle, never to angle.
+const P3_SG_INELIGIBLE = [
+    ['Monolithic', 'Annealed'],
+    ['Monolithic', 'Heat-strengthened'],
+];
+
+function setP3SafetyGlass(val) {
+    p3State.safetyGlass = val;
+    document.getElementById('p3-sg-no').classList.toggle('active', !val);
+    document.getElementById('p3-sg-yes').classList.toggle('active', val);
+    document.getElementById('p3-sg-disclaimer').style.display = val ? 'block' : 'none';
+    updateHumanImpactFooter(val, p3State.angleDeg === 90 ? 'Table 5.1' : 'Table 5.3');
+    buildP3GlassTypeCheckboxes();
+    markP3InputsChanged();
 }
 
-function setSiliconeWindMethod(val) {
-    siliconeState.windMethod = val;
-    document.getElementById('si-wind-pressure').classList.toggle('active', val === 'pressure');
-    document.getElementById('si-wind-nc').classList.toggle('active', val === 'nc');
-    document.getElementById('si-pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
-    document.getElementById('si-nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+function setP3JointType(val) {
+    p3State.jointType = val;
+    document.getElementById('p3-joint-butt').classList.toggle('active', val === 'butt');
+    document.getElementById('p3-joint-mitred').classList.toggle('active', val === 'mitred');
+    markP3InputsChanged();
 }
 
-function setSiliconeLocation(val) {
-    siliconeState.ncLocation = val;
-    document.getElementById('si-loc-general').classList.toggle('active', val === 'General');
-    document.getElementById('si-loc-corner').classList.toggle('active',  val === 'Corner');
+function setP3EdgeCondition(val) {
+    p3State.unframedEdgeCondition = val;
+    document.getElementById('p3-edge-2').classList.toggle('active', val === '2-edge');
+    document.getElementById('p3-edge-3').classList.toggle('active', val === '3-edge');
+    markP3InputsChanged();
 }
 
-function runSiliconeCalculation() {
-    const width1 = parseFloat(document.getElementById('si_width_1_mm').value);
-    const width2 = parseFloat(document.getElementById('si_width_2_mm').value);
-    const angle  = parseFloat(document.getElementById('si_angle_deg').value);
+function setP3WindMethod(val) {
+    p3State.windMethod = val;
+    document.getElementById('p3-wind-pressure').classList.toggle('active', val === 'pressure');
+    document.getElementById('p3-wind-nc').classList.toggle('active', val === 'nc');
+    document.getElementById('p3-pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
+    document.getElementById('p3-nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+    markP3InputsChanged();
+}
 
+function setP3Location(val) {
+    p3State.ncLocation = val;
+    document.getElementById('p3-loc-general').classList.toggle('active', val === 'General');
+    document.getElementById('p3-loc-corner').classList.toggle('active',  val === 'Corner');
+    markP3InputsChanged();
+}
+
+// Angle-reactive 2-edge/3-edge selector (Section 12.13/14.3) - visible and
+// active only for 90 < angle <= 160 (Table 5.3's joint-count lookup); hidden
+// at exactly 90 (Table 5.1 has no joint-count concept) and outside 90-160
+// entirely (out of scope for this pathway - no bite/wind result possible).
+// Re-queries the DOM each call rather than caching refs (Section 8.6).
+function onP3AngleChanged() {
+    const angle = parseFloat(document.getElementById('p3_angle_deg').value);
+    p3State.angleDeg = isNaN(angle) ? null : angle;
+
+    const row = document.getElementById('p3-edge-condition-row');
+    const showEdgeSelector = !isNaN(angle) && angle > 90 && angle <= 160;
+    row.style.display = showEdgeSelector ? 'block' : 'none';
+
+    if (p3State.safetyGlass) {
+        const tableName = angle === 90 ? 'Table 5.1' : 'Table 5.3';
+        updateHumanImpactFooter(true, tableName);
+    }
+    markP3InputsChanged();
+}
+
+function markP3InputsChanged() {
+    if (p3State.lastResults) {
+        p3State.inputsChanged = true;
+        document.getElementById('p3-warning-bar').style.display = 'flex';
+    }
+}
+
+function getP3GlassTypes() {
+    if (!p3State.safetyGlass) return P3_SUBTYPES;
+    return P3_SUBTYPES.filter(t => !P3_SG_INELIGIBLE.some(e => e[0] === t[0] && e[1] === t[1]));
+}
+
+function buildP3GlassTypeCheckboxes() {
+    const allTypes = getP3GlassTypes();
+    let html = '';
+    allTypes.forEach(t => {
+        const id = `p3-gt-${t[0]}-${t[1]}`.replace(/\s/g, '-');
+        html += `
+        <label class="checkbox-row">
+            <input type="checkbox" id="${id}" value="${t[0]}|${t[1]}" onchange="markP3InputsChanged()">
+            <span>${t[2]}</span>
+        </label>`;
+    });
+    document.getElementById('p3-glass-type-checkboxes').innerHTML = html;
+}
+
+function runP3Calculation() {
+    const height  = parseFloat(document.getElementById('p3_height_mm').value);
+    const width1  = parseFloat(document.getElementById('p3_width_1_mm').value);
+    const width2  = parseFloat(document.getElementById('p3_width_2_mm').value);
+    const angle   = parseFloat(document.getElementById('p3_angle_deg').value);
+
+    if (!height || height <= 0) {
+        showP3Error('Please enter a valid panel height.');
+        return;
+    }
     if (!width1 || !width2 || width1 <= 0 || width2 <= 0) {
-        showSiliconeError('Please enter valid values for Width 1 and Width 2.');
+        showP3Error('Please enter valid values for Width 1 and Width 2.');
         return;
     }
     if (isNaN(angle)) {
-        showSiliconeError('Please enter the included angle between the two panels.');
+        showP3Error('Please enter the included angle between the two panels.');
         return;
     }
     if (angle < 90 || angle > 160) {
-        showSiliconeError('Included angle must be between 90 and 160 degrees. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.');
+        showP3Error('Included angle must be between 90 and 160 degrees. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.');
         return;
     }
 
+    const checkboxes = document.querySelectorAll('#p3-glass-type-checkboxes input[type=checkbox]:checked');
+    if (checkboxes.length === 0) {
+        showP3Error('Please select at least one glass subtype.');
+        return;
+    }
+    const selectedSubtypes = Array.from(checkboxes).map(cb => cb.value.split('|'));
+
     let payload = {
-        width_1_mm: width1,
-        width_2_mm: width2,
-        angle_deg:  angle,
-        joint_type: siliconeState.jointType,
-        wind_method: siliconeState.windMethod
+        height_mm:               height,
+        width_1_mm:              width1,
+        width_2_mm:              width2,
+        angle_deg:               angle,
+        joint_type:              p3State.jointType,
+        wind_method:             p3State.windMethod,
+        safety_glass_required:   p3State.safetyGlass,
+        unframed_edge_condition: angle > 90 ? p3State.unframedEdgeCondition : null,
+        selected_subtypes:       selectedSubtypes,
     };
 
-    if (siliconeState.windMethod === 'pressure') {
-        const uls = parseFloat(document.getElementById('si_uls_kpa').value);
-        if (!uls || uls <= 0) {
-            showSiliconeError('Please enter a valid ULS pressure.');
+    if (p3State.windMethod === 'pressure') {
+        const uls = parseFloat(document.getElementById('p3_uls_kpa').value);
+        const sls = parseFloat(document.getElementById('p3_sls_kpa').value);
+        if (!uls || !sls || uls <= 0 || sls <= 0) {
+            showP3Error('Please enter valid ULS and SLS pressures.');
             return;
         }
-        payload.wind_pressure_kpa = uls;
+        payload.uls_kpa = uls;
+        payload.sls_kpa = sls;
     } else {
-        const rating = document.getElementById('si_nc_rating').value;
+        const rating = document.getElementById('p3_nc_rating').value;
         if (!rating) {
-            showSiliconeError('Please select a wind classification rating.');
+            showP3Error('Please select a wind classification rating.');
             return;
         }
         payload.nc_rating   = rating;
-        payload.nc_location = siliconeState.ncLocation;
+        payload.nc_location = p3State.ncLocation;
     }
 
-    document.getElementById('si-calc-btn').textContent = 'Calculating...';
-    document.getElementById('si-calc-btn').disabled     = true;
-    document.getElementById('silicone-results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+    p3State.lastPayload = payload;
 
-    fetch('/calculate_silicone', {
+    document.getElementById('p3-calc-btn').textContent = 'Calculating...';
+    document.getElementById('p3-calc-btn').disabled     = true;
+    document.getElementById('p3-results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+
+    fetch('/calculate_pathway3', {
         method:  'POST',
         headers: {'Content-Type': 'application/json'},
         body:    JSON.stringify(payload)
     })
     .then(r => r.json())
     .then(data => {
-        document.getElementById('si-calc-btn').textContent = 'Calculate';
-        document.getElementById('si-calc-btn').disabled     = false;
+        document.getElementById('p3-calc-btn').textContent = 'Calculate';
+        document.getElementById('p3-calc-btn').disabled     = false;
+        document.getElementById('p3-warning-bar').style.display = 'none';
 
         if (data.success) {
-            renderSiliconeResults(data.result);
+            p3State.lastResults   = data;
+            p3State.inputsChanged = false;
+            renderP3Results(data, payload);
+            document.getElementById('p3-report-btn').style.display = 'block';
+        } else if (data.error_type === 'OUT_OF_SCOPE_CALCULATION') {
+            document.getElementById('p3-results-content').innerHTML = `
+                <div class="error-box">
+                    <strong>This wind pressure is outside the scope of AS 1288 for this glass type.</strong><br><br>
+                    The applied pressure is too low for the standard's formula to produce a valid result at the thickness being checked. Please verify your wind pressure inputs, or consult AS 1288 directly for very low pressure scenarios.
+                </div>`;
         } else {
-            showSiliconeError(data.error || 'An error occurred during calculation.');
+            showP3Error(data.error || 'An error occurred during calculation.');
         }
     })
     .catch(() => {
-        document.getElementById('si-calc-btn').textContent = 'Calculate';
-        document.getElementById('si-calc-btn').disabled     = false;
-        showSiliconeError('Could not connect to the calculation server. Please try again.');
+        document.getElementById('p3-calc-btn').textContent = 'Calculate';
+        document.getElementById('p3-calc-btn').disabled     = false;
+        document.getElementById('p3-warning-bar').style.display = 'none';
+        showP3Error('Could not connect to the calculation server. Please try again.');
     });
 }
 
-function renderSiliconeResults(r) {
-    const container = document.getElementById('silicone-results-content');
-
-    // ANGLE_OUT_OF_RANGE and INVALID are rejections, not calculation failures —
-    // rendered as a plain error box rather than a themed result card.
-    if (r.status === 'ANGLE_OUT_OF_RANGE' || r.status === 'INVALID') {
-        container.innerHTML = `<div class="error-box">⚠ ${r.message}</div>`;
-        return;
-    }
-
-    if (r.status === 'NO_COMPLIANT_THICKNESS') {
-        container.innerHTML = `<div class="result-card fail">
-            <div class="result-card-header">
-                <span class="result-glass-name">Structural Silicone Bite</span>
-                <span class="status-badge fail"><i class="ti ti-x" style="font-size:11px" aria-hidden="true"></i> No solution</span>
-            </div>
-            <div class="result-card-body">
-                <div class="result-message">No available glass thickness satisfies the required silicone bite. ${r.message}</div>
-                <div class="result-row"><span class="result-label">Required bite</span><span class="result-value">${r.required_bite_mm.toFixed(2)} mm</span></div>
-                <div class="result-row"><span class="result-label">Governing width (B)</span><span class="result-value">${r.governing_width_mm} mm</span></div>
-                <div class="result-row"><span class="result-label">F factor</span><span class="result-value">${r.f_factor.toFixed(4)}</span></div>
-            </div>
-        </div>`;
-        return;
-    }
-
-    // PASS
-    const cardId = `si-detail-${Math.random().toString(36).slice(2, 9)}`;
-    const detailRows = `
-        <div class="result-row"><span class="result-label">Angle</span><span class="result-value">${r.angle_deg}&deg;</span></div>
-        <div class="result-row"><span class="result-label">F factor</span><span class="result-value">${r.f_factor.toFixed(4)}</span></div>
-        <div class="result-row"><span class="result-label">Governing width (B)</span><span class="result-value">${r.governing_width_mm} mm</span></div>
-        <div class="result-row"><span class="result-label">Wind pressure (Pz)</span><span class="result-value">${r.wind_pressure_kpa} kPa</span></div>
-        <div class="result-row"><span class="result-label">Required bite (raw)</span><span class="result-value">${r.required_bite_raw_mm.toFixed(2)} mm</span></div>
-        <div class="result-row"><span class="result-label">Required bite (6mm floor applied)</span><span class="result-value">${r.required_bite_mm.toFixed(2)} mm</span></div>
-        <div class="result-row"><span class="result-label">Joint type</span><span class="result-value">${r.joint_type === 'mitred' ? 'Mitred' : 'Butt'}</span></div>
-        ${r.joint_type === 'mitred' ? `<div class="result-row"><span class="result-label">Mitre angle</span><span class="result-value">${r.mitre_angle_deg.toFixed(1)}&deg;</span></div>` : ''}
-        <div class="result-row"><span class="result-label">Usable bite — monolithic</span><span class="result-value">${r.usable_bite_monolithic !== null ? r.usable_bite_monolithic.toFixed(2) + ' mm' : 'N/A'}</span></div>
-        <div class="result-row"><span class="result-label">Usable bite — laminated</span><span class="result-value">${r.usable_bite_laminated !== null ? r.usable_bite_laminated.toFixed(2) + ' mm' : 'N/A'}</span></div>
-    `;
-
-    const monoLabel = r.nominal_monolithic !== null ? `${r.nominal_monolithic}mm Monolithic` : 'No compliant monolithic thickness';
-    const lamLabel  = r.nominal_laminated  !== null ? `${r.nominal_laminated}mm Laminated`   : 'No compliant laminated thickness';
-
-    container.innerHTML = `<div class="result-card pass">
-        <div class="result-card-header">
-            <span class="result-glass-name">Structural Silicone Bite</span>
-            <span class="status-badge pass"><i class="ti ti-circle-check" style="font-size:11px" aria-hidden="true"></i> Pass</span>
-        </div>
-        <div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>
-        <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer; width:100%;" onclick="toggleAccordion('${cardId}', this)">
-            <span class="footer-pass-label">Minimum nominal thickness</span>
-            <span style="display:flex; align-items:center; gap:8px;">
-                <span class="footer-pass-value" style="font-size:15px;">${monoLabel} / ${lamLabel}</span>
-                <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
-            </span>
-        </button>
-    </div>`;
+function p3StatusBadge(status) {
+    if (status === 'PASS') return { cls: 'pass', icon: 'ti-circle-check', text: 'Pass' };
+    if (status === 'HUMAN_IMPACT_INELIGIBLE') return { cls: 'pass', icon: 'ti-circle-check', text: 'Pass (ineligible for human impact table)' };
+    if (status === 'BITE_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No bite solution' };
+    if (status === 'WIND_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No wind solution' };
+    if (status === 'HUMAN_IMPACT_NOT_PERMITTED') return { cls: 'fail', icon: 'ti-x', text: 'Not permitted' };
+    if (status === 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No solution' };
+    return { cls: 'fail', icon: 'ti-x', text: 'Error' };
 }
 
-function clearSiliconeFields() {
-    document.getElementById('si_height_mm').value  = '';
-    document.getElementById('si_width_1_mm').value = '';
-    document.getElementById('si_width_2_mm').value = '';
-    document.getElementById('si_angle_deg').value  = '';
-    document.getElementById('si_uls_kpa').value    = '';
-    document.getElementById('si_nc_rating').value  = '';
+function renderP3Results(data, payload) {
+    const results = data.results;
+    let html = '';
 
-    setSiliconeJointType('butt');
-    setSiliconeWindMethod('pressure');
-    setSiliconeLocation('General');
+    const windLoadLabel = payload.wind_method === 'pressure'
+        ? `ULS ${payload.uls_kpa}kPa / SLS ${payload.sls_kpa}kPa`
+        : `${payload.nc_rating} (${payload.nc_location})`;
 
-    document.getElementById('silicone-results-content').innerHTML = `
+    const humanImpactTable = payload.angle_deg === 90 ? 'Table 5.1' : 'Table 5.3';
+
+    results.forEach(r => {
+        const badge = p3StatusBadge(r.status);
+        // Cards with no detail to show (bite short-circuit / wind failure /
+        // human-impact hard gate) are non-clickable - same hasMode2Detail
+        // convention as Pathway 2 (Section 8.1).
+        const hasDetail = r.status === 'PASS' || r.status === 'HUMAN_IMPACT_INELIGIBLE';
+
+        html += `<div class="result-card ${badge.cls}">
+            <div class="result-card-header">
+                <span class="result-glass-name">${r.glass_type} ${r.glass_subtype}</span>
+                <span class="status-badge ${badge.cls}">
+                    <i class="ti ${badge.icon}" style="font-size:11px" aria-hidden="true"></i> ${badge.text}
+                </span>
+            </div>`;
+
+        if (!hasDetail) {
+            html += `<div class="result-card-body">
+                <div class="result-message">${r.message}</div>
+            </div></div>`;
+            return;
+        }
+
+        const cardId = `p3-detail-${Math.random().toString(36).slice(2,9)}`;
+        let detailRows = '';
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite minimum</span><span class="result-value">${r.bite_thickness_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">ULS minimum thickness</span><span class="result-value">${r.uls_thickness_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">SLS minimum thickness</span><span class="result-value">${r.sls_thickness_mm} mm</span></div>`;
+
+        if (r.status === 'HUMAN_IMPACT_INELIGIBLE') {
+            detailRows += `<div class="flag-row">⚠ Ineligible for ${humanImpactTable} — governing thickness is bite/wind only.</div>`;
+        } else if (payload.safety_glass_required) {
+            detailRows += `<div class="result-row"><span class="result-label">${humanImpactTable} minimum${payload.angle_deg > 90 ? ` (${payload.unframed_edge_condition})` : ''}</span><span class="result-value">${r.human_impact_thickness_mm} mm</span></div>`;
+        }
+
+        const snapRows = [
+            { label: 'Silicone bite minimum', value: `${r.bite_thickness_mm} mm` },
+            { label: 'ULS minimum thickness', value: `${r.uls_thickness_mm} mm` },
+            { label: 'SLS minimum thickness', value: `${r.sls_thickness_mm} mm` },
+        ];
+        if (r.status === 'PASS' && payload.safety_glass_required) {
+            snapRows.push({ label: `${humanImpactTable} minimum`, value: `${r.human_impact_thickness_mm} mm` });
+        }
+        const snapInputs = {
+            glassName: `${r.glass_type} ${r.glass_subtype}`,
+            panel: `${payload.height_mm}mm (W1 ${payload.width_1_mm} / W2 ${payload.width_2_mm}mm)`,
+            support: `${payload.angle_deg}deg facet, ${payload.joint_type}`,
+            windLoad: windLoadLabel,
+            glazing: 'Single'
+        };
+        const snapHtml = buildSnapshotHTML(snapInputs, snapRows, 'Governing thickness', `${r.governing_thickness_mm} mm`)
+            .replace(/`/g, '\\`').replace(/\n/g, '');
+
+        html += `<div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>
+        <div style="display:flex; gap:0;">
+            <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer;" onclick="toggleAccordion('${cardId}', this)">
+                <span class="footer-pass-label">Final governing thickness</span>
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <span class="footer-pass-value">${r.governing_thickness_mm} mm</span>
+                    <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
+                </span>
+            </button>
+            <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
+                <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+            </button>
+        </div>`;
+
+        html += `</div>`;
+    });
+
+    document.getElementById('p3-results-content').innerHTML = html;
+}
+
+function clearP3Fields() {
+    document.getElementById('p3_height_mm').value  = '';
+    document.getElementById('p3_width_1_mm').value = '';
+    document.getElementById('p3_width_2_mm').value = '';
+    document.getElementById('p3_angle_deg').value  = '';
+    document.getElementById('p3_uls_kpa').value    = '';
+    document.getElementById('p3_sls_kpa').value    = '';
+    document.getElementById('p3_nc_rating').value  = '';
+
+    setP3SafetyGlass(false);
+    setP3JointType('butt');
+    setP3WindMethod('pressure');
+    setP3Location('General');
+    setP3EdgeCondition('2-edge');
+    onP3AngleChanged();
+
+    document.querySelectorAll('#p3-glass-type-checkboxes input[type=checkbox]').forEach(cb => {
+        cb.checked = false;
+    });
+
+    document.getElementById('p3-results-content').innerHTML = `
         <div class="results-placeholder">
             <div class="placeholder-icon">◻</div>
             <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
         </div>`;
+    document.getElementById('p3-warning-bar').style.display = 'none';
+    document.getElementById('p3-report-btn').style.display  = 'none';
+
+    p3State.lastResults   = null;
+    p3State.lastPayload   = null;
+    p3State.inputsChanged = false;
 }
 
-function showSiliconeError(msg) {
-    document.getElementById('silicone-results-content').innerHTML =
+function generateP3Report() {
+    if (!p3State.lastResults || !p3State.lastPayload) return;
+
+    const payload = p3State.lastPayload;
+    const results = p3State.lastResults;
+
+    // build_pathway3_report() (app.py) is a fully separate report builder
+    // from build_report() - it's dispatched via the 'pathway' flag below,
+    // not by reusing Pathway 1/2's mode_label/results shape.
+    const reportPayload = {
+        ...payload,
+        ...results,
+        pathway: 'pathway3',
+        wind_pressure_uls: results.wind_pressure_uls,
+        wind_pressure_sls: results.wind_pressure_sls,
+    };
+
+    fetch('/generate_report', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(reportPayload)
+    })
+    .then(r => r.blob())
+    .then(blob => {
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'AS1288_Calculation_Report.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(() => showP3Error('Could not generate report. Please try again.'));
+}
+
+function showP3Error(msg) {
+    document.getElementById('p3-results-content').innerHTML =
         `<div class="error-box">⚠ ${msg}</div>`;
 }
 
@@ -2501,6 +2764,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachChangeListeners();
     buildP2GlassTypeCheckboxes();
     buildP2PaneInputs();
+    buildP3GlassTypeCheckboxes();
     attachTooltipListeners();
 });
 
