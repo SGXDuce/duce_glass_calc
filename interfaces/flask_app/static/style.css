@@ -103,7 +103,10 @@ body {
     background: #282828;
 }
 
-/* Fixed 16:9 box so a real image can drop in later without CSS changes */
+/* Fixed 16:9 box so a real image can drop in later without CSS changes.
+   object-fit:contain lets real <img> tiles (Pathway 1-3, none of which are
+   actually 16:9 themselves) scale to fit without distortion or cropping -
+   a no-op on Pathway 4's still-placeholder <div>. */
 .pathway-tile-image {
     width: 100%;
     aspect-ratio: 16 / 9;
@@ -117,6 +120,7 @@ body {
     color: #666;
     font-size: 11px;
     padding: 8px;
+    object-fit: contain;
 }
 
 .pathway-tile-label {

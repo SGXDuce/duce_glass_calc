@@ -36,21 +36,21 @@
 
         <!-- Pathway 1 — Fully Framed -->
         <button class="pathway-tile" id="tile-pathway1" onclick="showPathway('pathway1')">
-            <div class="pathway-tile-image">Image placeholder — Pathway Fully Framed</div>
+            <img class="pathway-tile-image" src="{{ url_for('static', filename='Pathway_1.png') }}" alt="Fully Framed">
             <div class="pathway-tile-label">Fully Framed</div>
             <div class="pathway-tile-desc">4-edge structural framing on all sides</div>
         </button>
 
         <!-- Pathway 2 — Partly Framed, Exposed Edges -->
         <button class="pathway-tile" id="tile-pathway2" onclick="showPathway('pathway2')">
-            <div class="pathway-tile-image">Image placeholder — Pathway Partly Framed, Exposed Edges</div>
+            <img class="pathway-tile-image" src="{{ url_for('static', filename='Pathway_2.png') }}" alt="Partly Framed — Exposed Edges">
             <div class="pathway-tile-label">Partly Framed — Exposed Edges</div>
             <div class="pathway-tile-desc">2 or 3 edges framed, remaining edge(s) unframed or weathersealed only</div>
         </button>
 
         <!-- Pathway 3 — Partly Framed, Silicone Joints -->
         <button class="pathway-tile" id="tile-pathway3" onclick="showPathway('pathway3')">
-            <div class="pathway-tile-image">Image placeholder — Pathway Silicone Joints</div>
+            <img class="pathway-tile-image" src="{{ url_for('static', filename='Pathway_3.png') }}" alt="Partly Framed — Silicone Joints">
             <div class="pathway-tile-label">Partly Framed — Silicone Joints</div>
             <div class="pathway-tile-desc">Structural silicone at a facet angle (90°–160°) between panels</div>
         </button>
@@ -1861,7 +1861,7 @@ function runP3Calculation() {
         return;
     }
     if (angle < 90 || angle > 160) {
-        showP3Error('Included angle must be between 90 and 160 degrees. Outside this range the silicone joint provides no structural edge support (weatherseal only) and is out of scope for this calculator.');
+        showP3Error('Included angle must be between 90 and 160 degrees. Outside this range the silicone joint provides no structural edge support (weatherseal only). Go back to landing page selection and select Partly Framed - Exposed Edges option for glass selection.');
         return;
     }
 
