@@ -5,16 +5,17 @@
 # Appendix F (wind load) and the dead load shear formula (Section 12.11 of
 # the project summary). No side effects, no Flask/UI imports.
 #
-# NOTE: No thickness deduction is applied in this module. This is pending
-# confirmation from Michael (domain expert) on whether edge polishing on
-# frame-bonded glazing edges requires a deduction analogous to the faceted
-# engine's chamfer allowance. If confirmed, add the deduction here as a
-# separate constant — do not reuse CHAMFER_ALLOWANCE_MM from the faceted
-# engine without checking the mechanism and magnitude are the same.
+# Edge-polish deduction confirmed by Michael (Section 12.12 item 6): a flat
+# 2mm deduction (EDGE_POLISH_DEDUCTION_MM), all nominal thicknesses, both
+# glass types. Applied via find_min_nominal_for_usable_bite() (engine/shared/
+# table_4_1.py), the same usable-thickness search mechanism the faceted engine
+# uses, passed joint_type=None so it always takes that function's non-mitred
+# branch (usable = actual - deduction) - there is no mitre concept here.
 
 from engine.structural_glazing.constants import (
     SIGMA_S,
     MIN_NOMINAL_THICKNESS,
+    EDGE_POLISH_DEDUCTION_MM,
     GLASS_DENSITY_KG_M3,
     GRAVITY_M_S2,
     ALLOWABLE_DEAD_LOAD_STRESS_PA,
@@ -22,7 +23,7 @@ from engine.structural_glazing.constants import (
 from engine.shared.table_4_1 import (
     TABLE_4_1_MONOLITHIC,
     TABLE_4_1_LAMINATED,
-    find_min_nominal_for_bite,
+    find_min_nominal_for_usable_bite,
 )
 from engine.shared.results import make_structural_glazing_result
 
@@ -60,9 +61,9 @@ def run_structural_glazing_calculation(height_m, width_m, glass_thickness_nomina
 
     sealed_edges determines which edges are bonded and therefore which
     span/perimeter values apply:
-    - 'full_perimeter': all four edges sealed. Wind spans whichever
-      direction is worse (larger of width/height); dead load is carried
-      by the full bonded perimeter.
+    - 'full_perimeter': all four edges sealed. Wind span (B) is the shorter
+      of width/height, per AS 1288 Appendix F's flat structural glazing
+      convention; dead load is carried by the full bonded perimeter.
     - 'verticals_only': only the two vertical edges sealed. Wind spans
       horizontally between them (width); dead load is carried only by
       the two vertical edges (2 x height).
@@ -81,7 +82,13 @@ def run_structural_glazing_calculation(height_m, width_m, glass_thickness_nomina
         )
 
     if sealed_edges == 'full_perimeter':
-        wind_span_m = max(width_m, height_m)
+        # B = the span = the SHORTER of the two supported dimensions when
+        # sealed on all four sides (AS 1288 Appendix F flat structural
+        # glazing convention, confirmed by Sahil - not the same convention
+        # as Pathway 3's Section 9 faceted-joint formula, where the larger
+        # width governs). Was previously max(), inherited incorrectly from
+        # that other formula's B convention - fixed here.
+        wind_span_m = min(width_m, height_m)
         dead_load_perimeter_m = 2 * height_m + 2 * width_m
     else:  # 'verticals_only'
         wind_span_m = width_m
@@ -96,8 +103,16 @@ def run_structural_glazing_calculation(height_m, width_m, glass_thickness_nomina
 
     governing_bite_mm = max(wind_bite_mm, dead_load_bite_mm)
 
-    nominal_monolithic = find_min_nominal_for_bite(governing_bite_mm, TABLE_4_1_MONOLITHIC)
-    nominal_laminated = find_min_nominal_for_bite(governing_bite_mm, TABLE_4_1_LAMINATED)
+    # Table 4.1 lookup against usable thickness (actual - edge-polish
+    # deduction), not raw actual - see EDGE_POLISH_DEDUCTION_MM (constants.py).
+    nominal_monolithic, _ = find_min_nominal_for_usable_bite(
+        governing_bite_mm, TABLE_4_1_MONOLITHIC, joint_type=None,
+        chamfer_mm=EDGE_POLISH_DEDUCTION_MM,
+    )
+    nominal_laminated, _ = find_min_nominal_for_usable_bite(
+        governing_bite_mm, TABLE_4_1_LAMINATED, joint_type=None,
+        chamfer_mm=EDGE_POLISH_DEDUCTION_MM,
+    )
 
     nominal_monolithic = apply_thickness_floor(nominal_monolithic)
     nominal_laminated = apply_thickness_floor(nominal_laminated)

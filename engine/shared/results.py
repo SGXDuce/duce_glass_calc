@@ -194,6 +194,49 @@ def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=No
     }
 
 
+def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=None,
+                          governing_thickness_mm=None,
+                          bite_thickness_mm=None,
+                          table_5_1_thickness_mm=None,
+                          panel_area_m2=None,
+                          safety_glass_required=False,
+                          message=None,
+                          bite_trace=None, table_5_1_trace=None):
+    """
+    Builds a Pathway 4 (structural glazing, full_perimeter) result dictionary
+    for a single glass subtype, with a guaranteed, consistent set of keys.
+    Every return path in run_pathway4_calculation()'s full_perimeter branch
+    must call this instead of building its own dict - same discipline as
+    make_pathway3_result() etc., see Section 6.4 of the project summary.
+
+    Only used for the full_perimeter scenario - the CONFIGURATION_OUT_OF_SCOPE_V1
+    branch (verticals_only/horizontals_only) still returns a single
+    make_structural_glazing_result() dict, unchanged, since it never reaches
+    per-subtype work at all.
+
+    Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (bite/dead-load
+    engine returned no compliant thickness for this subtype's broad category),
+    'HUMAN_IMPACT_INELIGIBLE' (subtype not eligible for Table 5.1 - bite
+    result still populated, governing_thickness_mm still computed without
+    the Table 5.1 figure), 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS' (Table 5.1
+    search exhausted this subtype's stocked thickness range with no pass).
+    """
+    return {
+        'subtype': subtype,
+        'glass_type': glass_type,
+        'glass_subtype': glass_subtype,
+        'status': status,
+        'message': message,
+        'governing_thickness_mm': governing_thickness_mm,
+        'bite_thickness_mm': bite_thickness_mm,
+        'table_5_1_thickness_mm': table_5_1_thickness_mm,
+        'panel_area_m2': panel_area_m2,
+        'safety_glass_required': safety_glass_required,
+        'bite_trace': bite_trace if bite_trace is not None else [],
+        'table_5_1_trace': table_5_1_trace if table_5_1_trace is not None else [],
+    }
+
+
 def make_structural_glazing_result(status, height_m=None, width_m=None,
                                     glass_thickness_nominal_mm=None, pz_kpa=None,
                                     sealed_edges=None, wind_span_m=None,
