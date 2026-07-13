@@ -7,7 +7,9 @@
 
 import os
 
+import engine.wind_load.checks.wind as wind_mod
 from engine.shared.table_5_3 import load_table_5_3, check_table_5_3
+from engine.wind_load import run_calculation
 
 # ---------------------------------------------------------------------------
 # FILE PATHS
@@ -15,6 +17,7 @@ from engine.shared.table_5_3 import load_table_5_3, check_table_5_3
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 csv_path = os.path.join(script_dir, '..', 'data', 'Table_5_3.csv')
+wind_csv_path = os.path.join(script_dir, '..', 'data', 'Wind_Load_Check_Tables_Full.csv')
 
 TABLE_5_3 = load_table_5_3(csv_path)
 
@@ -157,6 +160,69 @@ def test_10():
     return report('10', 'Panel width just over the limit (1.21m)', checks)
 
 
+def test_11():
+    # Table 5.3-driven NO_COMPLIANT_THICKNESS (Mode 1, run_calculation()) -
+    # untested since v1.13. With today's real stocked thickness lists, no
+    # eligible glass type's Table 5.3 row-band minimum ever exceeds its
+    # stocked maximum (confirmed by direct search across every eligible
+    # glass type / height band / width combination) - the same class of
+    # "structurally unreachable with real data" finding already documented
+    # for Table 5.1's NON_COMPLIANT case. To exercise the code path
+    # honestly without fabricating fake CSV rows, this test temporarily
+    # monkeypatches GLASS_TYPE_THICKNESSES in engine.wind_load.checks.wind
+    # (where check_glass_type() actually reads it - not a parameter) to cap
+    # Monolithic Toughened's stock at 12mm, restored in a finally block so
+    # no other test in this or any other module observes the patched value.
+    #
+    # Geometry: 3500mm x 2000mm, 2-edge, unrestricted-width row -> Table
+    # 5.3 band 3.2-3.6m requires 19mm minimum (data/Table_5_3.csv). Wind
+    # pressure kept low (ULS=0.1kPa/SLS=0.05kPa) so ULS/SLS both pass at
+    # thin thicknesses (4mm/8mm) well under the patched 12mm cap - the
+    # failure is unambiguously Table 5.3 exhausting the whole (patched)
+    # stocked list with no PASS, not wind governing.
+    orig_thicknesses = dict(wind_mod.GLASS_TYPE_THICKNESSES)
+    wind_mod.GLASS_TYPE_THICKNESSES[('Monolithic', 'Toughened')] = [4, 5, 6, 8, 10, 12]
+
+    try:
+        results = run_calculation(
+            csv_path=wind_csv_path,
+            height_mm=3500, width_mm=2000,
+            support_condition='2-edge', span_dimension='height',
+            wind_pressure_uls=0.1, wind_pressure_sls=0.05,
+            selected_glass_types=[('Monolithic', 'Toughened')],
+            glazing_config='single',
+            safety_glass_required=True,
+            unframed_edge_condition='2-edge',
+            csv_path_5_3=csv_path,
+        )
+    finally:
+        wind_mod.GLASS_TYPE_THICKNESSES.clear()
+        wind_mod.GLASS_TYPE_THICKNESSES.update(orig_thicknesses)
+
+    result = results[0]
+    trace_results = [t['result'] for t in result.get('table_5_3_trace', [])]
+
+    checks = [
+        ('status', 'NO_COMPLIANT_THICKNESS', result['status'],
+         result['status'] == 'NO_COMPLIANT_THICKNESS'),
+        ('uls_minimum_thickness_mm', 4, result.get('uls_minimum_thickness_mm'),
+         result.get('uls_minimum_thickness_mm') == 4),
+        ('sls_minimum_thickness_mm', 8, result.get('sls_minimum_thickness_mm'),
+         result.get('sls_minimum_thickness_mm') == 8),
+        ('table_5_3_trace all FAIL across the patched stock list (4/5/6/8/10/12mm)',
+         ['FAIL'] * 6, trace_results, trace_results == ['FAIL'] * 6),
+        ('table_5_3_trace required_min_thickness_mm', 19,
+         result['table_5_3_trace'][0]['required_min_thickness_mm'],
+         result['table_5_3_trace'][0]['required_min_thickness_mm'] == 19),
+        ('message names the Table 5.3 minimum', True,
+         '19mm' in result['message'], '19mm' in result['message']),
+        ('GLASS_TYPE_THICKNESSES restored after the test', orig_thicknesses,
+         dict(wind_mod.GLASS_TYPE_THICKNESSES),
+         dict(wind_mod.GLASS_TYPE_THICKNESSES) == orig_thicknesses),
+    ]
+    return report('11', 'Table 5.3-driven NO_COMPLIANT_THICKNESS (Mode 1, monkeypatched stock list - real data has no reachable case)', checks)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -170,6 +236,7 @@ def run_tests():
     tests = [
         test_1, test_2, test_3, test_4, test_5,
         test_6, test_7, test_8, test_9, test_10,
+        test_11,
     ]
     results = [t() for t in tests]
 

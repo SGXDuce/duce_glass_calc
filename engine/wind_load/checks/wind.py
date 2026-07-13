@@ -924,7 +924,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                     # an ordinary too-thin candidate, so build_report() never
                     # implies a thicker candidate could fix a gate failure.
                     candidate_trace['fail_reason'] = (
-                        'TABLE_5_3_NOT_PERMITTED' if table_5_3_min_thickness is None
+                        'TABLE_5_3_GATE_FAIL' if table_5_3_min_thickness is None
                         else 'TABLE_5_3'
                     )
                     next_compliant_trace.append(candidate_trace)

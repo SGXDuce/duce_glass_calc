@@ -9,8 +9,6 @@ import threading
 import webbrowser
 import time
 
-EXPIRY_DATE = datetime.datetime(2026, 7, 31, 23, 59, 59)
-
 # When running as a PyInstaller EXE, files are unpacked to a temp folder
 # referenced by sys._MEIPASS. This makes sure Flask can find templates,
 # static files, and the data CSVs regardless of where the EXE is run from.
@@ -21,7 +19,7 @@ else:
 
 sys.path.insert(0, BASE_DIR)
 
-from app import app
+from app import app, EXPIRY_DATE
 
 
 def open_browser():
@@ -42,7 +40,7 @@ if __name__ == '__main__':
     print()
 
     if datetime.datetime.now() > EXPIRY_DATE:
-        print('  This testing version has expired (31 July 2026).')
+        print(f'  This testing version has expired ({EXPIRY_DATE.strftime("%d %B %Y")}).')
         print('  Please contact Sahil for the current version of the tool.')
         print()
         input('  Press Enter to close this window...')

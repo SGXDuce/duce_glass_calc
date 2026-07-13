@@ -47,6 +47,16 @@ body {
     margin-top: 2px;
 }
 
+.version-footer {
+    background: #1a1a1a;
+    color: #555;
+    font-size: 10px;
+    text-align: center;
+    padding: 3px 24px;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
 /* ===== LANDING PAGE (four-pathway selection, v1.11) ===== */
 .landing-intro {
     padding: 24px 24px 8px;

@@ -2,6 +2,7 @@
 # Duce Timber Windows and Doors
 
 from flask import Flask, render_template, request, jsonify, send_file
+import datetime
 import os
 import sys
 import io
@@ -12,6 +13,15 @@ from engine.wind_load import run_calculation, run_compliance_check
 from engine.silicone_bite import run_bite_calculation
 from engine.combined import run_pathway3_calculation, run_pathway4_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
+
+# ---------------------------------------------------------------------------
+# VERSION / EXPIRY (single source of truth - launcher.py imports EXPIRY_DATE
+# from here rather than the other way around, since launcher.py already
+# imports `app` and a reverse import would be circular)
+# ---------------------------------------------------------------------------
+
+APP_VERSION = 'V2'
+EXPIRY_DATE = datetime.datetime(2026, 8, 31, 23, 59, 59)
 
 # ---------------------------------------------------------------------------
 # FLASK APP SETUP
@@ -49,7 +59,11 @@ print("Data tables loaded.")
 @app.route('/')
 def index():
     """Serves the main calculator page."""
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        app_version=APP_VERSION,
+        expiry_date=EXPIRY_DATE.strftime('%d %B %Y'),
+    )
 
 
 @app.route('/calculate', methods=['POST'])

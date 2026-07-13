@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AS 1288 Glass Thickness Calculator — Duce Timber Windows and Doors</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.35.0/tabler-icons.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -16,9 +17,11 @@
     <div class="header-title">AS 1288 Glass Thickness Calculator</div>
     <div class="header-sub">Wind Loads Only — Internal Use</div>
 </div>
-<img src="{{ url_for('static', filename='duce_logo.png') }}" 
+<img src="{{ url_for('static', filename='duce_logo.png') }}"
      class="header-logo" alt="Duce Timber Windows and Doors">
 </div>
+
+<div class="version-footer">{{ app_version }} — testing build expires {{ expiry_date }}</div>
 
 <!-- ========================================================================
      LANDING PAGE — four-pathway selection (v1.11)
