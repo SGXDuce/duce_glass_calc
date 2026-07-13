@@ -1,1 +1,2 @@
 from engine.combined.pathway3 import run_pathway3_calculation
+from engine.combined.pathway4 import run_pathway4_calculation

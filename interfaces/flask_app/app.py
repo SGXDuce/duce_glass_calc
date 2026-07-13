@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from engine.wind_load import run_calculation, run_compliance_check
 from engine.silicone_bite import run_bite_calculation
-from engine.combined import run_pathway3_calculation
+from engine.combined import run_pathway3_calculation, run_pathway4_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
 
 # ---------------------------------------------------------------------------
@@ -295,6 +295,97 @@ def calculate_pathway3():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/calculate_pathway4', methods=['POST'])
+def calculate_pathway4():
+    """
+    Receives Pathway 4 (Structural Glazing, Section 14.4) form data, runs the
+    combined five-criteria orchestration (dead-load bite, wind bite, ULS,
+    SLS, Table 5.1) for all six glass subtypes, then filters the response
+    down to only the subtypes the user checked. Same filtering-at-this-layer
+    approach as calculate_pathway3() above - run_pathway4_calculation() has
+    no parameter to restrict which subtypes it computes.
+
+    scenario is hardcoded to 'full_perimeter' - SUPPORTED_SCENARIOS_V1 in
+    engine/combined/pathway4.py is exactly ('full_perimeter',), and the
+    confirmed decision (v1.25 session) is not to expose a scenario selector
+    in the UI at all.
+
+    ULS/SLS resolution (this session, replacing the old single pz_kpa field):
+    same wind_method dispatch as calculate_pathway3() - direct kPa entry or
+    N/C rating lookup via get_pressures_from_nc_rating(). ULS is passed as
+    both wind_pressure_uls_kpa (feeds the Mode 1 ULS check) and, inside
+    run_pathway4_calculation() itself, as the Appendix F bite formula's Pz -
+    same physical quantity, different notation (Section 14.4).
+
+    wind_span_m/dead_load_perimeter_m (pure geometry, no bite calculation)
+    are computed inline for the report - same convention as before this
+    session, matching run_structural_glazing_calculation()'s own
+    full_perimeter formulas (engine/structural_glazing/formulas.py:91-92)
+    exactly, without a second call to that engine.
+    """
+    try:
+        data = request.get_json()
+
+        height_m  = float(data.get('height_mm')) / 1000
+        width_m   = float(data.get('width_mm')) / 1000
+        wind_method = data.get('wind_method')
+        safety_glass_required = data.get('safety_glass_required', False)
+        selected_subtypes = [tuple(gt) for gt in data.get('selected_subtypes', [])]
+
+        # --- Resolve wind pressures (ULS/SLS - both needed), same dispatch
+        # as calculate_pathway3() ---
+        if wind_method == 'pressure':
+            wind_pressure_uls_kpa = float(data.get('uls_kpa'))
+            wind_pressure_sls_kpa = float(data.get('sls_kpa'))
+        else:
+            rating   = data.get('nc_rating')
+            location = data.get('nc_location')
+            pressures = get_pressures_from_nc_rating(NC_DF, rating, location)
+            if pressures is None:
+                return jsonify({
+                    'success': False,
+                    'error': f'Could not find pressure values for {rating} {location}.'
+                })
+            wind_pressure_uls_kpa = pressures['uls']
+            wind_pressure_sls_kpa = pressures['sls']
+
+        all_results = run_pathway4_calculation(
+            height_m               = height_m,
+            width_m                = width_m,
+            wind_pressure_uls_kpa   = wind_pressure_uls_kpa,
+            wind_pressure_sls_kpa   = wind_pressure_sls_kpa,
+            scenario                 = 'full_perimeter',
+            safety_glass_required    = safety_glass_required,
+            csv_path                 = CSV_PATH,
+        )
+
+        results = [all_results[gt] for gt in selected_subtypes if gt in all_results]
+
+        return jsonify({
+            'success':               True,
+            'results':               results,
+            'height_mm':             float(data.get('height_mm')),
+            'width_mm':              float(data.get('width_mm')),
+            'wind_method':           wind_method,
+            'uls_kpa':               wind_pressure_uls_kpa,
+            'sls_kpa':               wind_pressure_sls_kpa,
+            'nc_rating':             data.get('nc_rating'),
+            'nc_location':           data.get('nc_location'),
+            'safety_glass_required': safety_glass_required,
+            'wind_span_m':           min(width_m, height_m),
+            'dead_load_perimeter_m': 2 * height_m + 2 * width_m,
+        })
+
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': 'OUT_OF_SCOPE_CALCULATION'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
     """
@@ -302,8 +393,14 @@ def generate_report():
     and returns it as a downloadable file.
     """
     try:
-        data    = request.get_json()
-        report  = build_pathway3_report(data) if data.get('pathway') == 'pathway3' else build_report(data)
+        data = request.get_json()
+        pathway = data.get('pathway')
+        if pathway == 'pathway3':
+            report = build_pathway3_report(data)
+        elif pathway == 'pathway4':
+            report = build_pathway4_report(data)
+        else:
+            report = build_report(data)
         buffer  = io.BytesIO(report.encode('utf-8'))
         buffer.seek(0)
 
@@ -858,6 +955,176 @@ def build_pathway3_report(data):
     # (Section 14.7), naming whichever table actually applies for this angle.
     if sg:
         lines.append(f'NOTE: Safety glass requirements ({human_impact_table}) have been applied to the')
+        lines.append('thickness selection as declared by the user. This tool does not assess')
+        lines.append('whether safety glass is required for this application. The user is')
+        lines.append('responsible for determining applicability in accordance with AS 1288')
+        lines.append('Section 5 and relevant building codes.')
+    lines.append(sep)
+
+    return '\n'.join(lines)
+
+
+P4_CRITERION_LABELS = {
+    'dead_load_bite': 'Silicone bite (dead load)',
+    'wind_bite':      'Silicone bite (wind load)',
+    'uls':            'ULS wind load (glass)',
+    'sls':            'SLS wind load (glass)',
+    'table_5_1':      'Table 5.1',
+}
+
+
+def build_pathway4_report(data):
+    """
+    Builds a plain text stepwise calculation report for Pathway 4 (Structural
+    Glazing, Section 14.4) - one labelled section per selected glass subtype,
+    same trace-driven structure as build_pathway3_report() (Section 6.5).
+
+    Five independent criteria per subtype (this session, closing the gap
+    where Pathway 4 never checked the glass pane's own AS 1288 Clause 4.4.3
+    ULS/SLS bending capacity, only the silicone joint's bite sizing - Section
+    14.4 always specified both):
+    - Silicone bite (dead load) / (wind load): independent Table 4.1 lookups,
+      per broad category (Monolithic/Laminated), not per subtype.
+    - ULS / SLS wind load on the glass pane: per subtype (c1 factor differs
+      by glass_type/glass_subtype), full k-value trace reused via
+      format_trace_entry() (same ULS/SLS trace shape as Mode 1/Pathway 3).
+    - Table 5.1: per subtype, gated on the safety glass toggle, unchanged
+      structure from v1.22.
+    Governing criterion is named explicitly per subtype.
+
+    wind_bite_mm/dead_load_bite_mm (raw, pre-Table-4.1-lookup figures) are
+    read from the first entry in results (identical across every subtype -
+    run_structural_glazing_calculation() is called once per pathway
+    invocation with a single fixed glass_thickness_nominal_mm seed).
+    wind_span_m/dead_load_perimeter_m come from the request payload (pure
+    geometry, computed inline in the /calculate_pathway4 route). This
+    breakdown is only ever shown in the TXT report, never on-screen, matching
+    Section 6.5's established convention that full trace detail belongs in
+    the downloadable report only.
+    """
+    lines = []
+    sep   = '=' * 65
+    sep2  = '-' * 40
+
+    lines.append(sep)
+    lines.append('AS 1288 GLASS THICKNESS CALCULATOR')
+    lines.append('Pathway 4 — Structural Glazing (Flat, No Frame)')
+    lines.append('Duce Timber Windows and Doors')
+    lines.append(sep)
+    lines.append('')
+
+    sg = data.get('safety_glass_required', False)
+
+    # --- Input summary ---
+    lines.append('INPUTS')
+    lines.append(sep2)
+    lines.append(f"Panel Height          : {data.get('height_mm')} mm")
+    lines.append(f"Panel Width           : {data.get('width_mm')} mm")
+    if data.get('wind_method') == 'pressure':
+        lines.append(f"ULS Wind Pressure     : {data.get('uls_kpa')} kPa")
+        lines.append(f"SLS Wind Pressure     : {data.get('sls_kpa')} kPa")
+    else:
+        lines.append(f"Wind Classification   : {data.get('nc_rating')} ({data.get('nc_location')})")
+        lines.append(f"Resolved ULS/SLS      : {data.get('uls_kpa')} kPa / {data.get('sls_kpa')} kPa")
+    lines.append(f"Scenario              : full_perimeter (sealed on all four edges)")
+    lines.append(f"Safety Glass Required : {'Yes' if sg else 'No'}")
+    lines.append('')
+
+    results = data.get('results', [])
+
+    # --- Wind bite / dead load breakdown (Appendix F + Section 12.11) ---
+    # Dead load is always computed - there is no toggle for it (this
+    # session's confirmed decision) - so this section is unconditional.
+    # wind_bite_mm/dead_load_bite_mm read from the first result entry -
+    # identical across every subtype/category for a given request (see
+    # docstring above) - rather than a second call to the structural
+    # glazing engine.
+    if results:
+        wind_bite_mm = results[0].get('wind_bite_mm')
+        dead_load_bite_mm = results[0].get('dead_load_bite_mm')
+
+        lines.append('SILICONE BITE CHECK — AS 1288 Appendix F (wind) + Section 12.11 (dead load)')
+        lines.append(sep2)
+        lines.append(f"Wind span B (shorter of height/width) = {data.get('wind_span_m')} m")
+        lines.append(f"Dead load perimeter (full_perimeter = 2xheight + 2xwidth) = {data.get('dead_load_perimeter_m')} m")
+        lines.append(f"Wind bite = 0.5 x Pz(ULS) x B / sigma_s = {wind_bite_mm} mm")
+        lines.append(f"Dead load bite = (density x g x thickness x area) / (perimeter x allowable stress) = {dead_load_bite_mm} mm")
+        lines.append('(Edge-polish deduction of 2mm and 6mm minimum floor applied before/after')
+        lines.append('the Table 4.1 lookup, both glass types - see per-subtype nominal figures below)')
+        lines.append('')
+
+    lines.append('RESULTS — PER GLASS SUBTYPE')
+    lines.append(sep2)
+
+    for r in results:
+        lines.append('')
+        lines.append(f"GLASS SUBTYPE: {r.get('glass_type')} {r.get('glass_subtype')}")
+        lines.append(sep2)
+        lines.append(f"Status : {r.get('status')}")
+        lines.append('')
+
+        if r.get('status') == 'BITE_NO_COMPLIANT_THICKNESS':
+            lines.append(f"Message: {r.get('message')}")
+            lines.append('')
+            continue
+
+        # --- Silicone bite, independent per-criterion nominal thicknesses ---
+        lines.append(f"Silicone Bite (Dead Load) Minimum Nominal Thickness = {r.get('dead_load_bite_nominal_mm')} mm")
+        lines.append(f"Silicone Bite (Wind Load) Minimum Nominal Thickness = {r.get('wind_bite_nominal_mm')} mm")
+        lines.append('')
+
+        if r.get('status') == 'WIND_NO_COMPLIANT_THICKNESS':
+            lines.append(f"Message: {r.get('message')}")
+            lines.append('')
+            for entry in r.get('wind_trace', []):
+                format_trace_entry(entry, lines)
+            continue
+
+        # --- Wind bending on the glass pane itself (Clause 4.4.3, 4-edge -
+        # new this session, closing the gap flagged after v1.24) ---
+        lines.append(f"WIND LOAD CHECK (GLASS PANE) — AS 1288 Section 4 / Clause 4.4.3 (4-edge)")
+        lines.append('')
+        for entry in r.get('wind_trace', []):
+            format_trace_entry(entry, lines)
+        lines.append(f"ULS Minimum Thickness = {r.get('uls_thickness_mm')} mm")
+        lines.append(f"SLS Minimum Thickness = {r.get('sls_thickness_mm')} mm")
+        lines.append('')
+
+        # --- Human impact (Table 5.1, full_perimeter only - Section 14.4/
+        # 14.7/12.12 item 9) - gated on the safety glass toggle ---
+        if sg:
+            lines.append(f"HUMAN IMPACT CHECK — AS 1288 Table 5.1")
+            lines.append('')
+            for entry in r.get('table_5_1_trace', []):
+                format_trace_entry(entry, lines)
+
+            if r.get('status') == 'HUMAN_IMPACT_INELIGIBLE':
+                lines.append(f"{r.get('glass_type')} {r.get('glass_subtype')} is not classified as "
+                              f"safety glass and cannot be used when safety glass is required.")
+                lines.append('')
+            elif r.get('status') == 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS':
+                lines.append(f"Message: {r.get('message')}")
+                lines.append('')
+            else:
+                lines.append(f"Table 5.1 Minimum Thickness = {r.get('table_5_1_thickness_mm')} mm")
+                lines.append('')
+
+        governing_label = P4_CRITERION_LABELS.get(r.get('governing_criterion'), r.get('governing_criterion'))
+
+        if r.get('status') == 'PASS':
+            lines.append(f"Governing criterion: {governing_label}")
+            lines.append(f"FINAL GOVERNING THICKNESS = {r.get('governing_thickness_mm')} mm")
+            lines.append('')
+        elif r.get('status') == 'HUMAN_IMPACT_INELIGIBLE':
+            lines.append(f"Governing criterion: {governing_label} (ineligible for Table 5.1)")
+            lines.append(f"FINAL GOVERNING THICKNESS = {r.get('governing_thickness_mm')} mm")
+            lines.append('')
+
+    lines.append(sep)
+    # Human impact footer - identical wording/gating rule to build_report()'s
+    # / build_pathway3_report()'s (Section 14.7).
+    if sg:
+        lines.append('NOTE: Safety glass requirements (Table 5.1) have been applied to the')
         lines.append('thickness selection as declared by the user. This tool does not assess')
         lines.append('whether safety glass is required for this application. The user is')
         lines.append('responsible for determining applicability in accordance with AS 1288')

@@ -196,12 +196,18 @@ def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=No
 
 def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=None,
                           governing_thickness_mm=None,
-                          bite_thickness_mm=None,
+                          governing_criterion=None,
+                          dead_load_bite_nominal_mm=None,
+                          wind_bite_nominal_mm=None,
+                          uls_thickness_mm=None,
+                          sls_thickness_mm=None,
+                          wind_bite_mm=None,
+                          dead_load_bite_mm=None,
                           table_5_1_thickness_mm=None,
                           panel_area_m2=None,
                           safety_glass_required=False,
                           message=None,
-                          bite_trace=None, table_5_1_trace=None):
+                          bite_trace=None, wind_trace=None, table_5_1_trace=None):
     """
     Builds a Pathway 4 (structural glazing, full_perimeter) result dictionary
     for a single glass subtype, with a guaranteed, consistent set of keys.
@@ -214,12 +220,37 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
     make_structural_glazing_result() dict, unchanged, since it never reaches
     per-subtype work at all.
 
-    Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (bite/dead-load
-    engine returned no compliant thickness for this subtype's broad category),
-    'HUMAN_IMPACT_INELIGIBLE' (subtype not eligible for Table 5.1 - bite
-    result still populated, governing_thickness_mm still computed without
-    the Table 5.1 figure), 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS' (Table 5.1
-    search exhausted this subtype's stocked thickness range with no pass).
+    Five independent criteria (Section 7.6 independence principle), added
+    this session to close a gap where Pathway 4 sized the silicone joint but
+    never checked the glass pane's own AS 1288 Clause 4.4.3 ULS/SLS bending
+    capacity - the joint and the pane are two independent failure modes:
+    - dead_load_bite_nominal_mm / wind_bite_nominal_mm: independent Table 4.1
+      lookups (find_min_nominal_for_usable_bite(), EDGE_POLISH_DEDUCTION_MM)
+      against the raw dead_load_bite_mm/wind_bite_mm figures from
+      run_structural_glazing_calculation() - per BROAD CATEGORY (Monolithic/
+      Laminated), not per subtype, same as the old single bite_thickness_mm
+      was. Deliberately two separate lookups, not one lookup against
+      max(wind_bite_mm, dead_load_bite_mm) - see module docstring for why.
+    - uls_thickness_mm / sls_thickness_mm: from check_glass_type()
+      (support_condition='4-edge', safety_glass_required=False) - genuinely
+      PER SUBTYPE (c1 factor differs by glass_type/glass_subtype).
+    - table_5_1_thickness_mm: per subtype, unchanged from v1.22.
+    governing_thickness_mm = max() of whichever of the above are active;
+    governing_criterion names which one produced that max (one of
+    'dead_load_bite', 'wind_bite', 'uls', 'sls', 'table_5_1').
+
+    wind_bite_mm / dead_load_bite_mm (raw mm, pre-Table-4.1-lookup) are kept
+    for the report's bite-arithmetic breakdown - same rationale as before
+    this session (not subtype-specific, one figure per broad category).
+
+    Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (both bite
+    lookups returned None for this subtype's broad category),
+    'WIND_NO_COMPLIANT_THICKNESS' (check_glass_type() found no compliant
+    ULS/SLS thickness), 'HUMAN_IMPACT_INELIGIBLE' (subtype not eligible for
+    Table 5.1 - all other criteria still populated, governing_thickness_mm
+    still computed without the Table 5.1 figure), 'HUMAN_IMPACT_NO_COMPLIANT_
+    THICKNESS' (Table 5.1 search exhausted this subtype's stocked thickness
+    range with no pass).
     """
     return {
         'subtype': subtype,
@@ -228,11 +259,18 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
         'status': status,
         'message': message,
         'governing_thickness_mm': governing_thickness_mm,
-        'bite_thickness_mm': bite_thickness_mm,
+        'governing_criterion': governing_criterion,
+        'dead_load_bite_nominal_mm': dead_load_bite_nominal_mm,
+        'wind_bite_nominal_mm': wind_bite_nominal_mm,
+        'uls_thickness_mm': uls_thickness_mm,
+        'sls_thickness_mm': sls_thickness_mm,
+        'wind_bite_mm': wind_bite_mm,
+        'dead_load_bite_mm': dead_load_bite_mm,
         'table_5_1_thickness_mm': table_5_1_thickness_mm,
         'panel_area_m2': panel_area_m2,
         'safety_glass_required': safety_glass_required,
         'bite_trace': bite_trace if bite_trace is not None else [],
+        'wind_trace': wind_trace if wind_trace is not None else [],
         'table_5_1_trace': table_5_1_trace if table_5_1_trace is not None else [],
     }
 

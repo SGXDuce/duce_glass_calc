@@ -55,12 +55,11 @@
             <div class="pathway-tile-desc">Structural silicone at a facet angle (90°–160°) between panels</div>
         </button>
 
-        <!-- Pathway 4 — Structural Glazing (not yet built, tile disabled) -->
-        <button class="pathway-tile pathway-tile-disabled" id="tile-pathway4" disabled title="Coming soon">
+        <!-- Pathway 4 — Structural Glazing -->
+        <button class="pathway-tile" id="tile-pathway4" onclick="showPathway('pathway4')">
             <img class="pathway-tile-image" src="{{ url_for('static', filename='Pathway_4.png') }}" alt="Structural Glazing">
             <div class="pathway-tile-label">Structural Glazing</div>
             <div class="pathway-tile-desc">Flat glazing, no supporting frame elements, structural silicone bonded to the surface</div>
-            <div class="pathway-tile-badge">Coming soon</div>
         </button>
 
     </div>
@@ -767,6 +766,153 @@
 </div>
 </div><!-- /pathway3-view -->
 
+<div id="pathway4-view" style="display:none;">
+<div class="back-to-selection-btn-row">
+    <button class="back-to-selection-btn" onclick="showLanding()">&larr; Back to selection</button>
+</div>
+
+<div class="main-body">
+
+    <!-- ===== INPUTS PANEL ===== -->
+    <div class="inputs-panel" id="p4-inputs-panel">
+
+        <!-- Safety Glass -->
+        <div class="section-label">Human Impact Check <span class="beta-tag">Beta</span></div>
+        <div class="field-group">
+            <label class="field-label">Safety glass required?
+                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 - full_perimeter structural glazing is treated as equivalent to fully framed for human impact purposes (continuous silicone-to-frame bond on all four edges).">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p4-sg-no" onclick="setP4SafetyGlass(false)">No</button>
+                <button class="toggle-btn" id="p4-sg-yes" onclick="setP4SafetyGlass(true)">Yes</button>
+            </div>
+        </div>
+        <div class="sg-disclaimer" id="p4-sg-disclaimer" style="display:none;">
+            This feature is in Beta. Safety glass requirement is declared by the user. This tool does not assess whether safety glass is required for this application. The user is responsible for determining applicability in accordance with AS 1288 and relevant building codes. Please refer to Section 5 of AS 1288 to confirm those details.
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Panel Dimensions -->
+        <div class="section-label">Panel Dimensions</div>
+        <div class="field-group">
+            <label class="field-label">Height (mm)
+                <span class="tip" data-tip="Overall panel height in millimetres.">?</span>
+            </label>
+            <input class="field-input" type="number" id="p4_height_mm" placeholder="e.g. 1219" min="1" oninput="markP4InputsChanged()">
+        </div>
+        <div class="field-group">
+            <label class="field-label">Width (mm)
+                <span class="tip" data-tip="Overall panel width in millimetres.">?</span>
+            </label>
+            <input class="field-input" type="number" id="p4_width_mm" placeholder="e.g. 2438" min="1" oninput="markP4InputsChanged()">
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Wind Load -->
+        <div class="section-label">Wind Load</div>
+        <div class="field-group">
+            <label class="field-label">Input method
+                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications. ULS feeds both the AS 1288 Appendix F structural silicone bite formula and the Clause 4.4.3 wind bending check on the glass pane itself; SLS feeds only the bending check.">?</span>
+            </label>
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="p4-wind-pressure" onclick="setP4WindMethod('pressure')">Pressures (AS 1170.2)</button>
+                <button class="toggle-btn" id="p4-wind-nc" onclick="setP4WindMethod('nc')">N/C Rating (AS 4055)</button>
+            </div>
+        </div>
+
+        <!-- Direct pressure inputs -->
+        <div id="p4-pressure-inputs">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">ULS pressure (kPa)
+                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the silicone bite formula (Appendix F) and the glass pane's own wind bending check (Clause 4.4.3).">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p4_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01" oninput="markP4InputsChanged()">
+                </div>
+                <div class="field-group">
+                    <label class="field-label">SLS pressure (kPa)
+                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals - used only for the glass pane's own wind bending check (Clause 4.4.3), not the silicone bite formula.">?</span>
+                    </label>
+                    <input class="field-input" type="number" id="p4_sls_kpa" placeholder="e.g. 0.8" min="0" step="0.01" oninput="markP4InputsChanged()">
+                </div>
+            </div>
+        </div>
+
+        <!-- N/C rating inputs -->
+        <div id="p4-nc-inputs" style="display:none;">
+            <div class="field-row-2">
+                <div class="field-group">
+                    <label class="field-label">Wind classification
+                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
+                    </label>
+                    <select class="field-select" id="p4_nc_rating">
+                        <option value="">Select rating</option>
+                        <option>N1</option><option>N2</option><option>N3</option>
+                        <option>N4</option><option>N5</option><option>N6</option>
+                        <option>C1</option><option>C2</option><option>C3</option><option>C4</option>
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Window location
+                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    </label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="p4-loc-general" onclick="setP4Location('General')">General</button>
+                        <button class="toggle-btn" id="p4-loc-corner" onclick="setP4Location('Corner')">Corner</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Glass Types -->
+        <div class="section-label">Glass Type(s) to Check</div>
+        <div class="field-group">
+            <label class="field-label">Select one or more
+                <span class="tip" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from the silicone bite (wind + dead load) and, if safety glass is required, AS 1288 Table 5.1.">?</span>
+            </label>
+            <div id="p4-glass-type-checkboxes">
+                <!-- Populated by JS based on safety glass toggle -->
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button class="calc-btn" id="p4-calc-btn" onclick="runP4Calculation()">Calculate</button>
+        <button class="clear-btn" onclick="clearP4Fields()">Clear fields</button>
+
+    </div>
+
+    <!-- ===== RESULTS PANEL ===== -->
+    <div class="results-panel" id="p4-results-panel">
+        <div class="results-header">
+            <div class="section-label" style="margin-bottom:0;">Results</div>
+            <button class="report-btn-top" id="p4-report-btn" style="display:none;" onclick="generateP4Report()">
+                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+            </button>
+        </div>
+
+        <!-- Warning bar — shown when inputs change after a calculation -->
+        <div class="warning-bar" id="p4-warning-bar" style="display:none;">
+            <span class="warning-icon">⚠</span>
+            <span>Inputs have changed — recalculate to update results</span>
+        </div>
+
+        <!-- Results content -->
+        <div id="p4-results-content">
+            <div class="results-placeholder">
+                <div class="placeholder-icon">◻</div>
+                <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</div><!-- /pathway4-view -->
+
 <!-- ========== FOOTER NOTE ========== -->
 <!-- Human-impact footer: absent entirely when the active pathway's safety
      glass toggle is OFF (no assessment was made, so no message is shown -
@@ -822,6 +968,31 @@ const p3State = {
     lastResults:            null,
     lastPayload:            null,
     inputsChanged:          false
+};
+
+// Pathway 4 — Structural Glazing, flat/angle-free (Section 14.4). Own state
+// object, same precedent as p3State above. Deliberately smaller than
+// p3State/p2State in some respects: no scenario field (hardcoded server-side
+// to 'full_perimeter' - SUPPORTED_SCENARIOS_V1 has only that one value, so
+// there is nothing for the user to pick), no angle/2-edge/3-edge/BAL fields
+// (full_perimeter has no angle concept and is bushfire-excluded outright -
+// Section 14.5 rule 1), and no dead-load toggle (dead load is always
+// computed as one of the five governing criteria - engine/combined/
+// pathway4.py's governing_thickness_mm = max() across dead-load bite, wind
+// bite, ULS, SLS[, Table 5.1], this isn't user-discretionary the way the
+// safety-glass toggle is). These omissions were confirmed decisions, not
+// oversights. windMethod/ncLocation added this session alongside the
+// ULS/SLS wind-pressure section (mirrors p3State exactly) - replaces the
+// old single pzKpa-only form, since the new Mode 1 ULS/SLS criterion
+// (Section 14.4's wind-bending-as-4-edge check) needs both pressures, not
+// just the one Appendix F bite formula used.
+const p4State = {
+    safetyGlass:   false,
+    windMethod:    'pressure',
+    ncLocation:    'General',
+    lastResults:   null,
+    lastPayload:   null,
+    inputsChanged: false
 };
 
 // Pathway 2 — Partly Framed, Exposed Edges (Section 14.2). Own state object,
@@ -902,6 +1073,7 @@ function showLanding() {
     document.getElementById('pathway1-view').style.display = 'none';
     document.getElementById('pathway2-view').style.display = 'none';
     document.getElementById('pathway3-view').style.display = 'none';
+    document.getElementById('pathway4-view').style.display = 'none';
     updateHumanImpactFooter(false, '');
 }
 
@@ -910,6 +1082,7 @@ function showPathway(pathway) {
     document.getElementById('pathway1-view').style.display = pathway === 'pathway1' ? 'block' : 'none';
     document.getElementById('pathway2-view').style.display = pathway === 'pathway2' ? 'block' : 'none';
     document.getElementById('pathway3-view').style.display = pathway === 'pathway3' ? 'block' : 'none';
+    document.getElementById('pathway4-view').style.display = pathway === 'pathway4' ? 'block' : 'none';
 
     // Human impact footer reflects whichever pathway is now visible - each
     // pathway owns its own safety glass toggle state, so re-derive rather
@@ -925,6 +1098,11 @@ function showPathway(pathway) {
         // table can change as the user edits the angle.
         const tableName = p3State.angleDeg === 90 ? 'Table 5.1' : 'Table 5.3';
         updateHumanImpactFooter(p3State.safetyGlass, tableName);
+    } else if (pathway === 'pathway4') {
+        // full_perimeter always uses Table 5.1 (Section 14.4/12.12 item 9,
+        // fixed - no angle concept, unlike Pathway 3) - table name never
+        // varies here, only the toggle state does.
+        updateHumanImpactFooter(p4State.safetyGlass, 'Table 5.1');
     } else {
         updateHumanImpactFooter(false, '');
     }
@@ -2103,6 +2281,326 @@ function showP3Error(msg) {
 }
 
 // ---------------------------------------------------------------------------
+// PATHWAY 4 — STRUCTURAL GLAZING, FLAT/ANGLE-FREE (Section 14.4)
+// ---------------------------------------------------------------------------
+// Same six (glass_type, glass_subtype) pairs as Pathway 3, same eligibility
+// list as Table 5.1 elsewhere in the tool (SAFETY_GLASS_INELIGIBLE ==
+// Monolithic Annealed/Heat-strengthened) - full_perimeter always uses Table
+// 5.1, never Table 5.3, so there is only one ineligible-list concept here,
+// unlike Pathway 3 which has to cover both tables with the same list anyway.
+const P4_SUBTYPES = P3_SUBTYPES;
+const P4_SG_INELIGIBLE = P3_SG_INELIGIBLE;
+
+function setP4SafetyGlass(val) {
+    p4State.safetyGlass = val;
+    document.getElementById('p4-sg-no').classList.toggle('active', !val);
+    document.getElementById('p4-sg-yes').classList.toggle('active', val);
+    document.getElementById('p4-sg-disclaimer').style.display = val ? 'block' : 'none';
+    updateHumanImpactFooter(val, 'Table 5.1');
+    buildP4GlassTypeCheckboxes();
+    markP4InputsChanged();
+}
+
+function markP4InputsChanged() {
+    if (p4State.lastResults) {
+        p4State.inputsChanged = true;
+        document.getElementById('p4-warning-bar').style.display = 'flex';
+    }
+}
+
+function setP4WindMethod(val) {
+    p4State.windMethod = val;
+    document.getElementById('p4-wind-pressure').classList.toggle('active', val === 'pressure');
+    document.getElementById('p4-wind-nc').classList.toggle('active', val === 'nc');
+    document.getElementById('p4-pressure-inputs').style.display = val === 'pressure' ? 'block' : 'none';
+    document.getElementById('p4-nc-inputs').style.display       = val === 'nc'       ? 'block' : 'none';
+    markP4InputsChanged();
+}
+
+function setP4Location(val) {
+    p4State.ncLocation = val;
+    document.getElementById('p4-loc-general').classList.toggle('active', val === 'General');
+    document.getElementById('p4-loc-corner').classList.toggle('active',  val === 'Corner');
+    markP4InputsChanged();
+}
+
+function getP4GlassTypes() {
+    if (!p4State.safetyGlass) return P4_SUBTYPES;
+    return P4_SUBTYPES.filter(t => !P4_SG_INELIGIBLE.some(e => e[0] === t[0] && e[1] === t[1]));
+}
+
+function buildP4GlassTypeCheckboxes() {
+    const allTypes = getP4GlassTypes();
+    let html = '';
+    allTypes.forEach(t => {
+        const id = `p4-gt-${t[0]}-${t[1]}`.replace(/\s/g, '-');
+        html += `
+        <label class="checkbox-row">
+            <input type="checkbox" id="${id}" value="${t[0]}|${t[1]}" onchange="markP4InputsChanged()">
+            <span>${t[2]}</span>
+        </label>`;
+    });
+    document.getElementById('p4-glass-type-checkboxes').innerHTML = html;
+}
+
+function runP4Calculation() {
+    const height = parseFloat(document.getElementById('p4_height_mm').value);
+    const width  = parseFloat(document.getElementById('p4_width_mm').value);
+
+    if (!height || height <= 0) {
+        showP4Error('Please enter a valid panel height.');
+        return;
+    }
+    if (!width || width <= 0) {
+        showP4Error('Please enter a valid panel width.');
+        return;
+    }
+
+    const checkboxes = document.querySelectorAll('#p4-glass-type-checkboxes input[type=checkbox]:checked');
+    if (checkboxes.length === 0) {
+        showP4Error('Please select at least one glass subtype.');
+        return;
+    }
+    const selectedSubtypes = Array.from(checkboxes).map(cb => cb.value.split('|'));
+
+    let payload = {
+        height_mm:             height,
+        width_mm:              width,
+        wind_method:            p4State.windMethod,
+        safety_glass_required: p4State.safetyGlass,
+        selected_subtypes:     selectedSubtypes,
+    };
+
+    if (p4State.windMethod === 'pressure') {
+        const uls = parseFloat(document.getElementById('p4_uls_kpa').value);
+        const sls = parseFloat(document.getElementById('p4_sls_kpa').value);
+        if (!uls || !sls || uls <= 0 || sls <= 0) {
+            showP4Error('Please enter valid ULS and SLS pressures.');
+            return;
+        }
+        payload.uls_kpa = uls;
+        payload.sls_kpa = sls;
+    } else {
+        const rating = document.getElementById('p4_nc_rating').value;
+        if (!rating) {
+            showP4Error('Please select a wind classification rating.');
+            return;
+        }
+        payload.nc_rating   = rating;
+        payload.nc_location = p4State.ncLocation;
+    }
+
+    p4State.lastPayload = payload;
+
+    document.getElementById('p4-calc-btn').textContent = 'Calculating...';
+    document.getElementById('p4-calc-btn').disabled     = true;
+    document.getElementById('p4-results-content').innerHTML = '<div class="loading">Running calculation...</div>';
+
+    fetch('/calculate_pathway4', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('p4-calc-btn').textContent = 'Calculate';
+        document.getElementById('p4-calc-btn').disabled     = false;
+        document.getElementById('p4-warning-bar').style.display = 'none';
+
+        if (data.success) {
+            p4State.lastResults   = data;
+            p4State.inputsChanged = false;
+            renderP4Results(data, payload);
+            document.getElementById('p4-report-btn').style.display = 'block';
+        } else if (data.error_type === 'OUT_OF_SCOPE_CALCULATION') {
+            document.getElementById('p4-results-content').innerHTML = `
+                <div class="error-box">
+                    <strong>This wind pressure is outside the scope of AS 1288 for this glass type.</strong><br><br>
+                    The applied pressure is too low for the standard's formula to produce a valid result at the thickness being checked. Please verify your wind pressure inputs, or consult AS 1288 directly for very low pressure scenarios.
+                </div>`;
+        } else {
+            showP4Error(data.error || 'An error occurred during calculation.');
+        }
+    })
+    .catch(() => {
+        document.getElementById('p4-calc-btn').textContent = 'Calculate';
+        document.getElementById('p4-calc-btn').disabled     = false;
+        document.getElementById('p4-warning-bar').style.display = 'none';
+        showP4Error('Could not connect to the calculation server. Please try again.');
+    });
+}
+
+function p4StatusBadge(status) {
+    if (status === 'PASS') return { cls: 'pass', icon: 'ti-circle-check', text: 'Pass' };
+    if (status === 'HUMAN_IMPACT_INELIGIBLE') return { cls: 'pass', icon: 'ti-circle-check', text: 'Pass (ineligible for Table 5.1)' };
+    if (status === 'BITE_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No bite solution' };
+    if (status === 'WIND_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No wind solution' };
+    if (status === 'HUMAN_IMPACT_NO_COMPLIANT_THICKNESS') return { cls: 'fail', icon: 'ti-x', text: 'No solution' };
+    return { cls: 'fail', icon: 'ti-x', text: 'Error' };
+}
+
+// Human-readable labels for governing_criterion, shared between the result
+// card and the copy-as-image snapshot.
+const P4_CRITERION_LABELS = {
+    dead_load_bite: 'Silicone bite (dead load)',
+    wind_bite:      'Silicone bite (wind load)',
+    uls:            'ULS wind load (glass)',
+    sls:            'SLS wind load (glass)',
+    table_5_1:      'Table 5.1',
+};
+
+function renderP4Results(data, payload) {
+    const results = data.results;
+    let html = '';
+
+    const windLoadLabel = payload.wind_method === 'pressure'
+        ? `ULS ${payload.uls_kpa}kPa / SLS ${payload.sls_kpa}kPa`
+        : `${payload.nc_rating} (${payload.nc_location})`;
+
+    results.forEach(r => {
+        const badge = p4StatusBadge(r.status);
+        // Cards with no detail to show (bite/wind short-circuit / human-impact
+        // hard gate) are non-clickable - same hasMode2Detail convention as
+        // Pathway 2/3 (Section 8.1).
+        const hasDetail = r.status === 'PASS' || r.status === 'HUMAN_IMPACT_INELIGIBLE';
+
+        html += `<div class="result-card ${badge.cls}">
+            <div class="result-card-header">
+                <span class="result-glass-name">${r.glass_type} ${r.glass_subtype}</span>
+                <span class="status-badge ${badge.cls}">
+                    <i class="ti ${badge.icon}" style="font-size:11px" aria-hidden="true"></i> ${badge.text}
+                </span>
+            </div>`;
+
+        if (!hasDetail) {
+            html += `<div class="result-card-body">
+                <div class="result-message">${r.message}</div>
+            </div></div>`;
+            return;
+        }
+
+        const cardId = `p4-detail-${Math.random().toString(36).slice(2,9)}`;
+        let detailRows = '';
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (dead load)</span><span class="result-value">${r.dead_load_bite_nominal_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (wind load)</span><span class="result-value">${r.wind_bite_nominal_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">ULS wind load (glass)</span><span class="result-value">${r.uls_thickness_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">SLS wind load (glass)</span><span class="result-value">${r.sls_thickness_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">Panel area</span><span class="result-value">${r.panel_area_m2} m²</span></div>`;
+
+        if (r.status === 'HUMAN_IMPACT_INELIGIBLE') {
+            detailRows += `<div class="flag-row">⚠ Ineligible for Table 5.1 — governing thickness is from the other four criteria.</div>`;
+        } else if (payload.safety_glass_required) {
+            detailRows += `<div class="result-row"><span class="result-label">Table 5.1</span><span class="result-value">${r.table_5_1_thickness_mm} mm</span></div>`;
+        }
+
+        const governingLabel = P4_CRITERION_LABELS[r.governing_criterion] || r.governing_criterion;
+        detailRows += `<div class="result-row"><span class="result-label">Governing criterion</span><span class="result-value">${governingLabel}</span></div>`;
+
+        const snapRows = [
+            { label: 'Silicone bite (dead load)', value: `${r.dead_load_bite_nominal_mm} mm` },
+            { label: 'Silicone bite (wind load)', value: `${r.wind_bite_nominal_mm} mm` },
+            { label: 'ULS wind load (glass)', value: `${r.uls_thickness_mm} mm` },
+            { label: 'SLS wind load (glass)', value: `${r.sls_thickness_mm} mm` },
+        ];
+        if (r.status === 'PASS' && payload.safety_glass_required) {
+            snapRows.push({ label: 'Table 5.1', value: `${r.table_5_1_thickness_mm} mm` });
+        }
+        snapRows.push({ label: 'Governing criterion', value: governingLabel });
+        const snapInputs = {
+            glassName: `${r.glass_type} ${r.glass_subtype}`,
+            panel: `${payload.height_mm}mm x ${payload.width_mm}mm`,
+            support: 'full_perimeter, structural silicone',
+            windLoad: windLoadLabel,
+            glazing: 'Single'
+        };
+        const snapHtml = buildSnapshotHTML(snapInputs, snapRows, 'Governing thickness', `${r.governing_thickness_mm} mm`)
+            .replace(/`/g, '\\`').replace(/\n/g, '');
+
+        html += `<div id="${cardId}" class="result-card-body" style="display:none;">${detailRows}</div>
+        <div style="display:flex; gap:0;">
+            <button class="result-card-footer-pass main-action" style="border:none; cursor:pointer;" onclick="toggleAccordion('${cardId}', this)">
+                <span class="footer-pass-label">Final governing thickness</span>
+                <span style="display:flex; align-items:center; gap:8px;">
+                    <span class="footer-pass-value">${r.governing_thickness_mm} mm</span>
+                    <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
+                </span>
+            </button>
+            <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
+                <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
+            </button>
+        </div>`;
+
+        html += `</div>`;
+    });
+
+    document.getElementById('p4-results-content').innerHTML = html;
+}
+
+function clearP4Fields() {
+    document.getElementById('p4_height_mm').value = '';
+    document.getElementById('p4_width_mm').value  = '';
+    document.getElementById('p4_uls_kpa').value   = '';
+    document.getElementById('p4_sls_kpa').value   = '';
+    document.getElementById('p4_nc_rating').value = '';
+
+    setP4SafetyGlass(false);
+    setP4WindMethod('pressure');
+    setP4Location('General');
+
+    document.querySelectorAll('#p4-glass-type-checkboxes input[type=checkbox]').forEach(cb => {
+        cb.checked = false;
+    });
+
+    document.getElementById('p4-results-content').innerHTML = `
+        <div class="results-placeholder">
+            <div class="placeholder-icon">◻</div>
+            <div class="placeholder-text">Enter your inputs and click Calculate to see results</div>
+        </div>`;
+    document.getElementById('p4-warning-bar').style.display = 'none';
+    document.getElementById('p4-report-btn').style.display  = 'none';
+
+    p4State.lastResults   = null;
+    p4State.lastPayload   = null;
+    p4State.inputsChanged = false;
+}
+
+function generateP4Report() {
+    if (!p4State.lastResults || !p4State.lastPayload) return;
+
+    const payload = p4State.lastPayload;
+    const results = p4State.lastResults;
+
+    // build_pathway4_report() (app.py) is a fully separate report builder,
+    // dispatched via the 'pathway' flag below - same convention as Pathway 3.
+    const reportPayload = {
+        ...payload,
+        ...results,
+        pathway: 'pathway4',
+    };
+
+    fetch('/generate_report', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify(reportPayload)
+    })
+    .then(r => r.blob())
+    .then(blob => {
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'AS1288_Calculation_Report.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(() => showP4Error('Could not generate report. Please try again.'));
+}
+
+function showP4Error(msg) {
+    document.getElementById('p4-results-content').innerHTML =
+        `<div class="error-box">⚠ ${msg}</div>`;
+}
+
+// ---------------------------------------------------------------------------
 // PATHWAY 2 — PARTLY FRAMED, EXPOSED EDGES (Section 14.2)
 // ---------------------------------------------------------------------------
 
@@ -2760,6 +3258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buildP2GlassTypeCheckboxes();
     buildP2PaneInputs();
     buildP3GlassTypeCheckboxes();
+    buildP4GlassTypeCheckboxes();
     attachTooltipListeners();
 });
 
