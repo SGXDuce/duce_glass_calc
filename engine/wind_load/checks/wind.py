@@ -324,18 +324,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
                 glass_type, glass_subtype, thickness
             )
 
-            if max_area == 'EXTRAPOLATE':
-                sg_trace.append({
-                    'check': 'SG',
-                    'thickness': thickness,
-                    'max_area': 'EXTRAPOLATE',
-                    'actual_area': round(panel_area, 4),
-                    'result': 'EXTRAPOLATE'
-                })
-                sg_flag = 'EXTRAPOLATE'
-                sg_minimum_thickness = thickness
-                break
-            elif max_area is None:
+            if max_area is None:
                 continue
             elif panel_area <= max_area:
                 sg_trace.append({
@@ -356,7 +345,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
                     'result': 'FAIL'
                 })
 
-        if sg_minimum_thickness is None and sg_flag != 'EXTRAPOLATE':
+        if sg_minimum_thickness is None:
             return make_mode1_result(
                 status='NO_COMPLIANT_THICKNESS',
                 glass_type=glass_type, glass_subtype=glass_subtype,
@@ -813,10 +802,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
         max_area = get_safety_glass_max_area(
             glass_type, glass_subtype, nominal_thickness
         )
-        if max_area == 'EXTRAPOLATE':
-            sg_status = 'EXTRAPOLATE'
-            sg_flag = 'EXTRAPOLATE'
-        elif max_area is None:
+        if max_area is None:
             sg_status = 'N/A'
         elif panel_area <= max_area:
             sg_status = 'PASS'
@@ -949,14 +935,14 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
                 cmax = get_safety_glass_max_area(
                     glass_type, glass_subtype, candidate
                 )
-                if cmax == 'EXTRAPOLATE' or cmax is None:
+                if cmax is None:
                     candidate_trace['overall'] = 'PASS'
                     candidate_trace['checks'].append({
                         'check':       'SG',
                         'thickness':   candidate,
-                        'max_area':    'EXTRAPOLATE',
+                        'max_area':    None,
                         'actual_area': round(panel_area, 4),
-                        'result':      'EXTRAPOLATE'
+                        'result':      'N/A'
                     })
                     next_compliant_trace.append(candidate_trace)
                     next_compliant = candidate
@@ -992,7 +978,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
 
     # --- Overall status ---
     checks = [uls_status, sls_status]
-    if sg_status not in (None, 'N/A', 'EXTRAPOLATE'):
+    if sg_status not in (None, 'N/A'):
         checks.append(sg_status)
     if bal_status is not None:
         checks.append(bal_status)

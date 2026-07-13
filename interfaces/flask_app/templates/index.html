@@ -1387,10 +1387,7 @@ function renderResults(data, payload) {
                 }
 
                 if (sg && r.sg_minimum_thickness_mm !== null && r.sg_minimum_thickness_mm !== undefined) {
-                    const sgLabel = r.sg_flag === 'EXTRAPOLATE'
-                        ? 'Exceeds Table 5.1 scope — manual extrapolation required'
-                        : `${r.sg_minimum_thickness_mm} mm`;
-                    detailRows1 += `<div class="result-row"><span class="result-label">Safety glass min thickness</span><span class="result-value">${sgLabel}</span></div>`;
+                    detailRows1 += `<div class="result-row"><span class="result-label">Safety glass min thickness</span><span class="result-value">${r.sg_minimum_thickness_mm} mm</span></div>`;
                 }
 
                 if (r.bushfire_required && r.bal_minimum_thickness_mm !== null && r.bal_minimum_thickness_mm !== undefined) {
@@ -1495,9 +1492,7 @@ function renderResults(data, payload) {
                 }
 
                 if (sg && r.sg_status && r.sg_status !== 'N/A') {
-                    const sgText = r.sg_status === 'EXTRAPOLATE'
-                        ? 'Exceeds Table 5.1 scope — manual extrapolation required'
-                        : `${r.sg_status} (area ${r.panel_area_m2}m² vs max ${r.sg_max_area_m2}m²)`;
+                    const sgText = `${r.sg_status} (area ${r.panel_area_m2}m² vs max ${r.sg_max_area_m2}m²)`;
                     detailRows2 += `<div class="result-row">
                         <span class="result-label">Safety glass check</span>
                         <span class="result-value ${r.sg_status === 'PASS' ? 'green' : 'red'}">${sgText}</span>

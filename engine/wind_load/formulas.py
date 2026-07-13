@@ -341,22 +341,31 @@ def get_safety_glass_max_area(glass_type, glass_subtype, nominal_thickness_mm):
     Returns the maximum permitted area in m2 for a given glass type
     and nominal thickness under AS 1288 Table 5.1.
 
+    Table 5.1 only tabulates thicknesses up to 12mm. Beyond that, the
+    max area is extrapolated linearly at slope 1 (1 m2 per 1mm of
+    thickness) anchored at the 12mm value, per the engineer-confirmed
+    relationship that holds across nearly every row in both categories.
+    Note CAT2's 5mm row (2.2 m2) is a genuine anomaly that breaks this
+    linear pattern (slope-1 from 6mm would predict 2.0 m2) - do not
+    assume perfect linearity across the whole table, only that the
+    12mm anchor point is valid for extrapolation above 12mm.
+
     Returns:
-        float  : maximum area in m2 if found in table
-        'EXTRAPOLATE' : if thickness exceeds 12mm
-        None   : if glass type is not eligible for safety glass
+        float : maximum area in m2, from the table if nominal_thickness_mm
+                <= 12, otherwise linearly extrapolated from the 12mm value
+        None  : if glass type/subtype is not eligible for safety glass
     """
     category = SAFETY_GLASS_CATEGORY.get((glass_type, glass_subtype))
     if category is None:
         return None
 
-    if nominal_thickness_mm > 12:
-        return 'EXTRAPOLATE'
+    # 3mm and 4mm only apply to Monolithic Toughened, not Toughened Laminated
+    if category == 'cat1' and glass_type == 'Laminated' and nominal_thickness_mm in (3, 4):
+        return None
 
-    if category == 'cat1':
-        # 3mm and 4mm only apply to Monolithic Toughened, not Toughened Laminated
-        if glass_type == 'Laminated' and nominal_thickness_mm in (3, 4):
-            return None
-        return SAFETY_GLASS_AREA_CAT1.get(nominal_thickness_mm)
-    else:
-        return SAFETY_GLASS_AREA_CAT2.get(nominal_thickness_mm)
+    area_table = SAFETY_GLASS_AREA_CAT1 if category == 'cat1' else SAFETY_GLASS_AREA_CAT2
+
+    if nominal_thickness_mm > 12:
+        return area_table[12] + (nominal_thickness_mm - 12)
+
+    return area_table.get(nominal_thickness_mm)

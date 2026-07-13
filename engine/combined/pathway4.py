@@ -79,13 +79,7 @@ def _run_table_5_1_search(glass_type, glass_subtype, panel_area_m2, thickness_li
     trace = []
     for thickness in thickness_list:
         max_area = get_safety_glass_max_area(glass_type, glass_subtype, thickness)
-        if max_area == 'EXTRAPOLATE':
-            trace.append({
-                'check': 'SG', 'thickness': thickness, 'max_area': 'EXTRAPOLATE',
-                'actual_area': panel_area_m2, 'result': 'EXTRAPOLATE',
-            })
-            return {'status': 'COMPLIANT', 'minimum_thickness_mm': thickness, 'trace': trace}
-        elif max_area is None:
+        if max_area is None:
             continue
         elif panel_area_m2 <= max_area:
             trace.append({

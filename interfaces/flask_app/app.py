@@ -409,11 +409,7 @@ def format_trace_entry(entry, lines):
     elif chk == 'SG':
         max_a    = entry.get('max_area')
         actual_a = entry.get('actual_area')
-        if res == 'EXTRAPOLATE':
-            lines.append(f"  Thickness {t}mm — EXTRAPOLATE")
-            lines.append(f"    Thickness exceeds AS 1288 Table 5.1 scope.")
-            lines.append(f"    Manual extrapolation required.")
-        elif res == 'PASS':
+        if res == 'PASS':
             lines.append(f"  Thickness {t}mm — PASS")
             lines.append(f"    Panel area {actual_a}m2 <= max area {max_a}m2 — PASS")
         else:
@@ -594,10 +590,7 @@ def build_report(data):
                     lines.append('')
                     for entry in r.get('sg_trace', []):
                         format_trace_entry(entry, lines)
-                    if r.get('sg_flag') == 'EXTRAPOLATE':
-                        lines.append(f"Safety Glass Check = Exceeds Table 5.1 scope. Manual extrapolation required.")
-                    else:
-                        lines.append(f"Safety Glass Minimum Thickness = {r.get('sg_minimum_thickness_mm')} mm")
+                    lines.append(f"Safety Glass Minimum Thickness = {r.get('sg_minimum_thickness_mm')} mm")
                     lines.append('')
 
                 lines.append(f"FINAL MINIMUM THICKNESS (GOVERNING) = {r.get('minimum_thickness_mm')} mm")

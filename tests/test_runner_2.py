@@ -124,6 +124,26 @@ TEST_CASES = [
         'notes': 'Monolithic Heat-strengthened not eligible for safety glass.'
     },
 
+    # --- TC-U: Safety Glass extrapolated beyond 12mm, still FAILs at the
+    # largest stocked thickness (24mm) ---
+    {
+        'id': 'TC-U', 'mode': 1,
+        'height_mm': 3500, 'width_mm': 6500,
+        'support': '4-edge', 'span_dim': 'width',
+        'wind_method': 'Pressure', 'uls_pa': 500, 'sls_pa': 200,
+        'rating': '', 'location': '',
+        'glass_type': 'Laminated', 'glass_subtype': 'Annealed',
+        'glazing': 'single', 'safety_glass': True,
+        'expected_uls_t': None, 'expected_sls_t': None,
+        'expected_final_t': None, 'expected_status': 'NO_COMPLIANT_THICKNESS',
+        'notes': 'Area=22.75m2. Largest stocked Laminated Annealed thickness '
+                 'is 24mm; extrapolated SG max area at 24mm = 9.0 + (24-12) '
+                 '= 21.0m2 (CAT2, slope 1 from the 12mm anchor). 22.75 > 21.0, '
+                 'so SG genuinely fails at every stocked thickness - a real '
+                 'NO_COMPLIANT_THICKNESS, only reachable now that extrapolation '
+                 'is a computed value instead of an automatic-pass bypass.'
+    },
+
     # --- TC-L: Laminated Annealed IGU Double k_pane + c1 ---
     {
         'id': 'TC-L', 'mode': 1,
