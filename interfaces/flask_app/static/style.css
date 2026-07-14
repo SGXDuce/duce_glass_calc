@@ -651,6 +651,15 @@ body {
     color: #4caf76;
 }
 
+/* Neutral explanatory note (e.g. usable-bite arithmetic breakdown) - not a
+   warning, so deliberately not .flag-row's amber warning styling. */
+.detail-note {
+    color: #888;
+    font-size: 10.5px;
+    line-height: 1.4;
+    padding: 4px 0 6px;
+}
+
 /* ===== RESULT MESSAGE ===== */
 .result-message {
     color: #cf6679;

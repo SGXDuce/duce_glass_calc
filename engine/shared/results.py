@@ -116,13 +116,24 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
                           wind_pressure_kpa=None, required_bite_mm=None, required_bite_raw_mm=None,
                           joint_type=None, mitre_angle_deg=None, nominal_monolithic=None,
                           nominal_laminated=None, usable_bite_monolithic=None,
-                          usable_bite_laminated=None, message=None):
+                          usable_bite_laminated=None,
+                          actual_thickness_monolithic=None, actual_thickness_laminated=None,
+                          deduction_mm=None, deduction_type=None,
+                          message=None):
     """
     Builds a silicone bite result dictionary with a guaranteed, consistent set of keys.
     Every return path in the silicone bite engine must use this function instead of
     building its own dict, so a missing key is structurally impossible.
     Same discipline as make_mode1_result() / make_mode2_result() — see Section 6.4
     of the project summary for rationale.
+
+    required_bite_raw_mm is the pre-6.0mm-floor calculated value;
+    required_bite_mm is what actually fed the Table 4.1 lookup (post-floor -
+    identical to required_bite_raw_mm when the floor wasn't triggered).
+    actual_thickness_monolithic/laminated (Table 4.1 value at
+    nominal_monolithic/nominal_laminated) and deduction_mm/deduction_type
+    ('chamfer', CHAMFER_ALLOWANCE_MM here) added this session for the
+    silicone-bite transparency display - see run_bite_calculation().
 
     Possible statuses: 'PASS' (calculation completed successfully),
     'ANGLE_OUT_OF_RANGE' (angle outside 90-160), 'NO_COMPLIANT_THICKNESS' (required
@@ -142,6 +153,10 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
         'nominal_laminated': nominal_laminated,
         'usable_bite_monolithic': usable_bite_monolithic,
         'usable_bite_laminated': usable_bite_laminated,
+        'actual_thickness_monolithic': actual_thickness_monolithic,
+        'actual_thickness_laminated': actual_thickness_laminated,
+        'deduction_mm': deduction_mm,
+        'deduction_type': deduction_type,
         'message': message,
     }
 
@@ -149,6 +164,9 @@ def make_silicone_result(status, angle_deg=None, f_factor=None, governing_width_
 def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=None,
                           governing_thickness_mm=None,
                           bite_thickness_mm=None,
+                          required_bite_raw_mm=None, required_bite_floored_mm=None,
+                          usable_bite_mm=None, actual_thickness_mm=None,
+                          deduction_mm=None, deduction_type=None, mitre_angle_deg=None,
                           uls_thickness_mm=None, sls_thickness_mm=None,
                           human_impact_thickness_mm=None, human_impact_table=None,
                           angle_deg=None, corner_or_general=None,
@@ -163,6 +181,18 @@ def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=No
     Every return path in run_pathway3_calculation() must call this instead
     of building its own dict - same discipline as make_mode1_result() etc.,
     see Section 6.4 of the project summary.
+
+    required_bite_raw_mm / required_bite_floored_mm / usable_bite_mm /
+    actual_thickness_mm / deduction_mm / deduction_type / mitre_angle_deg
+    (added for the silicone-bite transparency display, this session): the
+    pre-6.0mm-floor calculated bite, what actually fed the Table 4.1 lookup
+    (identical to the raw value when the floor wasn't triggered - compare
+    the two to detect the floor, rather than a separate boolean), the
+    winning broad category's usable bite (post chamfer/mitre deduction) and
+    Table 4.1 actual (minimum) thickness at bite_thickness_mm, the chamfer
+    deduction applied (CHAMFER_ALLOWANCE_MM, 'chamfer'), and the mitre angle
+    (only meaningful for mitred joints). Only populated on the branches
+    where a bite figure exists (i.e. bite_thickness_mm is not None).
 
     Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (short-circuited
     at the broad-category level, Section 12.13 step 2), 'WIND_NO_COMPLIANT_THICKNESS',
@@ -179,6 +209,13 @@ def make_pathway3_result(status, subtype=None, glass_type=None, glass_subtype=No
         'message': message,
         'governing_thickness_mm': governing_thickness_mm,
         'bite_thickness_mm': bite_thickness_mm,
+        'required_bite_raw_mm': required_bite_raw_mm,
+        'required_bite_floored_mm': required_bite_floored_mm,
+        'usable_bite_mm': usable_bite_mm,
+        'actual_thickness_mm': actual_thickness_mm,
+        'deduction_mm': deduction_mm,
+        'deduction_type': deduction_type,
+        'mitre_angle_deg': mitre_angle_deg,
         'uls_thickness_mm': uls_thickness_mm,
         'sls_thickness_mm': sls_thickness_mm,
         'human_impact_thickness_mm': human_impact_thickness_mm,
@@ -199,6 +236,15 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
                           governing_criterion=None,
                           dead_load_bite_nominal_mm=None,
                           wind_bite_nominal_mm=None,
+                          dead_load_required_bite_raw_mm=None,
+                          dead_load_required_bite_floored_mm=None,
+                          wind_required_bite_raw_mm=None,
+                          wind_required_bite_floored_mm=None,
+                          dead_load_usable_bite_mm=None,
+                          wind_usable_bite_mm=None,
+                          dead_load_actual_thickness_mm=None,
+                          wind_actual_thickness_mm=None,
+                          deduction_mm=None, deduction_type=None,
                           uls_thickness_mm=None,
                           sls_thickness_mm=None,
                           wind_bite_mm=None,
@@ -221,7 +267,7 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
     per-subtype work at all.
 
     Five independent criteria (Section 7.6 independence principle), added
-    this session to close a gap where Pathway 4 sized the silicone joint but
+    v1.26 to close a gap where Pathway 4 sized the silicone joint but
     never checked the glass pane's own AS 1288 Clause 4.4.3 ULS/SLS bending
     capacity - the joint and the pane are two independent failure modes:
     - dead_load_bite_nominal_mm / wind_bite_nominal_mm: independent Table 4.1
@@ -240,8 +286,30 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
     'dead_load_bite', 'wind_bite', 'uls', 'sls', 'table_5_1').
 
     wind_bite_mm / dead_load_bite_mm (raw mm, pre-Table-4.1-lookup) are kept
-    for the report's bite-arithmetic breakdown - same rationale as before
-    this session (not subtype-specific, one figure per broad category).
+    for the report's bite-arithmetic breakdown.
+
+    Silicone-bite transparency fields (this session, display-only, no
+    calculation change): dead_load_required_bite_raw_mm/wind_required_bite_raw_mm
+    are IDENTICAL to dead_load_bite_mm/wind_bite_mm above (there is no
+    pre-lookup required-bite floor in this pathway, unlike Pathway 3 -
+    both names are kept because the display code shares one wording
+    helper with Pathway 3, which does have a real raw-vs-floored
+    distinction at this point). dead_load_required_bite_floored_mm/
+    wind_required_bite_floored_mm is what actually fed the Table 4.1
+    lookup - identical to the _raw_mm figure here for the same reason,
+    UNLESS the MIN_NOMINAL_THICKNESS (6mm) floor raised the final nominal
+    beyond what the Table 4.1 lookup itself returned, in which case it is
+    set to the required bite implied by that floored nominal's own Table
+    4.1 actual thickness (so the raw != floored comparison used to detect
+    "was a floor applied" still fires correctly for this pathway's only
+    real floor point - see module docstring's floor explanation).
+    dead_load_usable_bite_mm/wind_usable_bite_mm and
+    dead_load_actual_thickness_mm/wind_actual_thickness_mm are the usable
+    bite and Table 4.1 actual (minimum) thickness at the nominal actually
+    used/displayed (post-floor). deduction_mm/deduction_type
+    (EDGE_POLISH_DEDUCTION_MM, 'edge_polish') are shared across both
+    criteria - the same deduction applies to both dead load and wind bite
+    lookups in this pathway.
 
     Possible statuses: 'PASS', 'BITE_NO_COMPLIANT_THICKNESS' (both bite
     lookups returned None for this subtype's broad category),
@@ -262,6 +330,16 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
         'governing_criterion': governing_criterion,
         'dead_load_bite_nominal_mm': dead_load_bite_nominal_mm,
         'wind_bite_nominal_mm': wind_bite_nominal_mm,
+        'dead_load_required_bite_raw_mm': dead_load_required_bite_raw_mm,
+        'dead_load_required_bite_floored_mm': dead_load_required_bite_floored_mm,
+        'wind_required_bite_raw_mm': wind_required_bite_raw_mm,
+        'wind_required_bite_floored_mm': wind_required_bite_floored_mm,
+        'dead_load_usable_bite_mm': dead_load_usable_bite_mm,
+        'wind_usable_bite_mm': wind_usable_bite_mm,
+        'dead_load_actual_thickness_mm': dead_load_actual_thickness_mm,
+        'wind_actual_thickness_mm': wind_actual_thickness_mm,
+        'deduction_mm': deduction_mm,
+        'deduction_type': deduction_type,
         'uls_thickness_mm': uls_thickness_mm,
         'sls_thickness_mm': sls_thickness_mm,
         'wind_bite_mm': wind_bite_mm,

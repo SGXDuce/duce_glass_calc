@@ -560,6 +560,53 @@ def active_checks_label(checks):
     return ', '.join(seen[:-1]) + ' and ' + seen[-1]
 
 
+def build_usable_bite_line(actual_thickness_mm, usable_bite_mm, required_bite_raw_mm,
+                            required_bite_floored_mm, deduction_mm, deduction_type,
+                            joint_type=None, mitre_angle_deg=None):
+    """
+    Builds the plain-language usable-bite transparency sentence shown under
+    a silicone bite result (Pathway 3 and Pathway 4, this session) - exposes
+    the arithmetic that was always computed (find_min_nominal_for_usable_bite(),
+    engine/shared/table_4_1.py) but previously stopped at the final nominal
+    thickness with no visible working. Display-only - no calculation change.
+
+    Floor-triggered wording is keyed off required_bite_raw_mm !=
+    required_bite_floored_mm, not a separate boolean - this is deliberate:
+    Pathway 3's floor is applied to the required bite itself
+    (run_bite_calculation()'s max(raw, 6.0)) while Pathway 4's only floor
+    point is the final NOMINAL thickness (MIN_NOMINAL_THICKNESS) - see
+    pathway4.py's make_pathway4_result() call for how that pathway maps its
+    nominal floor back onto this same raw-vs-floored comparison. Both are
+    the SAME underlying Dow Corning 6mm minimum-seal-thickness rule enforced
+    at two different points in the chain, not two separate justifications -
+    confirmed this session - so both use the identical floor-triggered
+    prefix below.
+
+    deduction_type: 'chamfer' (Pathway 3, faceted) or 'edge_polish'
+    (Pathway 4, flat) - the only wording difference between the two callers.
+
+    joint_type/mitre_angle_deg: Pathway 3 only (mitred joints show the
+    /cos(angle) step; Pathway 4 has no mitre concept, both left None there).
+    """
+    deduction_label = 'chamfer' if deduction_type == 'chamfer' else 'edge polish'
+
+    if joint_type == 'mitred' and mitre_angle_deg is not None:
+        basis = (f"{actual_thickness_mm}mm actual thickness ÷ cos({mitre_angle_deg:.0f}°) "
+                 f"− {deduction_mm}mm {deduction_label} deduction, mitred joint")
+    elif joint_type is not None:
+        basis = f"{actual_thickness_mm}mm actual thickness − {deduction_mm}mm {deduction_label} deduction, butt joint"
+    else:
+        basis = f"{actual_thickness_mm}mm actual thickness − {deduction_mm}mm {deduction_label} deduction"
+
+    line = f"Usable bite: {usable_bite_mm:.1f}mm ({basis}) — meets the required {required_bite_floored_mm:.1f}mm"
+    line += ' bite.' if joint_type is not None else '.'
+
+    if required_bite_raw_mm != required_bite_floored_mm:
+        line = (f"Required bite calculated at {required_bite_raw_mm:.1f}mm, floored to Dow "
+                 f"Corning's 6.0mm minimum glueline/bite requirement. ") + line
+    return line
+
+
 def build_report(data):
     """
     Builds a plain text stepwise calculation report including full
@@ -914,7 +961,18 @@ def build_pathway3_report(data):
         lines.append(f"SILICONE BITE CHECK — AS 1288 Section 9")
         lines.append(f"Governing width B = larger of Width 1/Width 2")
         lines.append('')
-        lines.append(f"Bite Minimum Nominal Thickness = {r.get('bite_thickness_mm')} mm")
+        req_raw = r.get('required_bite_raw_mm')
+        lines.append(f"Bite Minimum Nominal Thickness = {r.get('bite_thickness_mm')} mm"
+                      + (f" ({req_raw:.1f}mm required)" if req_raw is not None else ""))
+        if r.get('usable_bite_mm') is not None:
+            lines.append(build_usable_bite_line(
+                actual_thickness_mm=r.get('actual_thickness_mm'),
+                usable_bite_mm=r.get('usable_bite_mm'),
+                required_bite_raw_mm=r.get('required_bite_raw_mm'),
+                required_bite_floored_mm=r.get('required_bite_floored_mm'),
+                deduction_mm=r.get('deduction_mm'), deduction_type=r.get('deduction_type'),
+                joint_type=data.get('joint_type'), mitre_angle_deg=r.get('mitre_angle_deg'),
+            ))
         lines.append('')
 
         if r.get('status') in ('WIND_NO_COMPLIANT_THICKNESS', 'ERROR'):
@@ -1083,8 +1141,28 @@ def build_pathway4_report(data):
             continue
 
         # --- Silicone bite, independent per-criterion nominal thicknesses ---
-        lines.append(f"Silicone Bite (Dead Load) Minimum Nominal Thickness = {r.get('dead_load_bite_nominal_mm')} mm")
-        lines.append(f"Silicone Bite (Wind Load) Minimum Nominal Thickness = {r.get('wind_bite_nominal_mm')} mm")
+        dead_req_raw = r.get('dead_load_required_bite_raw_mm')
+        wind_req_raw = r.get('wind_required_bite_raw_mm')
+        lines.append(f"Silicone Bite (Dead Load) Minimum Nominal Thickness = {r.get('dead_load_bite_nominal_mm')} mm"
+                      + (f" ({dead_req_raw:.1f}mm required)" if dead_req_raw is not None else ""))
+        if r.get('dead_load_usable_bite_mm') is not None:
+            lines.append(build_usable_bite_line(
+                actual_thickness_mm=r.get('dead_load_actual_thickness_mm'),
+                usable_bite_mm=r.get('dead_load_usable_bite_mm'),
+                required_bite_raw_mm=r.get('dead_load_required_bite_raw_mm'),
+                required_bite_floored_mm=r.get('dead_load_required_bite_floored_mm'),
+                deduction_mm=r.get('deduction_mm'), deduction_type=r.get('deduction_type'),
+            ))
+        lines.append(f"Silicone Bite (Wind Load) Minimum Nominal Thickness = {r.get('wind_bite_nominal_mm')} mm"
+                      + (f" ({wind_req_raw:.1f}mm required)" if wind_req_raw is not None else ""))
+        if r.get('wind_usable_bite_mm') is not None:
+            lines.append(build_usable_bite_line(
+                actual_thickness_mm=r.get('wind_actual_thickness_mm'),
+                usable_bite_mm=r.get('wind_usable_bite_mm'),
+                required_bite_raw_mm=r.get('wind_required_bite_raw_mm'),
+                required_bite_floored_mm=r.get('wind_required_bite_floored_mm'),
+                deduction_mm=r.get('deduction_mm'), deduction_type=r.get('deduction_type'),
+            ))
         lines.append('')
 
         if r.get('status') == 'WIND_NO_COMPLIANT_THICKNESS':

@@ -2163,7 +2163,13 @@ function renderP3Results(data, payload) {
 
         const cardId = `p3-detail-${Math.random().toString(36).slice(2,9)}`;
         let detailRows = '';
-        detailRows += `<div class="result-row"><span class="result-label">Silicone bite minimum</span><span class="result-value">${r.bite_thickness_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite minimum</span><span class="result-value">${r.bite_thickness_mm} mm${r.required_bite_raw_mm != null ? ` (${r.required_bite_raw_mm.toFixed(1)}mm required)` : ''}</span></div>`;
+        if (r.usable_bite_mm != null) {
+            detailRows += `<div class="detail-note">${buildUsableBiteLine(
+                r.actual_thickness_mm, r.usable_bite_mm, r.required_bite_raw_mm, r.required_bite_floored_mm,
+                r.deduction_mm, r.deduction_type, payload.joint_type, r.mitre_angle_deg
+            )}</div>`;
+        }
         detailRows += `<div class="result-row"><span class="result-label">ULS minimum thickness</span><span class="result-value">${r.uls_thickness_mm} mm</span></div>`;
         detailRows += `<div class="result-row"><span class="result-label">SLS minimum thickness</span><span class="result-value">${r.sls_thickness_mm} mm</span></div>`;
 
@@ -2484,8 +2490,22 @@ function renderP4Results(data, payload) {
 
         const cardId = `p4-detail-${Math.random().toString(36).slice(2,9)}`;
         let detailRows = '';
-        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (dead load)</span><span class="result-value">${r.dead_load_bite_nominal_mm} mm</span></div>`;
-        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (wind load)</span><span class="result-value">${r.wind_bite_nominal_mm} mm</span></div>`;
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (dead load)</span><span class="result-value">${r.dead_load_bite_nominal_mm} mm${r.dead_load_required_bite_raw_mm != null ? ` (${r.dead_load_required_bite_raw_mm.toFixed(1)}mm required)` : ''}</span></div>`;
+        if (r.dead_load_usable_bite_mm != null) {
+            detailRows += `<div class="detail-note">${buildUsableBiteLine(
+                r.dead_load_actual_thickness_mm, r.dead_load_usable_bite_mm,
+                r.dead_load_required_bite_raw_mm, r.dead_load_required_bite_floored_mm,
+                r.deduction_mm, r.deduction_type, null, null
+            )}</div>`;
+        }
+        detailRows += `<div class="result-row"><span class="result-label">Silicone bite (wind load)</span><span class="result-value">${r.wind_bite_nominal_mm} mm${r.wind_required_bite_raw_mm != null ? ` (${r.wind_required_bite_raw_mm.toFixed(1)}mm required)` : ''}</span></div>`;
+        if (r.wind_usable_bite_mm != null) {
+            detailRows += `<div class="detail-note">${buildUsableBiteLine(
+                r.wind_actual_thickness_mm, r.wind_usable_bite_mm,
+                r.wind_required_bite_raw_mm, r.wind_required_bite_floored_mm,
+                r.deduction_mm, r.deduction_type, null, null
+            )}</div>`;
+        }
         detailRows += `<div class="result-row"><span class="result-label">ULS wind load (glass)</span><span class="result-value">${r.uls_thickness_mm} mm</span></div>`;
         detailRows += `<div class="result-row"><span class="result-label">SLS wind load (glass)</span><span class="result-value">${r.sls_thickness_mm} mm</span></div>`;
         detailRows += `<div class="result-row"><span class="result-label">Panel area</span><span class="result-value">${r.panel_area_m2} m²</span></div>`;
@@ -3165,6 +3185,37 @@ function toggleAccordion(cardId, button) {
     if (chevron) {
         chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
     }
+}
+
+// Mirrors build_usable_bite_line() in app.py exactly (display-only, no
+// calculation change) - shows the usable-bite arithmetic
+// (find_min_nominal_for_usable_bite(), engine/shared/table_4_1.py) that was
+// always computed but previously stopped at the final nominal thickness.
+// Floor-triggered wording is keyed off requiredBiteRawMm != requiredBiteFlooredMm,
+// not a separate boolean - same convention as the Python helper, since
+// Pathway 3's floor point (required bite) and Pathway 4's (final nominal)
+// are the same underlying Dow Corning 6mm rule enforced at two different
+// points in the chain, not two separate justifications.
+function buildUsableBiteLine(actualThicknessMm, usableBiteMm, requiredBiteRawMm,
+                              requiredBiteFlooredMm, deductionMm, deductionType,
+                              jointType, mitreAngleDeg) {
+    const deductionLabel = deductionType === 'chamfer' ? 'chamfer' : 'edge polish';
+    let basis;
+    if (jointType === 'mitred' && mitreAngleDeg != null) {
+        basis = `${actualThicknessMm}mm actual thickness ÷ cos(${mitreAngleDeg.toFixed(0)}°) − ${deductionMm}mm ${deductionLabel} deduction, mitred joint`;
+    } else if (jointType != null) {
+        basis = `${actualThicknessMm}mm actual thickness − ${deductionMm}mm ${deductionLabel} deduction, butt joint`;
+    } else {
+        basis = `${actualThicknessMm}mm actual thickness − ${deductionMm}mm ${deductionLabel} deduction`;
+    }
+
+    let line = `Usable bite: ${usableBiteMm.toFixed(1)}mm (${basis}) — meets the required ${requiredBiteFlooredMm.toFixed(1)}mm`;
+    line += jointType != null ? ' bite.' : '.';
+
+    if (requiredBiteRawMm !== requiredBiteFlooredMm) {
+        line = `Required bite calculated at ${requiredBiteRawMm.toFixed(1)}mm, floored to Dow Corning's 6.0mm minimum glueline/bite requirement. ` + line;
+    }
+    return line;
 }
 
 function buildSnapshotHTML(inputSummary, rows, governingLabel, governingValue) {

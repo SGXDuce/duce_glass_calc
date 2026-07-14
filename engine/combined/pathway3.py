@@ -52,6 +52,16 @@ BITE_FIELD_FOR_CATEGORY = {
     'Laminated': 'nominal_laminated',
 }
 
+USABLE_BITE_FIELD_FOR_CATEGORY = {
+    'Monolithic': 'usable_bite_monolithic',
+    'Laminated': 'usable_bite_laminated',
+}
+
+ACTUAL_THICKNESS_FIELD_FOR_CATEGORY = {
+    'Monolithic': 'actual_thickness_monolithic',
+    'Laminated': 'actual_thickness_laminated',
+}
+
 
 def _run_table_5_1_search(glass_type, glass_subtype, panel_area_m2, thickness_list):
     """
@@ -187,6 +197,29 @@ def run_pathway3_calculation(height_mm, width_1_mm, width_2_mm, angle_deg,
             )
             continue
 
+        # --- Silicone-bite transparency fields (this session): the winning
+        # category's usable bite and Table 4.1 actual (minimum) thickness at
+        # bite_thickness_mm, plus the raw/floored required-bite pair - all
+        # already computed by run_bite_calculation() (engine/silicone_bite/
+        # formulas.py), just read off bite_result rather than recomputed
+        # here. required_bite_raw_mm != required_bite_floored_mm is the
+        # floor-triggered signal (no separate boolean). ---
+        usable_bite_mm = bite_result[USABLE_BITE_FIELD_FOR_CATEGORY[glass_type]]
+        actual_thickness_mm = bite_result[ACTUAL_THICKNESS_FIELD_FOR_CATEGORY[glass_type]]
+        required_bite_raw_mm = bite_result['required_bite_raw_mm']
+        required_bite_floored_mm = bite_result['required_bite_mm']
+        deduction_mm = bite_result['deduction_mm']
+        deduction_type = bite_result['deduction_type']
+        mitre_angle_deg = bite_result['mitre_angle_deg'] if joint_type == 'mitred' else None
+
+        bite_transparency_kwargs = dict(
+            required_bite_raw_mm=required_bite_raw_mm,
+            required_bite_floored_mm=required_bite_floored_mm,
+            usable_bite_mm=usable_bite_mm, actual_thickness_mm=actual_thickness_mm,
+            deduction_mm=deduction_mm, deduction_type=deduction_type,
+            mitre_angle_deg=mitre_angle_deg,
+        )
+
         # --- STEP 3: wind ULS/SLS, independent of human impact ---
         wind_result = check_glass_type(
             df, glass_type, glass_subtype, height_mm, governing_width_mm,
@@ -208,6 +241,7 @@ def run_pathway3_calculation(height_mm, width_1_mm, width_2_mm, angle_deg,
                 safety_glass_required=safety_glass_required,
                 unframed_edge_condition=unframed_edge_condition,
                 wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
+                **bite_transparency_kwargs,
             )
             continue
 
@@ -273,6 +307,7 @@ def run_pathway3_calculation(height_mm, width_1_mm, width_2_mm, angle_deg,
                 unframed_edge_condition=unframed_edge_condition,
                 wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
                 human_impact_trace=human_impact_trace,
+                **bite_transparency_kwargs,
             )
             continue
 
@@ -297,6 +332,7 @@ def run_pathway3_calculation(height_mm, width_1_mm, width_2_mm, angle_deg,
             unframed_edge_condition=unframed_edge_condition,
             wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
             human_impact_trace=human_impact_trace,
+            **bite_transparency_kwargs,
         )
 
     return results

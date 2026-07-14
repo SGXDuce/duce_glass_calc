@@ -231,23 +231,63 @@ def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,
     # max() inside the engine. ---
     bite_nominal_by_category = {}
     for category, table in TABLE_4_1_FOR_CATEGORY.items():
-        wind_nom, _ = find_min_nominal_for_usable_bite(
+        wind_nom, wind_usable = find_min_nominal_for_usable_bite(
             wind_bite_mm, table, joint_type=None, chamfer_mm=EDGE_POLISH_DEDUCTION_MM,
         )
-        dead_nom, _ = find_min_nominal_for_usable_bite(
+        dead_nom, dead_usable = find_min_nominal_for_usable_bite(
             dead_load_bite_mm, table, joint_type=None, chamfer_mm=EDGE_POLISH_DEDUCTION_MM,
         )
+        wind_nom_floored = apply_thickness_floor(wind_nom, MIN_NOMINAL_THICKNESS)
+        dead_nom_floored = apply_thickness_floor(dead_nom, MIN_NOMINAL_THICKNESS)
+
+        # Usable bite / actual thickness at the FLOORED nominal (the one
+        # actually used/displayed) - if the floor raised the nominal beyond
+        # what find_min_nominal_for_usable_bite() searched to, the usable
+        # bite at that floored nominal is looked up fresh, since the search
+        # stopped at the smaller pre-floor nominal.
+        wind_usable_at_floor = (
+            wind_usable if wind_nom_floored == wind_nom
+            else table[wind_nom_floored] - EDGE_POLISH_DEDUCTION_MM
+        ) if wind_nom_floored is not None else None
+        dead_usable_at_floor = (
+            dead_usable if dead_nom_floored == dead_nom
+            else table[dead_nom_floored] - EDGE_POLISH_DEDUCTION_MM
+        ) if dead_nom_floored is not None else None
+
+        # Unlike Pathway 3, there is no pre-lookup required-bite floor here -
+        # wind_bite_mm/dead_load_bite_mm ARE already the true raw required
+        # bite (see module docstring). The only floor point is the final
+        # nominal (MIN_NOMINAL_THICKNESS). To let the shared display wording
+        # detect "was a floor applied" via required_bite_raw_mm !=
+        # required_bite_floored_mm (same convention as Pathway 3), the
+        # floored figure is set to the floored nominal's own usable bite
+        # when the floor actually raised the nominal - otherwise it's
+        # identical to the raw required bite, same as Pathway 3's unfloored
+        # case.
         bite_nominal_by_category[category] = {
-            'wind_bite_nominal_mm': apply_thickness_floor(wind_nom, MIN_NOMINAL_THICKNESS),
-            'dead_load_bite_nominal_mm': apply_thickness_floor(dead_nom, MIN_NOMINAL_THICKNESS),
+            'wind_bite_nominal_mm': wind_nom_floored,
+            'dead_load_bite_nominal_mm': dead_nom_floored,
+            'wind_required_bite_floored_mm': (
+                wind_usable_at_floor if wind_nom is not None and wind_nom_floored != wind_nom
+                else wind_bite_mm
+            ),
+            'dead_load_required_bite_floored_mm': (
+                dead_usable_at_floor if dead_nom is not None and dead_nom_floored != dead_nom
+                else dead_load_bite_mm
+            ),
+            'wind_usable_bite_mm': wind_usable_at_floor,
+            'dead_load_usable_bite_mm': dead_usable_at_floor,
+            'wind_actual_thickness_mm': table.get(wind_nom_floored) if wind_nom_floored is not None else None,
+            'dead_load_actual_thickness_mm': table.get(dead_nom_floored) if dead_nom_floored is not None else None,
         }
 
     results = {}
 
     for (glass_type, glass_subtype) in SUBTYPES:
         subtype_key = (glass_type, glass_subtype)
-        wind_bite_nominal_mm = bite_nominal_by_category[glass_type]['wind_bite_nominal_mm']
-        dead_load_bite_nominal_mm = bite_nominal_by_category[glass_type]['dead_load_bite_nominal_mm']
+        category_bite = bite_nominal_by_category[glass_type]
+        wind_bite_nominal_mm = category_bite['wind_bite_nominal_mm']
+        dead_load_bite_nominal_mm = category_bite['dead_load_bite_nominal_mm']
 
         # --- broad-category short circuit (both bite lookups failed) ---
         if wind_bite_nominal_mm is None and dead_load_bite_nominal_mm is None:
@@ -267,6 +307,21 @@ def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,
                 }],
             )
             continue
+
+        # --- Silicone-bite transparency fields (this session), same shape
+        # as pathway3.py's equivalent block - looked up once per subtype's
+        # broad category and reused across every remaining return path. ---
+        bite_transparency_kwargs = dict(
+            dead_load_required_bite_raw_mm=dead_load_bite_mm,
+            dead_load_required_bite_floored_mm=category_bite['dead_load_required_bite_floored_mm'],
+            wind_required_bite_raw_mm=wind_bite_mm,
+            wind_required_bite_floored_mm=category_bite['wind_required_bite_floored_mm'],
+            dead_load_usable_bite_mm=category_bite['dead_load_usable_bite_mm'],
+            wind_usable_bite_mm=category_bite['wind_usable_bite_mm'],
+            dead_load_actual_thickness_mm=category_bite['dead_load_actual_thickness_mm'],
+            wind_actual_thickness_mm=category_bite['wind_actual_thickness_mm'],
+            deduction_mm=EDGE_POLISH_DEDUCTION_MM, deduction_type='edge_polish',
+        )
 
         # --- ULS/SLS wind bending check on the glass pane itself (new this
         # session) - independent of the silicone joint's own bite sizing
@@ -294,6 +349,7 @@ def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,
                 panel_area_m2=panel_area_m2,
                 safety_glass_required=safety_glass_required,
                 wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
+                **bite_transparency_kwargs,
             )
             continue
 
@@ -334,6 +390,7 @@ def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,
                 safety_glass_required=safety_glass_required,
                 wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
                 table_5_1_trace=table_5_1_trace,
+                **bite_transparency_kwargs,
             )
             continue
 
@@ -370,6 +427,7 @@ def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,
             safety_glass_required=safety_glass_required,
             wind_trace=wind_result['uls_trace'] + wind_result['sls_trace'],
             table_5_1_trace=table_5_1_trace,
+            **bite_transparency_kwargs,
         )
 
     return results

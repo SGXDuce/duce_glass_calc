@@ -481,6 +481,82 @@ def test_11():
     return report('11', 'BITE_NO_COMPLIANT_THICKNESS - both bite lookups fail independently', checks)
 
 
+def test_12():
+    # Silicone-bite transparency fields (display-only, this session) - Case A
+    # geometry, no floor triggered for either criterion. Cross-checks
+    # dead_load_/wind_required_bite_raw_mm against the raw wind_bite_mm/
+    # dead_load_bite_mm figures (identical, per this pathway's own docstring -
+    # there is no pre-lookup required-bite floor here, unlike Pathway 3), and
+    # usable_bite_mm/actual_thickness_mm against engine/shared/table_4_1.py's
+    # own TABLE_4_1_MONOLITHIC and EDGE_POLISH_DEDUCTION_MM.
+    result = run_pathway4_calculation(
+        height_m=1.219, width_m=2.438,
+        wind_pressure_uls_kpa=2.0, wind_pressure_sls_kpa=0.8,
+        scenario='full_perimeter', safety_glass_required=False, csv_path=csv_path,
+    )
+    mono_tough = result[('Monolithic', 'Toughened')]
+
+    checks = [
+        ('dead_load_required_bite_raw_mm == wind_bite/dead_load_bite (no pre-lookup floor)', True,
+         mono_tough['dead_load_required_bite_raw_mm'] == mono_tough['dead_load_required_bite_floored_mm'],
+         mono_tough['dead_load_required_bite_raw_mm'] == mono_tough['dead_load_required_bite_floored_mm']),
+        ('wind_required_bite_raw_mm == wind_required_bite_floored_mm (no floor)', True,
+         mono_tough['wind_required_bite_raw_mm'] == mono_tough['wind_required_bite_floored_mm'],
+         mono_tough['wind_required_bite_raw_mm'] == mono_tough['wind_required_bite_floored_mm']),
+        ('dead_load_actual_thickness_mm (Table 4.1 @ 12mm nominal)', 11.7,
+         mono_tough['dead_load_actual_thickness_mm'], mono_tough['dead_load_actual_thickness_mm'] == 11.7),
+        ('wind_actual_thickness_mm (Table 4.1 @ 10mm nominal)', 9.7,
+         mono_tough['wind_actual_thickness_mm'], mono_tough['wind_actual_thickness_mm'] == 9.7),
+        ('deduction_mm', 2, mono_tough['deduction_mm'], mono_tough['deduction_mm'] == 2),
+        ('deduction_type', 'edge_polish', mono_tough['deduction_type'], mono_tough['deduction_type'] == 'edge_polish'),
+        ('dead_load_usable_bite_mm == actual - deduction', True,
+         round(mono_tough['dead_load_usable_bite_mm'], 1) == round(mono_tough['dead_load_actual_thickness_mm'] - 2, 1),
+         round(mono_tough['dead_load_usable_bite_mm'], 1) == round(mono_tough['dead_load_actual_thickness_mm'] - 2, 1)),
+        ('wind_usable_bite_mm == actual - deduction', True,
+         round(mono_tough['wind_usable_bite_mm'], 1) == round(mono_tough['wind_actual_thickness_mm'] - 2, 1),
+         round(mono_tough['wind_usable_bite_mm'], 1) == round(mono_tough['wind_actual_thickness_mm'] - 2, 1)),
+    ]
+    return report('12', 'Silicone-bite transparency fields - Case A, no floor', checks)
+
+
+def test_13():
+    # Silicone-bite transparency fields - floor-triggered case. Small panel,
+    # low pressure (h=0.5m, w=0.5m, ULS=0.6kPa/SLS=0.4kPa) drives both raw
+    # bite figures well under 6mm, so MIN_NOMINAL_THICKNESS floors both
+    # nominals to 6mm - confirmed directly (dead_load_bite_nominal_mm ==
+    # wind_bite_nominal_mm == 6) before being added here. Unlike Pathway 3,
+    # this pathway's floor point is the final NOMINAL, not the required bite
+    # itself - dead_load_required_bite_floored_mm/wind_required_bite_floored_mm
+    # are set to the floored nominal's OWN usable bite so the shared
+    # raw-vs-floored comparison (used by the display wording to detect "was a
+    # floor applied") still fires correctly - see pathway4.py's
+    # bite_transparency_kwargs block.
+    result = run_pathway4_calculation(
+        height_m=0.5, width_m=0.5,
+        wind_pressure_uls_kpa=0.6, wind_pressure_sls_kpa=0.4,
+        scenario='full_perimeter', safety_glass_required=False, csv_path=csv_path,
+    )
+    mono_tough = result[('Monolithic', 'Toughened')]
+
+    checks = [
+        ('dead_load_bite_nominal_mm floored to 6mm', 6, mono_tough['dead_load_bite_nominal_mm'],
+         mono_tough['dead_load_bite_nominal_mm'] == 6),
+        ('wind_bite_nominal_mm floored to 6mm', 6, mono_tough['wind_bite_nominal_mm'],
+         mono_tough['wind_bite_nominal_mm'] == 6),
+        ('dead_load_required_bite_raw_mm != dead_load_required_bite_floored_mm (floor-triggered signal)', True,
+         mono_tough['dead_load_required_bite_raw_mm'] != mono_tough['dead_load_required_bite_floored_mm'],
+         mono_tough['dead_load_required_bite_raw_mm'] != mono_tough['dead_load_required_bite_floored_mm']),
+        ('wind_required_bite_raw_mm != wind_required_bite_floored_mm (floor-triggered signal)', True,
+         mono_tough['wind_required_bite_raw_mm'] != mono_tough['wind_required_bite_floored_mm'],
+         mono_tough['wind_required_bite_raw_mm'] != mono_tough['wind_required_bite_floored_mm']),
+        ('dead_load_usable_bite_mm at floored 6mm nominal', 3.8, mono_tough['dead_load_usable_bite_mm'],
+         mono_tough['dead_load_usable_bite_mm'] == 3.8),
+        ('wind_usable_bite_mm at floored 6mm nominal', 3.8, mono_tough['wind_usable_bite_mm'],
+         mono_tough['wind_usable_bite_mm'] == 3.8),
+    ]
+    return report('13', 'Silicone-bite transparency fields - floor-triggered case (both criteria)', checks)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -491,7 +567,8 @@ def run_tests():
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
-    tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8, test_9, test_10, test_11]
+    tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8, test_9, test_10, test_11,
+              test_12, test_13]
     results = [t() for t in tests]
 
     passed = sum(1 for r in results if r)

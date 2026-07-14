@@ -281,6 +281,84 @@ def test_7():
     return report('7', 'Result dict structural consistency across subtypes/statuses', checks)
 
 
+def test_8():
+    # Silicone-bite transparency fields (display-only, this session) - butt
+    # joint, no floor triggered. Reuses Case A's inputs (h=600mm, w=2200/2200mm,
+    # angle=130 -> mitred by default in Case A, so use a fresh butt-joint call
+    # at the same geometry/pressure to isolate the butt-joint wording path).
+    # required_bite_raw_mm == required_bite_floored_mm confirms no floor fired;
+    # usable_bite_mm/actual_thickness_mm are cross-checked against
+    # engine/shared/table_4_1.py's own TABLE_4_1_MONOLITHIC/CHAMFER_ALLOWANCE_MM.
+    res = run_pathway3_calculation(
+        height_mm=600, width_1_mm=2200, width_2_mm=2200, angle_deg=130,
+        corner_or_general='General', joint_type='butt',
+        wind_pressure_uls_kpa=1.0, wind_pressure_sls_kpa=0.7,
+        safety_glass_required=False, unframed_edge_condition=None,
+        csv_path=csv_path,
+    )
+    mono_tough = res[('Monolithic', 'Toughened')]
+
+    checks = [
+        ('bite_thickness_mm', 15, mono_tough['bite_thickness_mm'], mono_tough['bite_thickness_mm'] == 15),
+        ('required_bite_raw_mm == required_bite_floored_mm (no floor)', True,
+         mono_tough['required_bite_raw_mm'] == mono_tough['required_bite_floored_mm'],
+         mono_tough['required_bite_raw_mm'] == mono_tough['required_bite_floored_mm']),
+        ('actual_thickness_mm (Table 4.1 @ 15mm nominal)', 14.5, mono_tough['actual_thickness_mm'], mono_tough['actual_thickness_mm'] == 14.5),
+        ('deduction_mm', 2, mono_tough['deduction_mm'], mono_tough['deduction_mm'] == 2),
+        ('deduction_type', 'chamfer', mono_tough['deduction_type'], mono_tough['deduction_type'] == 'chamfer'),
+        ('mitre_angle_deg (butt joint, not applicable)', None, mono_tough['mitre_angle_deg'], mono_tough['mitre_angle_deg'] is None),
+        ('usable_bite_mm == actual_thickness_mm - deduction_mm', True,
+         round(mono_tough['usable_bite_mm'], 1) == round(mono_tough['actual_thickness_mm'] - mono_tough['deduction_mm'], 1),
+         round(mono_tough['usable_bite_mm'], 1) == round(mono_tough['actual_thickness_mm'] - mono_tough['deduction_mm'], 1)),
+    ]
+    return report('8', 'Silicone-bite transparency fields - butt joint, no floor', checks)
+
+
+def test_9():
+    # Silicone-bite transparency fields - mitred joint, mitre_angle_deg
+    # populated and matching calculate_mitre_angle(angle_deg).
+    res = run_pathway3_calculation(
+        height_mm=600, width_1_mm=2200, width_2_mm=2200, angle_deg=130,
+        corner_or_general='General', joint_type='mitred',
+        wind_pressure_uls_kpa=1.0, wind_pressure_sls_kpa=0.7,
+        safety_glass_required=False, unframed_edge_condition=None,
+        csv_path=csv_path,
+    )
+    mono_tough = res[('Monolithic', 'Toughened')]
+
+    checks = [
+        ('mitre_angle_deg (130deg joint -> 25deg mitre)', 25.0, mono_tough['mitre_angle_deg'], mono_tough['mitre_angle_deg'] == 25.0),
+        ('deduction_type', 'chamfer', mono_tough['deduction_type'], mono_tough['deduction_type'] == 'chamfer'),
+        ('usable_bite_mm populated', True, mono_tough['usable_bite_mm'] is not None, mono_tough['usable_bite_mm'] is not None),
+    ]
+    return report('9', 'Silicone-bite transparency fields - mitred joint', checks)
+
+
+def test_10():
+    # Silicone-bite transparency fields - floor-triggered case. Small panel,
+    # low pressure (h=500mm, w=500/500mm, angle=90, butt, pu=0.6kPa) drives
+    # the raw required bite below 6.0mm, so required_bite_mm (this session's
+    # run_bite_calculation() floor) must differ from required_bite_raw_mm,
+    # and required_bite_floored_mm must read exactly 6.0.
+    res = run_pathway3_calculation(
+        height_mm=500, width_1_mm=500, width_2_mm=500, angle_deg=90,
+        corner_or_general='General', joint_type='butt',
+        wind_pressure_uls_kpa=0.6, wind_pressure_sls_kpa=0.4,
+        safety_glass_required=False, unframed_edge_condition=None,
+        csv_path=csv_path,
+    )
+    mono_tough = res[('Monolithic', 'Toughened')]
+
+    checks = [
+        ('required_bite_raw_mm < 6.0 (pre-floor)', True, mono_tough['required_bite_raw_mm'] < 6.0, mono_tough['required_bite_raw_mm'] < 6.0),
+        ('required_bite_floored_mm == 6.0 (floor applied)', 6.0, mono_tough['required_bite_floored_mm'], mono_tough['required_bite_floored_mm'] == 6.0),
+        ('raw != floored (floor-triggered signal)', True,
+         mono_tough['required_bite_raw_mm'] != mono_tough['required_bite_floored_mm'],
+         mono_tough['required_bite_raw_mm'] != mono_tough['required_bite_floored_mm']),
+    ]
+    return report('10', 'Silicone-bite transparency fields - floor-triggered case', checks)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -291,7 +369,7 @@ def run_tests():
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
-    tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7]
+    tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8, test_9, test_10]
     results = [t() for t in tests]
 
     passed = sum(1 for r in results if r)
