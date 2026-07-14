@@ -58,12 +58,19 @@
             <div class="pathway-tile-desc">Structural silicone at a facet angle (90°–160°) between panels</div>
         </button>
 
-        <!-- Pathway 4 — Structural Glazing -->
+        {% if pathway_4_enabled %}
+        <!-- Pathway 4 — Structural Glazing. Paused pending further
+             development (Michael's feedback, v1.28) - gated server-side on
+             pathway_4_enabled (app.py's PATHWAY_4_ENABLED) so the tile does
+             not render at all when disabled, not just greyed out. The
+             backend (/calculate_pathway4, pathway4.py) is untouched and
+             fully live - re-enabling is a single flag flip. -->
         <button class="pathway-tile" id="tile-pathway4" onclick="showPathway('pathway4')">
             <img class="pathway-tile-image" src="{{ url_for('static', filename='Pathway_4.png') }}" alt="Structural Glazing">
             <div class="pathway-tile-label">Structural Glazing</div>
             <div class="pathway-tile-desc">Flat glazing, no supporting frame elements, structural silicone bonded to the surface</div>
         </button>
+        {% endif %}
 
     </div>
 </div><!-- /landing-view -->

@@ -24,6 +24,20 @@ APP_VERSION = 'V2'
 EXPIRY_DATE = datetime.datetime(2026, 8, 31, 23, 59, 59)
 
 # ---------------------------------------------------------------------------
+# FEATURE FLAGS
+# ---------------------------------------------------------------------------
+
+# Pathway 4 (Structural Glazing) is paused pending further development -
+# Michael has reservations about its current scope and audience (v1.28).
+# This is a UI-only gate: the landing tile is hidden server-side (index.html
+# wraps it in {% if pathway_4_enabled %}) so it does not render at all, not
+# just greyed out. /calculate_pathway4, pathway4.py, build_pathway4_report(),
+# and every Pathway 4 test are all untouched and fully functional - the
+# route stays live but unreachable from the UI. Re-enabling is a single
+# flag flip back to True, no other code changes needed.
+PATHWAY_4_ENABLED = False
+
+# ---------------------------------------------------------------------------
 # FLASK APP SETUP
 # ---------------------------------------------------------------------------
 
@@ -63,6 +77,7 @@ def index():
         'index.html',
         app_version=APP_VERSION,
         expiry_date=EXPIRY_DATE.strftime('%d %B %Y'),
+        pathway_4_enabled=PATHWAY_4_ENABLED,
     )
 
 
