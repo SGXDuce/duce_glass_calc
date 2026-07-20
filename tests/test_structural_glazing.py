@@ -38,7 +38,7 @@ def report(test_id, description, checks):
 
 def test_1():
     # Case A - full perimeter sealed, Pz = 2.0 kPa.
-    # wind_span_m FIX (confirmed by Sahil, domain authority): AS 1288
+    # wind_span_m FIX (confirmed with domain expert): AS 1288
     # Appendix F's B is the SPAN - the SHORTER of the two supported
     # dimensions when sealed on all four sides, not the longer one. The
     # engine previously used max(width_m, height_m) here, incorrectly
@@ -54,7 +54,7 @@ def test_1():
     #   GOVERNING LOAD CASE FLIPS: dead load (8.5417mm) now exceeds wind
     #   (5.8048mm) - dead load governs post-fix, where wind governed
     #   pre-fix.
-    # EDGE_POLISH_DEDUCTION_MM (2mm, confirmed by Michael - Section 12.12
+    # EDGE_POLISH_DEDUCTION_MM (2mm, confirmed per internal review - Section 12.12
     # item 6) still applies at the Table 4.1 step: usable = actual - 2mm.
     # Required bite is now 8.5417mm (dead load governs):
     #   Monolithic: 10mm usable = 9.7-2 = 7.7 (fails), 12mm usable = 11.7-2

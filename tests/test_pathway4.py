@@ -43,8 +43,8 @@
 # logic-path test, not a claimed physical scenario. See pathway4.py's module
 # docstring for the full reasoning.
 #
-# NOT YET HAND-VERIFIED BY SAHIL as of this session - do not treat these
-# test figures as validated.
+# NOT YET HAND-VERIFIED by domain expert as of this session - do not treat
+# these test figures as validated.
 #
 # Duce Timber Windows and Doors
 #

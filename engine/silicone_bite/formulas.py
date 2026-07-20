@@ -38,8 +38,8 @@ def calculate_f_factor(angle_deg):
 
 
 def calculate_governing_width(width_1_mm, width_2_mm):
-    # Per AS 1288 Section 9 / Clause 9.3.3.1, confirmed directly with Michael
-    # (spreadsheet author). His spreadsheet's height-capping step was an
+    # Per AS 1288 Section 9 / Clause 9.3.3.1, confirmed with domain expert
+    # (spreadsheet author). That spreadsheet's height-capping step was an
     # error - B is simply the larger of the two widths, height is irrelevant.
     return max(width_1_mm, width_2_mm)
 
@@ -52,8 +52,8 @@ def calculate_required_bite(f_factor, governing_width_mm, wind_pressure_kpa, sig
 
 
 def apply_thickness_floor(nominal_thickness, floor=MIN_NOMINAL_THICKNESS):
-    # Dow Corning structural silicone seals start at 6mm. Confirmed by
-    # Michael to apply to both monolithic and laminated.
+    # Dow Corning structural silicone seals start at 6mm. Confirmed per
+    # internal review to apply to both monolithic and laminated.
     if nominal_thickness is None:
         return None
     return max(nominal_thickness, floor)

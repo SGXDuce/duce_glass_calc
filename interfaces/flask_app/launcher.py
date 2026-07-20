@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     if datetime.datetime.now() > EXPIRY_DATE:
         print(f'  This testing version has expired ({EXPIRY_DATE.strftime("%d %B %Y")}).')
-        print('  Please contact Sahil for the current version of the tool.')
+        print('  Please contact the tool maintainer for the current version.')
         print()
         input('  Press Enter to close this window...')
         sys.exit(0)

@@ -7,7 +7,7 @@
 # (Section 13.1's one deliberate exception to "engines don't import each
 # other" - this module isn't itself an engine).
 #
-# Scenario scope gate (Section 12.12 item 8, confirmed by Michael): only
+# Scenario scope gate (Section 12.12 item 8, confirmed with domain expert): only
 # 'full_perimeter' is available in this version. 'verticals_only' is a real,
 # already-built and tested engine capability (Case B of
 # tests/test_structural_glazing.py) but Duce's real-world build frequency for

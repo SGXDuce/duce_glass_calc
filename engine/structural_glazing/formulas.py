@@ -5,7 +5,7 @@
 # Appendix F (wind load) and the dead load shear formula (Section 12.11 of
 # the project summary). No side effects, no Flask/UI imports.
 #
-# Edge-polish deduction confirmed by Michael (Section 12.12 item 6): a flat
+# Edge-polish deduction confirmed with domain expert (Section 12.12 item 6): a flat
 # 2mm deduction (EDGE_POLISH_DEDUCTION_MM), all nominal thicknesses, both
 # glass types. Applied via find_min_nominal_for_usable_bite() (engine/shared/
 # table_4_1.py), the same usable-thickness search mechanism the faceted engine
@@ -84,7 +84,7 @@ def run_structural_glazing_calculation(height_m, width_m, glass_thickness_nomina
     if sealed_edges == 'full_perimeter':
         # B = the span = the SHORTER of the two supported dimensions when
         # sealed on all four sides (AS 1288 Appendix F flat structural
-        # glazing convention, confirmed by Sahil - not the same convention
+        # glazing convention, confirmed with domain expert - not the same convention
         # as Pathway 3's Section 9 faceted-joint formula, where the larger
         # width governs). Was previously max(), inherited incorrectly from
         # that other formula's B convention - fixed here.

@@ -9,7 +9,7 @@ SIGMA_S = 0.21  # Ultimate limit stress in silicone, MPa (AS 1288 Appendix F)
 MIN_NOMINAL_THICKNESS = 6  # Dow Corning seal minimum, applies to both monolithic and laminated
 
 EDGE_POLISH_DEDUCTION_MM = 2  # Flat deduction for edge polishing on frame-bonded
-# (flat, angle-free) glazing, confirmed by Michael (Section 12.12 item 6). Applies
+# (flat, angle-free) glazing, confirmed per internal review (Section 12.12 item 6). Applies
 # to all nominal thicknesses, both monolithic and laminated, at the Table 4.1
 # comparison step. Deliberately NOT the same named constant as
 # CHAMFER_ALLOWANCE_MM (engine/shared/table_4_1.py) even though the value is

@@ -28,7 +28,7 @@ EXPIRY_DATE = datetime.datetime(2026, 8, 31, 23, 59, 59)
 # ---------------------------------------------------------------------------
 
 # Pathway 4 (Structural Glazing) is paused pending further development -
-# Michael has reservations about its current scope and audience (v1.28).
+# there are reservations about its current scope and audience (v1.28).
 # This is a UI-only gate: the landing tile is hidden server-side (index.html
 # wraps it in {% if pathway_4_enabled %}) so it does not render at all, not
 # just greyed out. /calculate_pathway4, pathway4.py, build_pathway4_report(),
