@@ -21,7 +21,7 @@
      class="header-logo" alt="Duce Timber Windows and Doors">
 </div>
 
-<div class="version-footer">{{ app_version }} — testing build expires {{ expiry_date }}</div>
+<div class="version-footer">{{ app_version }} — expires {{ expiry_date }}</div>
 
 <!-- ========================================================================
      LANDING PAGE — four-pathway selection (v1.11)
@@ -432,7 +432,7 @@
         <!-- Support Condition — 2-edge / 3-edge only in this pathway -->
         <div class="section-label">Unframed Edge Condition</div>
         <div class="field-group">
-            <label class="field-label">Edge configuration
+            <label class="field-label">Edge Support Configuration
                 <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Both are treated as 2-edge for the wind load bending check (AS 1288 has no distinct 3-edge wind condition) — the 2-edge/3-edge distinction is used for the Table 5.3 human impact check only.">?</span>
             </label>
             <div class="toggle-group">
@@ -662,7 +662,7 @@
 
         <!-- Unframed edge condition - angle-reactive, hidden at exactly 90 deg -->
         <div class="field-group" id="p3-edge-condition-row" style="display:none;">
-            <label class="field-label">Unframed edge condition (Table 5.3 joint count)
+            <label class="field-label">Edge Support Configuration
                 <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Used only for the Table 5.3 human impact joint-count lookup above 90 degrees - has no effect at exactly 90 degrees, where Table 5.1 applies instead (no joint-count concept).">?</span>
             </label>
             <div class="toggle-group">
@@ -2197,7 +2197,7 @@ function renderP3Results(data, payload) {
         const snapInputs = {
             glassName: `${r.glass_type} ${r.glass_subtype}`,
             panel: `${payload.height_mm}mm (W1 ${payload.width_1_mm} / W2 ${payload.width_2_mm}mm)`,
-            support: `${payload.angle_deg}deg facet, ${payload.joint_type}`,
+            support: `${payload.angle_deg}° facet, ${payload.joint_type}`,
             windLoad: windLoadLabel,
             glazing: 'Single'
         };

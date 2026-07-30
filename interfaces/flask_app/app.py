@@ -20,7 +20,7 @@ from engine.shared.data_loader import load_table_data, load_nc_table, load_nomin
 # imports `app` and a reverse import would be circular)
 # ---------------------------------------------------------------------------
 
-APP_VERSION = 'V2'
+APP_VERSION = '2.0'
 EXPIRY_DATE = datetime.datetime(2026, 8, 31, 23, 59, 59)
 
 # ---------------------------------------------------------------------------
@@ -926,7 +926,7 @@ def build_pathway3_report(data):
 
     lines.append(sep)
     lines.append('AS 1288 GLASS THICKNESS CALCULATOR')
-    lines.append('Pathway 3 — Faceted Structural Silicone (90-160 deg)')
+    lines.append('Pathway 3 — Faceted Structural Silicone (90-160°)')
     lines.append('Duce Timber Windows and Doors')
     lines.append(sep)
     lines.append('')
@@ -941,7 +941,7 @@ def build_pathway3_report(data):
     lines.append(f"Panel Height          : {data.get('height_mm')} mm")
     lines.append(f"Width 1               : {data.get('width_1_mm')} mm")
     lines.append(f"Width 2               : {data.get('width_2_mm')} mm")
-    lines.append(f"Included Angle        : {angle_deg} deg")
+    lines.append(f"Included Angle        : {angle_deg}°")
     lines.append(f"Joint Type            : {data.get('joint_type')}")
     if sg and angle_deg is not None and angle_deg != 90:
         lines.append(f"Unframed Edge Condition : {unframed_edge_condition} "
