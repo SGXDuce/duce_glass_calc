@@ -1,0 +1,12 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/glazingd/duce_glass_app
+    - /bin/cp -R engine $DEPLOYPATH/
+    - /bin/cp -R interfaces $DEPLOYPATH/
+    - /bin/cp -R data $DEPLOYPATH/
+    - /bin/cp passenger_wsgi.py $DEPLOYPATH/
+    - /bin/cp requirements.txt $DEPLOYPATH/
+    - /home/glazingd/virtualenv/duce_glass_app/3.9/bin/pip install -r $DEPLOYPATH/requirements.txt
+    - /bin/mkdir -p $DEPLOYPATH/tmp
+    - /usr/bin/touch $DEPLOYPATH/tmp/restart.txt
