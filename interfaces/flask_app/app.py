@@ -76,7 +76,6 @@ def index():
     return render_template(
         'index.html',
         app_version=APP_VERSION,
-        expiry_date=EXPIRY_DATE.strftime('%d %B %Y'),
         pathway_4_enabled=PATHWAY_4_ENABLED,
     )
 
