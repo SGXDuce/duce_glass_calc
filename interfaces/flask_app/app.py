@@ -20,7 +20,7 @@ from engine.shared.data_loader import load_table_data, load_nc_table, load_nomin
 # imports `app` and a reverse import would be circular)
 # ---------------------------------------------------------------------------
 
-APP_VERSION = '2.0'
+APP_VERSION = '2.1'
 EXPIRY_DATE = datetime.datetime(2026, 9, 30, 23, 59, 59)
 
 # ---------------------------------------------------------------------------
