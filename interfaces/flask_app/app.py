@@ -6,6 +6,7 @@ import datetime
 import os
 import sys
 import io
+import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
@@ -439,7 +440,12 @@ def generate_report():
             download_name='AS1288_Calculation_Report.txt'
         )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        # TEMPORARY DEBUGGING CHANGE - remove once the live-only 500 on this
+        # route is diagnosed. Exposes the full server-side traceback in the
+        # JSON error response so it can be read from the browser/curl without
+        # server log access. Must come back out before this is considered
+        # production-safe again (stack traces can leak internal paths/data).
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()})
 
 
 # ---------------------------------------------------------------------------
