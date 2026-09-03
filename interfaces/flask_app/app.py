@@ -1,11 +1,10 @@
 # AS 1288 Glass Thickness Calculator - Flask Web Application
 # Duce Timber Windows and Doors
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 import datetime
 import os
 import sys
-import io
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
@@ -417,8 +416,10 @@ def calculate_pathway4():
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
     """
-    Receives calculation inputs and results, generates a TXT report,
-    and returns it as a downloadable file.
+    Receives calculation inputs and results, generates the report text,
+    and returns it as JSON for display in an in-page modal (View Report).
+    Delivery format only - build_report()/build_pathway3_report()/
+    build_pathway4_report() themselves are unchanged.
     """
     try:
         data = request.get_json()
@@ -429,15 +430,8 @@ def generate_report():
             report = build_pathway4_report(data)
         else:
             report = build_report(data)
-        buffer  = io.BytesIO(report.encode('utf-8'))
-        buffer.seek(0)
 
-        return send_file(
-            buffer,
-            mimetype='text/plain',
-            as_attachment=True,
-            download_name='AS1288_Calculation_Report.txt'
-        )
+        return jsonify({'success': True, 'report': report})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

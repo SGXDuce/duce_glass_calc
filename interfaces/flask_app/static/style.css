@@ -832,3 +832,88 @@ body {
     margin-left: auto;
     flex-shrink: 0;
 }
+
+/* ===== REPORT MODAL (View Report - replaces the old TXT download) ===== */
+.report-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.report-modal-overlay.open {
+    display: flex;
+}
+
+.report-modal {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.report-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.report-modal-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.report-modal-header-title i {
+    color: #f47920;
+    font-size: 16px;
+}
+
+.report-modal-close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #888;
+    padding: 4px;
+    display: flex;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.report-modal-close:hover {
+    background: #2a2a2a;
+    color: #f47920;
+}
+
+.report-modal-close i {
+    font-size: 18px;
+}
+
+.report-modal-body {
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.report-modal-body pre {
+    color: #ccc;
+    font-family: 'Consolas', 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

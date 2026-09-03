@@ -318,7 +318,7 @@
         <div class="results-header">
             <div class="section-label" style="margin-bottom:0;">Results</div>
             <button class="report-btn-top" id="report-btn" style="display:none;" onclick="generateReport()">
-                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+                <i class="ti ti-file-text" aria-hidden="true"></i> View Report
             </button>
         </div>
 
@@ -544,7 +544,7 @@
         <div class="results-header">
             <div class="section-label" style="margin-bottom:0;">Results</div>
             <button class="report-btn-top" id="p2-report-btn" style="display:none;" onclick="generateP2Report()">
-                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+                <i class="ti ti-file-text" aria-hidden="true"></i> View Report
             </button>
         </div>
 
@@ -753,7 +753,7 @@
         <div class="results-header">
             <div class="section-label" style="margin-bottom:0;">Results</div>
             <button class="report-btn-top" id="p3-report-btn" style="display:none;" onclick="generateP3Report()">
-                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+                <i class="ti ti-file-text" aria-hidden="true"></i> View Report
             </button>
         </div>
 
@@ -900,7 +900,7 @@
         <div class="results-header">
             <div class="section-label" style="margin-bottom:0;">Results</div>
             <button class="report-btn-top" id="p4-report-btn" style="display:none;" onclick="generateP4Report()">
-                <i class="ti ti-file-text" aria-hidden="true"></i> Generate Calculation Report
+                <i class="ti ti-file-text" aria-hidden="true"></i> View Report
             </button>
         </div>
 
@@ -939,6 +939,19 @@
 
 <!-- ========== HIDDEN SNAPSHOT TEMPLATE (used for copy-as-image) ========== -->
 <div id="snapshot-container" style="position:absolute; left:-9999px; top:-9999px;"></div>
+
+<!-- ========== REPORT MODAL (View Report - shared by all 4 pathways) ========== -->
+<div class="report-modal-overlay" id="report-modal-overlay" onclick="if (event.target === this) closeReportModal()">
+    <div class="report-modal">
+        <div class="report-modal-header">
+            <span class="report-modal-header-title"><i class="ti ti-file-text"></i> Calculation Report</span>
+            <button class="report-modal-close" onclick="closeReportModal()" aria-label="Close">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+        <div class="report-modal-body" id="report-modal-body"></div>
+    </div>
+</div>
 
 <!-- ========== JAVASCRIPT ========== -->
 <script>
@@ -1616,6 +1629,9 @@ function renderResults(data, payload) {
                     <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml1}\`, this)' aria-label="Copy as image">
                         <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
+                    <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml1}\`, this)' aria-label="Download as image">
+                        <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
                 </div>`;
 
             } else {
@@ -1746,6 +1762,9 @@ function renderResults(data, payload) {
                     <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml2}\`, this)' aria-label="Copy as image">
                         <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
+                    <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml2}\`, this)' aria-label="Download as image">
+                        <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
                 </div>`;
             } else if (r.status === 'INVALID' || r.status === 'ERROR' || r.status === 'SG_INELIGIBLE' || r.status === 'BAL_INELIGIBLE') {
                 html += `<div class="result-card-footer-fail">
@@ -1813,6 +1832,9 @@ function renderResults(data, payload) {
                         <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
                             <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
                         </button>
+                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='downloadSnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Download as image">
+                            <i class="ti ti-download" style="font-size:15px; color:#cf6679;"></i>
+                        </button>
                     </div>`;
                 } else {
                     html += `<div class="result-card-footer-fail" style="display:flex; align-items:center; justify-content:space-between;">
@@ -1864,14 +1886,13 @@ function generateReport() {
         headers: {'Content-Type': 'application/json'},
         body:    JSON.stringify(reportPayload)
     })
-    .then(r => r.blob())
-    .then(blob => {
-        const url  = window.URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'AS1288_Calculation_Report.txt';
-        a.click();
-        window.URL.revokeObjectURL(url);
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            openReportModal(data.report);
+        } else {
+            showError(data.error || 'Could not generate report. Please try again.');
+        }
     })
     .catch(() => showError('Could not generate report. Please try again.'));
 }
@@ -2216,6 +2237,9 @@ function renderP3Results(data, payload) {
             <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
                 <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
             </button>
+            <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
+                <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+            </button>
         </div>`;
 
         html += `</div>`;
@@ -2279,14 +2303,13 @@ function generateP3Report() {
         headers: {'Content-Type': 'application/json'},
         body:    JSON.stringify(reportPayload)
     })
-    .then(r => r.blob())
-    .then(blob => {
-        const url  = window.URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'AS1288_Calculation_Report.txt';
-        a.click();
-        window.URL.revokeObjectURL(url);
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            openReportModal(data.report);
+        } else {
+            showP3Error(data.error || 'Could not generate report. Please try again.');
+        }
     })
     .catch(() => showP3Error('Could not generate report. Please try again.'));
 }
@@ -2558,6 +2581,9 @@ function renderP4Results(data, payload) {
             <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
                 <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
             </button>
+            <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
+                <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+            </button>
         </div>`;
 
         html += `</div>`;
@@ -2613,14 +2639,13 @@ function generateP4Report() {
         headers: {'Content-Type': 'application/json'},
         body:    JSON.stringify(reportPayload)
     })
-    .then(r => r.blob())
-    .then(blob => {
-        const url  = window.URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'AS1288_Calculation_Report.txt';
-        a.click();
-        window.URL.revokeObjectURL(url);
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            openReportModal(data.report);
+        } else {
+            showP4Error(data.error || 'Could not generate report. Please try again.');
+        }
     })
     .catch(() => showP4Error('Could not generate report. Please try again.'));
 }
@@ -2928,6 +2953,9 @@ function renderP2Results(data, payload) {
                     <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
                         <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
+                    <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
+                        <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
                 </div>`;
             } else {
                 html += `<div class="result-card-body">
@@ -3030,6 +3058,9 @@ function renderP2Results(data, payload) {
                     <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
                         <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
+                    <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
+                        <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
+                    </button>
                 </div>`;
             } else if (r.status === 'INVALID' || r.status === 'ERROR' || r.status === 'TABLE_5_3_NOT_PERMITTED') {
                 html += `<div class="result-card-footer-fail">
@@ -3081,6 +3112,9 @@ function renderP2Results(data, payload) {
                         </button>
                         <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
                             <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
+                        </button>
+                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='downloadSnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Download as image">
+                            <i class="ti ti-download" style="font-size:15px; color:#cf6679;"></i>
                         </button>
                     </div>`;
                 } else {
@@ -3157,14 +3191,13 @@ function generateP2Report() {
         headers: {'Content-Type': 'application/json'},
         body:    JSON.stringify(reportPayload)
     })
-    .then(r => r.blob())
-    .then(blob => {
-        const url  = window.URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'AS1288_Calculation_Report.txt';
-        a.click();
-        window.URL.revokeObjectURL(url);
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            openReportModal(data.report);
+        } else {
+            showP2Error(data.error || 'Could not generate report. Please try again.');
+        }
     })
     .catch(() => showP2Error('Could not generate report. Please try again.'));
 }
@@ -3261,31 +3294,79 @@ function buildSnapshotHTML(inputSummary, rows, governingLabel, governingValue) {
     </div>`;
 }
 
-async function copySnapshotAsImage(snapshotHtml, buttonEl) {
+// Shared by copySnapshotAsImage()/downloadSnapshotAsImage() - injects the
+// snapshot HTML into the off-screen #snapshot-container, rasterises it via
+// html2canvas, and cleans the container up afterwards regardless of outcome.
+// Returns the canvas, or null if generation failed (caller shows the error).
+async function generateSnapshotCanvas(snapshotHtml) {
     const container = document.getElementById('snapshot-container');
     container.innerHTML = snapshotHtml;
 
     const target = container.firstElementChild;
 
     try {
-        const canvas = await html2canvas(target, { backgroundColor: null, scale: 2 });
-        canvas.toBlob(async (blob) => {
-            try {
-                await navigator.clipboard.write([
-                    new ClipboardItem({ 'image/png': blob })
-                ]);
-                const originalText = buttonEl.innerHTML;
-                buttonEl.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i> Copied';
-                setTimeout(() => { buttonEl.innerHTML = originalText; }, 1800);
-            } catch (err) {
-                showError('Could not copy image to clipboard. Your browser may not support this feature.');
-            }
-        });
+        return await html2canvas(target, { backgroundColor: null, scale: 2 });
     } catch (err) {
         showError('Could not generate the image snapshot. Please try again.');
+        return null;
     } finally {
         container.innerHTML = '';
     }
+}
+
+// ---------------------------------------------------------------------------
+// REPORT MODAL (View Report - shared by all 4 pathways' generate*Report())
+// ---------------------------------------------------------------------------
+
+function openReportModal(reportText) {
+    const body = document.getElementById('report-modal-body');
+    body.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.textContent = reportText;
+    body.appendChild(pre);
+    document.getElementById('report-modal-overlay').classList.add('open');
+}
+
+function closeReportModal() {
+    document.getElementById('report-modal-overlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeReportModal();
+});
+
+async function copySnapshotAsImage(snapshotHtml, buttonEl) {
+    const canvas = await generateSnapshotCanvas(snapshotHtml);
+    if (!canvas) return;
+
+    canvas.toBlob(async (blob) => {
+        try {
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+            ]);
+            const originalText = buttonEl.innerHTML;
+            buttonEl.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i> Copied';
+            setTimeout(() => { buttonEl.innerHTML = originalText; }, 1800);
+        } catch (err) {
+            showError('Could not copy image to clipboard. Your browser may not support this feature.');
+        }
+    });
+}
+
+async function downloadSnapshotAsImage(snapshotHtml, buttonEl) {
+    const canvas = await generateSnapshotCanvas(snapshotHtml);
+    if (!canvas) return;
+
+    const link = document.createElement('a');
+    link.download = 'AS1288_Result_Snapshot.png';
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const originalText = buttonEl.innerHTML;
+    buttonEl.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i> Downloaded';
+    setTimeout(() => { buttonEl.innerHTML = originalText; }, 1800);
 }
 
 // ---------------------------------------------------------------------------
