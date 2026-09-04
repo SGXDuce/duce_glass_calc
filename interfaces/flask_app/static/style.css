@@ -49,7 +49,7 @@ body {
 
 .version-footer {
     background: #1a1a1a;
-    color: #555;
+    color: #999;
     font-size: 10px;
     text-align: center;
     padding: 3px 24px;
@@ -312,6 +312,7 @@ body {
 .field-input:focus {
     outline: none;
     border-color: #f47920;
+    box-shadow: 0 0 0 3px rgba(244, 121, 32, 0.35);
 }
 
 .field-select {
@@ -328,6 +329,19 @@ body {
 .field-select:focus {
     outline: none;
     border-color: #f47920;
+    box-shadow: 0 0 0 3px rgba(244, 121, 32, 0.35);
+}
+
+/* ===== KEYBOARD FOCUS VISIBILITY =====
+   Global outline for anything that can be Tab-focused but doesn't already
+   have its own focus treatment above (.field-input/.field-select). Covers
+   buttons (toggle-btn, calc-btn, clear-btn, back-to-selection-btn,
+   report-btn/report-btn-top, report-modal-close, copy-image-btn,
+   pathway-tile), the tooltip "?" affordance, and links, using the existing
+   Duce accent color already used for :hover/.active states elsewhere. */
+:focus-visible {
+    outline: 2px solid #f47920;
+    outline-offset: 2px;
 }
 
 /* ===== TOGGLE GROUPS ===== */
@@ -355,6 +369,29 @@ body {
     background: #f47920;
     color: #ffffff;
     font-weight: 500;
+}
+
+/* .toggle-group's overflow:hidden (above) exists to clip these buttons'
+   square corners to the group's own border-radius - the buttons sit flush
+   against the group's edge with no gap. The global :focus-visible rule
+   draws its outline OUTSIDE the border edge (outline-offset: 2px), which
+   for a button flush against the group boundary lands past it and gets
+   clipped away by that same overflow:hidden - invisible focus ring on
+   every toggle-group on every pathway. Pull the outline inward instead
+   (negative offset keeps it inside the button's own box, so it can never
+   reach the clip boundary) rather than removing overflow:hidden, which
+   would bring back the square-corner artifact at the group's rounded ends. */
+.toggle-group .toggle-btn:focus-visible {
+    outline-offset: -3px;
+}
+
+/* The active button's own background is the same orange as the global
+   focus outline color - drawn inward on top of that fill it would be
+   nearly invisible (orange-on-orange). Switch to the app's near-black for
+   contrast there; inactive buttons keep the orange, which reads fine
+   against their dark (#1a1a1a) fill. */
+.toggle-group .toggle-btn.active:focus-visible {
+    outline-color: #1a1a1a;
 }
 
 /* ===== CHECKBOXES ===== */
@@ -624,9 +661,21 @@ body {
 .result-row:last-child { border-bottom: none; }
 .result-row.governing { margin-top: 4px; }
 
-.result-label { color: #555; font-size: 11px; }
-.result-card.pass .result-label { color: #3a6e4a; }
-.result-card.fail .result-label { color: #6e3a3a; }
+/* Every .result-card the app renders always carries either .pass or .fail
+   (see cardClass in renderResults()/renderP2Results()/etc.), so these two
+   more-specific overrides - not the base rule above - are what actually
+   renders for every result-label in practice. Measured live: the base
+   #999 does hit 4.5:1+ against these cards' #111 background, but the
+   pass/fail tinted overrides were never touched in the first contrast pass
+   and measured ~3.16:1 (pass, was #3a6e4a) and ~2.10:1 (fail, was #6e3a3a)
+   against the actual live-rendered #111 - both well under WCAG AA. Lightened
+   along each color's own hue toward its .result-value sibling's color
+   (kept below that value's own brightness/contrast so the label stays
+   visually secondary) until each cleared 4.5:1 with a small margin -
+   #578f6a measures ~4.98:1, #af7474 ~5.01:1, against the same #111. */
+.result-label { color: #999; font-size: 11px; }
+.result-card.pass .result-label { color: #578f6a; }
+.result-card.fail .result-label { color: #af7474; }
 .result-value { color: #aaa; font-size: 11px; font-weight: 500; }
 .result-card.pass .result-value { color: #7ab890; }
 .result-card.fail .result-value { color: #e0a0a0; }
@@ -736,7 +785,7 @@ body {
 }
 
 .footer-icon { color: #555; font-size: 13px; }
-.footer-note span:last-child { color: #555; font-size: 10px; }
+.footer-note span:last-child { color: #999; font-size: 10px; }
 
 /* ===== RESULTS HEADER ===== */
 .results-header {

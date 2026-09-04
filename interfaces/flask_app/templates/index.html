@@ -114,10 +114,10 @@
         <!-- Safety Glass -->
         <div class="section-label">Safety Glass Area Check <span class="beta-tag">Beta</span></div>
         <div class="field-group">
-            <label class="field-label">Safety glass required?
-                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check panel area limits per AS 1288 Table 5.1. 4-edge supported panels only in this version.">?</span>
+            <label class="field-label" id="lbl-sg">Safety glass required?
+                <span class="tip" tabindex="0" role="button" data-tip="Select Yes if safety glass is required for this application. The tool will check panel area limits per AS 1288 Table 5.1. 4-edge supported panels only in this version.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-sg">
                 <button class="toggle-btn active" id="sg-no" onclick="setSafetyGlass(false)">No</button>
                 <button class="toggle-btn" id="sg-yes" onclick="setSafetyGlass(true)">Yes</button>
             </div>
@@ -130,10 +130,10 @@
 
         <div class="section-label">Bushfire Filter (BAL) <span class="beta-tag">Beta</span></div>
         <div class="field-group">
-            <label class="field-label">Bushfire requirement applies?
-                <span class="tip" data-tip="Select Yes if this opening is subject to a Bushfire Attack Level (BAL) requirement under AS 3959. The tool will restrict glass options and apply minimum thickness rules accordingly.">?</span>
+            <label class="field-label" id="lbl-bf">Bushfire requirement applies?
+                <span class="tip" tabindex="0" role="button" data-tip="Select Yes if this opening is subject to a Bushfire Attack Level (BAL) requirement under AS 3959. The tool will restrict glass options and apply minimum thickness rules accordingly.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-bf">
                 <button class="toggle-btn active" id="bf-no" onclick="setBushfire(false)">No</button>
                 <button class="toggle-btn" id="bf-yes" onclick="setBushfire(true)">Yes</button>
             </div>
@@ -142,8 +142,8 @@
         <div id="bf-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">BAL level
-                        <span class="tip" data-tip="Bushfire Attack Level per AS 3959, as determined by a site assessment.">?</span>
+                    <label class="field-label" for="bf-level">BAL level
+                        <span class="tip" tabindex="0" role="button" data-tip="Bushfire Attack Level per AS 3959, as determined by a site assessment.">?</span>
                     </label>
                     <select class="field-select" id="bf-level" onchange="onBushfireInputsChanged()">
                         <option value="12.5">BAL-12.5</option>
@@ -152,10 +152,10 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Element type
-                        <span class="tip" data-tip="Whether this opening is a window or a door. Bushfire requirements differ between the two.">?</span>
+                    <label class="field-label" id="lbl-bf-element">Element type
+                        <span class="tip" tabindex="0" role="button" data-tip="Whether this opening is a window or a door. Bushfire requirements differ between the two.">?</span>
                     </label>
-                    <div class="toggle-group">
+                    <div class="toggle-group" role="group" aria-labelledby="lbl-bf-element">
                         <button class="toggle-btn active" id="bf-window" onclick="setBushfireElement('Window')">Window</button>
                         <button class="toggle-btn" id="bf-door" onclick="setBushfireElement('Door')">Door</button>
                     </div>
@@ -170,14 +170,14 @@
         <div class="section-label">Panel Dimensions</div>
         <div class="field-row-2">
             <div class="field-group">
-                <label class="field-label">Height (mm)
-                    <span class="tip" data-tip="Overall height of the glass panel in millimetres, measured between framing members.">?</span>
+                <label class="field-label" for="height_mm">Height (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Overall height of the glass panel in millimetres, measured between framing members.">?</span>
                 </label>
                 <input class="field-input" type="number" id="height_mm" placeholder="e.g. 1200" min="1">
             </div>
             <div class="field-group">
-                <label class="field-label">Width (mm)
-                    <span class="tip" data-tip="Overall width of the glass panel in millimetres, measured between framing members.">?</span>
+                <label class="field-label" for="width_mm">Width (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Overall width of the glass panel in millimetres, measured between framing members.">?</span>
                 </label>
                 <input class="field-input" type="number" id="width_mm" placeholder="e.g. 900" min="1">
             </div>
@@ -194,10 +194,10 @@
 
         <!-- Span direction — only shown for 2-edge (unreachable in Pathway 1, kept for shared JS) -->
         <div class="field-group" id="span-direction-row" style="display:none;">
-            <label class="field-label">Span direction
-                <span class="tip" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
+            <label class="field-label" id="lbl-span">Span direction
+                <span class="tip" tabindex="0" role="button" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-span">
                 <button class="toggle-btn active" id="span-height" onclick="setSpan('height')">Height is the span</button>
                 <button class="toggle-btn" id="span-width" onclick="setSpan('width')">Width is the span</button>
             </div>
@@ -208,10 +208,10 @@
         <!-- Wind Load -->
         <div class="section-label">Wind Load</div>
         <div class="field-group">
-            <label class="field-label">Input method
-                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
+            <label class="field-label" id="lbl-wind-method">Input method
+                <span class="tip" tabindex="0" role="button" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-wind-method">
                 <button class="toggle-btn active" id="wind-pressure" onclick="setWindMethod('pressure')">Pressures (AS 1170.2)</button>
                 <button class="toggle-btn" id="wind-nc" onclick="setWindMethod('nc')">N/C Rating (AS 4055)</button>
             </div>
@@ -221,14 +221,14 @@
         <div id="pressure-inputs">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">ULS pressure (kPa)
-                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals. This is the peak wind load the glass must resist without failure. Obtain from your AS 1170.2 wind analysis.">?</span>
+                    <label class="field-label" for="uls_pa">ULS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Ultimate Limit State wind pressure in kilopascals. This is the peak wind load the glass must resist without failure. Obtain from your AS 1170.2 wind analysis.">?</span>
                     </label>
                     <input class="field-input" type="number" id="uls_pa" placeholder="e.g. 2.0" min="0" step="0.01">
                 </div>
                 <div class="field-group">
-                    <label class="field-label">SLS pressure (kPa)
-                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals. This is the wind load used to check deflection limits. Obtain from your AS 1170.2 wind analysis.">?</span>
+                    <label class="field-label" for="sls_pa">SLS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Serviceability Limit State wind pressure in kilopascals. This is the wind load used to check deflection limits. Obtain from your AS 1170.2 wind analysis.">?</span>
                     </label>
                     <input class="field-input" type="number" id="sls_pa" placeholder="e.g. 0.8" min="0" step="0.01">
                 </div>
@@ -239,8 +239,8 @@
         <div id="nc-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">Wind classification
-                        <span class="tip" data-tip="Wind classification from AS 4055. N ratings apply to non-cyclonic regions. C ratings apply to cyclonic regions. If unsure, check with your local council or a wind engineer.">?</span>
+                    <label class="field-label" for="nc_rating">Wind classification
+                        <span class="tip" tabindex="0" role="button" data-tip="Wind classification from AS 4055. N ratings apply to non-cyclonic regions. C ratings apply to cyclonic regions. If unsure, check with your local council or a wind engineer.">?</span>
                     </label>
                     <select class="field-select" id="nc_rating">
                         <option value="">Select rating</option>
@@ -250,10 +250,10 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Window location
-                        <span class="tip" data-tip="General applies to most window and door positions on a building. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    <label class="field-label" id="lbl-loc">Window location
+                        <span class="tip" tabindex="0" role="button" data-tip="General applies to most window and door positions on a building. Corner applies to openings located within 20% of the building width from a corner.">?</span>
                     </label>
-                    <div class="toggle-group">
+                    <div class="toggle-group" role="group" aria-labelledby="lbl-loc">
                         <button class="toggle-btn active" id="loc-general" onclick="setLocation('General')">General</button>
                         <button class="toggle-btn" id="loc-corner" onclick="setLocation('Corner')">Corner</button>
                     </div>
@@ -267,10 +267,10 @@
         <div id="mode1-inputs">
             <div class="section-label">Glazing Configuration</div>
             <div class="field-group">
-                <label class="field-label">Configuration
-                    <span class="tip" id="glazing-tip" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. The calculator assumes all panes are the same thickness to find the minimum.">?</span>
+                <label class="field-label" id="lbl-glazing-config">Configuration
+                    <span class="tip" id="glazing-tip" tabindex="0" role="button" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. The calculator assumes all panes are the same thickness to find the minimum.">?</span>
                 </label>
-                <div class="toggle-group">
+                <div class="toggle-group" role="group" aria-labelledby="lbl-glazing-config">
                     <button class="toggle-btn active" id="glaz-single" onclick="setGlazing('single')">Single</button>
                     <button class="toggle-btn" id="glaz-double" onclick="setGlazing('double')">IGU Double</button>
                     <button class="toggle-btn" id="glaz-triple" onclick="setGlazing('triple')">IGU Triple</button>
@@ -279,10 +279,10 @@
 
             <div class="section-label" style="margin-top:14px;">Glass Type(s) to Check</div>
             <div class="field-group">
-                <label class="field-label">Select one or more
-                    <span class="tip" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type.">?</span>
+                <label class="field-label" id="lbl-glass-types">Select one or more
+                    <span class="tip" tabindex="0" role="button" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type.">?</span>
                 </label>
-                <div id="glass-type-checkboxes">
+                <div id="glass-type-checkboxes" role="group" aria-labelledby="lbl-glass-types">
                     <!-- Populated by JS based on safety glass toggle -->
                 </div>
             </div>
@@ -292,10 +292,10 @@
         <div id="mode2-inputs" style="display:none;">
             <div class="section-label">Glazing Configuration</div>
             <div class="field-group">
-                <label class="field-label">Configuration
-                    <span class="tip" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. Enter the actual thickness for each pane individually.">?</span>
+                <label class="field-label" id="lbl-m2-glazing-config">Configuration
+                    <span class="tip" tabindex="0" role="button" data-tip="Single glazed has one pane of glass. IGU Double is an Insulated Glass Unit with two panes separated by an air or gas gap. IGU Triple has three panes. Enter the actual thickness for each pane individually.">?</span>
                 </label>
-                <div class="toggle-group">
+                <div class="toggle-group" role="group" aria-labelledby="lbl-m2-glazing-config">
                     <button class="toggle-btn active" id="m2-glaz-single" onclick="setMode2Glazing('single')">Single</button>
                     <button class="toggle-btn" id="m2-glaz-double" onclick="setMode2Glazing('double')">IGU Double</button>
                     <button class="toggle-btn" id="m2-glaz-triple" onclick="setMode2Glazing('triple')">IGU Triple</button>
@@ -396,10 +396,10 @@
         <!-- Safety Glass -->
         <div class="section-label">Safety Glass Check (Table 5.3) <span class="beta-tag">Beta</span></div>
         <div class="field-group">
-            <label class="field-label">Safety glass required?
-                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.3 (unframed side edges) instead of Table 5.1.">?</span>
+            <label class="field-label" id="lbl-p2-sg">Safety glass required?
+                <span class="tip" tabindex="0" role="button" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.3 (unframed side edges) instead of Table 5.1.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p2-sg">
                 <button class="toggle-btn active" id="p2-sg-no" onclick="setP2SafetyGlass(false)">No</button>
                 <button class="toggle-btn" id="p2-sg-yes" onclick="setP2SafetyGlass(true)">Yes</button>
             </div>
@@ -414,14 +414,14 @@
         <div class="section-label">Panel Dimensions</div>
         <div class="field-row-2">
             <div class="field-group">
-                <label class="field-label">Height (mm)
-                    <span class="tip" data-tip="Overall height of the glass panel in millimetres.">?</span>
+                <label class="field-label" for="p2_height_mm">Height (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Overall height of the glass panel in millimetres.">?</span>
                 </label>
                 <input class="field-input" type="number" id="p2_height_mm" placeholder="e.g. 1800" min="1">
             </div>
             <div class="field-group">
-                <label class="field-label">Width (mm)
-                    <span class="tip" data-tip="Overall width of the glass panel in millimetres.">?</span>
+                <label class="field-label" for="p2_width_mm">Width (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Overall width of the glass panel in millimetres.">?</span>
                 </label>
                 <input class="field-input" type="number" id="p2_width_mm" placeholder="e.g. 1000" min="1">
             </div>
@@ -432,10 +432,10 @@
         <!-- Support Condition — 2-edge / 3-edge only in this pathway -->
         <div class="section-label">Unframed Edge Condition</div>
         <div class="field-group">
-            <label class="field-label">Edge Support Configuration
-                <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Both are treated as 2-edge for the wind load bending check (AS 1288 has no distinct 3-edge wind condition) — the 2-edge/3-edge distinction is used for the Table 5.3 human impact check only.">?</span>
+            <label class="field-label" id="lbl-p2-edge">Edge Support Configuration
+                <span class="tip" tabindex="0" role="button" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Both are treated as 2-edge for the wind load bending check (AS 1288 has no distinct 3-edge wind condition) — the 2-edge/3-edge distinction is used for the Table 5.3 human impact check only.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p2-edge">
                 <button class="toggle-btn active" id="p2-edge-2" onclick="setP2EdgeCondition('2-edge')">2-edge</button>
                 <button class="toggle-btn" id="p2-edge-3" onclick="setP2EdgeCondition('3-edge')">3-edge</button>
             </div>
@@ -443,10 +443,10 @@
 
         <!-- Span direction -->
         <div class="field-group" id="p2-span-direction-row">
-            <label class="field-label">Span direction
-                <span class="tip" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
+            <label class="field-label" id="lbl-p2-span">Span direction
+                <span class="tip" tabindex="0" role="button" data-tip="Select which dimension sits between the two supported edges. This is the distance the wind load acts across.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p2-span">
                 <button class="toggle-btn active" id="p2-span-height" onclick="setP2Span('height')">Height is the span</button>
                 <button class="toggle-btn" id="p2-span-width" onclick="setP2Span('width')">Width is the span</button>
             </div>
@@ -457,10 +457,10 @@
         <!-- Wind Load -->
         <div class="section-label">Wind Load</div>
         <div class="field-group">
-            <label class="field-label">Input method
-                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
+            <label class="field-label" id="lbl-p2-wind-method">Input method
+                <span class="tip" tabindex="0" role="button" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p2-wind-method">
                 <button class="toggle-btn active" id="p2-wind-pressure" onclick="setP2WindMethod('pressure')">Pressures (AS 1170.2)</button>
                 <button class="toggle-btn" id="p2-wind-nc" onclick="setP2WindMethod('nc')">N/C Rating (AS 4055)</button>
             </div>
@@ -470,14 +470,14 @@
         <div id="p2-pressure-inputs">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">ULS pressure (kPa)
-                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals.">?</span>
+                    <label class="field-label" for="p2_uls_pa">ULS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Ultimate Limit State wind pressure in kilopascals.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p2_uls_pa" placeholder="e.g. 2.0" min="0" step="0.01">
                 </div>
                 <div class="field-group">
-                    <label class="field-label">SLS pressure (kPa)
-                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
+                    <label class="field-label" for="p2_sls_pa">SLS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p2_sls_pa" placeholder="e.g. 0.8" min="0" step="0.01">
                 </div>
@@ -488,8 +488,8 @@
         <div id="p2-nc-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">Wind classification
-                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
+                    <label class="field-label" for="p2_nc_rating">Wind classification
+                        <span class="tip" tabindex="0" role="button" data-tip="Wind classification from AS 4055.">?</span>
                     </label>
                     <select class="field-select" id="p2_nc_rating">
                         <option value="">Select rating</option>
@@ -499,10 +499,10 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Window location
-                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    <label class="field-label" id="lbl-p2-loc">Window location
+                        <span class="tip" tabindex="0" role="button" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
                     </label>
-                    <div class="toggle-group">
+                    <div class="toggle-group" role="group" aria-labelledby="lbl-p2-loc">
                         <button class="toggle-btn active" id="p2-loc-general" onclick="setP2Location('General')">General</button>
                         <button class="toggle-btn" id="p2-loc-corner" onclick="setP2Location('Corner')">Corner</button>
                     </div>
@@ -516,10 +516,10 @@
         <div id="p2-mode1-inputs">
             <div class="section-label">Glass Type(s) to Check</div>
             <div class="field-group">
-                <label class="field-label">Select one or more
-                    <span class="tip" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type against Table 5.3.">?</span>
+                <label class="field-label" id="lbl-p2-glass-types">Select one or more
+                    <span class="tip" tabindex="0" role="button" data-tip="Select one or more glass types to check. The calculator will find the minimum compliant thickness for each selected type against Table 5.3.">?</span>
                 </label>
-                <div id="p2-glass-type-checkboxes">
+                <div id="p2-glass-type-checkboxes" role="group" aria-labelledby="lbl-p2-glass-types">
                     <!-- Populated by JS based on safety glass toggle -->
                 </div>
             </div>
@@ -603,10 +603,10 @@
         <!-- Safety Glass -->
         <div class="section-label">Human Impact Check <span class="beta-tag">Beta</span></div>
         <div class="field-group">
-            <label class="field-label">Safety glass required?
-                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 at exactly 90 degrees, or Table 5.3 above 90 to 160 degrees.">?</span>
+            <label class="field-label" id="lbl-p3-sg">Safety glass required?
+                <span class="tip" tabindex="0" role="button" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 at exactly 90 degrees, or Table 5.3 above 90 to 160 degrees.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p3-sg">
                 <button class="toggle-btn active" id="p3-sg-no" onclick="setP3SafetyGlass(false)">No</button>
                 <button class="toggle-btn" id="p3-sg-yes" onclick="setP3SafetyGlass(true)">Yes</button>
             </div>
@@ -620,21 +620,21 @@
         <!-- Panel Dimensions -->
         <div class="section-label">Panel Dimensions</div>
         <div class="field-group">
-            <label class="field-label">Height (mm)
-                <span class="tip" data-tip="Overall panel height in millimetres.">?</span>
+            <label class="field-label" for="p3_height_mm">Height (mm)
+                <span class="tip" tabindex="0" role="button" data-tip="Overall panel height in millimetres.">?</span>
             </label>
             <input class="field-input" type="number" id="p3_height_mm" placeholder="e.g. 1200" min="1">
         </div>
         <div class="field-row-2">
             <div class="field-group">
-                <label class="field-label">Width 1 (mm)
-                    <span class="tip" data-tip="Width of one of the two panels meeting at the silicone joint, in millimetres.">?</span>
+                <label class="field-label" for="p3_width_1_mm">Width 1 (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Width of one of the two panels meeting at the silicone joint, in millimetres.">?</span>
                 </label>
                 <input class="field-input" type="number" id="p3_width_1_mm" placeholder="e.g. 600" min="1">
             </div>
             <div class="field-group">
-                <label class="field-label">Width 2 (mm)
-                    <span class="tip" data-tip="Width of the other panel meeting at the silicone joint, in millimetres. The larger of Width 1 and Width 2 governs both the bite and wind checks.">?</span>
+                <label class="field-label" for="p3_width_2_mm">Width 2 (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Width of the other panel meeting at the silicone joint, in millimetres. The larger of Width 1 and Width 2 governs both the bite and wind checks.">?</span>
                 </label>
                 <input class="field-input" type="number" id="p3_width_2_mm" placeholder="e.g. 600" min="1">
             </div>
@@ -645,16 +645,16 @@
         <!-- Joint Geometry -->
         <div class="section-label">Joint Geometry</div>
         <div class="field-group">
-            <label class="field-label">Included angle (deg)
-                <span class="tip" data-tip="The included angle between the two adjacent glass panels, in degrees. Valid range is 90 to 160 degrees inclusive - AS 1288 Section 9 / Clause 9.3.3.1 scope. At exactly 90 degrees human impact uses Table 5.1; above 90 to 160 degrees it uses Table 5.3.">?</span>
+            <label class="field-label" for="p3_angle_deg">Included angle (deg)
+                <span class="tip" tabindex="0" role="button" data-tip="The included angle between the two adjacent glass panels, in degrees. Valid range is 90 to 160 degrees inclusive - AS 1288 Section 9 / Clause 9.3.3.1 scope. At exactly 90 degrees human impact uses Table 5.1; above 90 to 160 degrees it uses Table 5.3.">?</span>
             </label>
             <input class="field-input" type="number" id="p3_angle_deg" placeholder="e.g. 90" min="90" max="160" step="0.1" oninput="onP3AngleChanged()">
         </div>
         <div class="field-group">
-            <label class="field-label">Joint type
-                <span class="tip" data-tip="Butt joint: glass edges are cut square. Mitred joint: glass edges are cut at an angle to meet flush, which increases the usable silicone bite for a given glass thickness.">?</span>
+            <label class="field-label" id="lbl-p3-joint">Joint type
+                <span class="tip" tabindex="0" role="button" data-tip="Butt joint: glass edges are cut square. Mitred joint: glass edges are cut at an angle to meet flush, which increases the usable silicone bite for a given glass thickness.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p3-joint">
                 <button class="toggle-btn active" id="p3-joint-butt" onclick="setP3JointType('butt')">Butt</button>
                 <button class="toggle-btn" id="p3-joint-mitred" onclick="setP3JointType('mitred')">Mitred</button>
             </div>
@@ -662,10 +662,10 @@
 
         <!-- Unframed edge condition - angle-reactive, hidden at exactly 90 deg -->
         <div class="field-group" id="p3-edge-condition-row" style="display:none;">
-            <label class="field-label">Edge Support Configuration
-                <span class="tip" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Used only for the Table 5.3 human impact joint-count lookup above 90 degrees - has no effect at exactly 90 degrees, where Table 5.1 applies instead (no joint-count concept).">?</span>
+            <label class="field-label" id="lbl-p3-edge">Edge Support Configuration
+                <span class="tip" tabindex="0" role="button" data-tip="2-edge: both vertical edges unframed (2 butt joints). 3-edge: one vertical edge unframed (1 butt joint). Used only for the Table 5.3 human impact joint-count lookup above 90 degrees - has no effect at exactly 90 degrees, where Table 5.1 applies instead (no joint-count concept).">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p3-edge">
                 <button class="toggle-btn active" id="p3-edge-2" onclick="setP3EdgeCondition('2-edge')">2-edge</button>
                 <button class="toggle-btn" id="p3-edge-3" onclick="setP3EdgeCondition('3-edge')">3-edge</button>
             </div>
@@ -676,10 +676,10 @@
         <!-- Wind Load -->
         <div class="section-label">Wind Load</div>
         <div class="field-group">
-            <label class="field-label">Input method
-                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
+            <label class="field-label" id="lbl-p3-wind-method">Input method
+                <span class="tip" tabindex="0" role="button" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p3-wind-method">
                 <button class="toggle-btn active" id="p3-wind-pressure" onclick="setP3WindMethod('pressure')">Pressures (AS 1170.2)</button>
                 <button class="toggle-btn" id="p3-wind-nc" onclick="setP3WindMethod('nc')">N/C Rating (AS 4055)</button>
             </div>
@@ -689,14 +689,14 @@
         <div id="p3-pressure-inputs">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">ULS pressure (kPa)
-                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the wind bending check and the AS 1288 Section 9 bite formula.">?</span>
+                    <label class="field-label" for="p3_uls_kpa">ULS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the wind bending check and the AS 1288 Section 9 bite formula.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p3_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01">
                 </div>
                 <div class="field-group">
-                    <label class="field-label">SLS pressure (kPa)
-                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
+                    <label class="field-label" for="p3_sls_kpa">SLS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Serviceability Limit State wind pressure in kilopascals.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p3_sls_kpa" placeholder="e.g. 0.8" min="0" step="0.01">
                 </div>
@@ -707,8 +707,8 @@
         <div id="p3-nc-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">Wind classification
-                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
+                    <label class="field-label" for="p3_nc_rating">Wind classification
+                        <span class="tip" tabindex="0" role="button" data-tip="Wind classification from AS 4055.">?</span>
                     </label>
                     <select class="field-select" id="p3_nc_rating">
                         <option value="">Select rating</option>
@@ -718,10 +718,10 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Window location
-                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    <label class="field-label" id="lbl-p3-loc">Window location
+                        <span class="tip" tabindex="0" role="button" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
                     </label>
-                    <div class="toggle-group">
+                    <div class="toggle-group" role="group" aria-labelledby="lbl-p3-loc">
                         <button class="toggle-btn active" id="p3-loc-general" onclick="setP3Location('General')">General</button>
                         <button class="toggle-btn" id="p3-loc-corner" onclick="setP3Location('Corner')">Corner</button>
                     </div>
@@ -734,10 +734,10 @@
         <!-- Glass Types -->
         <div class="section-label">Glass Type(s) to Check</div>
         <div class="field-group">
-            <label class="field-label">Select one or more
-                <span class="tip" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from silicone bite, wind load, and (if safety glass is required) the applicable human impact table.">?</span>
+            <label class="field-label" id="lbl-p3-glass-types">Select one or more
+                <span class="tip" tabindex="0" role="button" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from silicone bite, wind load, and (if safety glass is required) the applicable human impact table.">?</span>
             </label>
-            <div id="p3-glass-type-checkboxes">
+            <div id="p3-glass-type-checkboxes" role="group" aria-labelledby="lbl-p3-glass-types">
                 <!-- Populated by JS based on safety glass toggle -->
             </div>
         </div>
@@ -789,10 +789,10 @@
         <!-- Safety Glass -->
         <div class="section-label">Human Impact Check <span class="beta-tag">Beta</span></div>
         <div class="field-group">
-            <label class="field-label">Safety glass required?
-                <span class="tip" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 - full_perimeter structural glazing is treated as equivalent to fully framed for human impact purposes (continuous silicone-to-frame bond on all four edges).">?</span>
+            <label class="field-label" id="lbl-p4-sg">Safety glass required?
+                <span class="tip" tabindex="0" role="button" data-tip="Select Yes if safety glass is required for this application. The tool will check the panel against AS 1288 Table 5.1 - full_perimeter structural glazing is treated as equivalent to fully framed for human impact purposes (continuous silicone-to-frame bond on all four edges).">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p4-sg">
                 <button class="toggle-btn active" id="p4-sg-no" onclick="setP4SafetyGlass(false)">No</button>
                 <button class="toggle-btn" id="p4-sg-yes" onclick="setP4SafetyGlass(true)">Yes</button>
             </div>
@@ -806,14 +806,14 @@
         <!-- Panel Dimensions -->
         <div class="section-label">Panel Dimensions</div>
         <div class="field-group">
-            <label class="field-label">Height (mm)
-                <span class="tip" data-tip="Overall panel height in millimetres.">?</span>
+            <label class="field-label" for="p4_height_mm">Height (mm)
+                <span class="tip" tabindex="0" role="button" data-tip="Overall panel height in millimetres.">?</span>
             </label>
             <input class="field-input" type="number" id="p4_height_mm" placeholder="e.g. 1219" min="1" oninput="markP4InputsChanged()">
         </div>
         <div class="field-group">
-            <label class="field-label">Width (mm)
-                <span class="tip" data-tip="Overall panel width in millimetres.">?</span>
+            <label class="field-label" for="p4_width_mm">Width (mm)
+                <span class="tip" tabindex="0" role="button" data-tip="Overall panel width in millimetres.">?</span>
             </label>
             <input class="field-input" type="number" id="p4_width_mm" placeholder="e.g. 2438" min="1" oninput="markP4InputsChanged()">
         </div>
@@ -823,10 +823,10 @@
         <!-- Wind Load -->
         <div class="section-label">Wind Load</div>
         <div class="field-group">
-            <label class="field-label">Input method
-                <span class="tip" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications. ULS feeds both the AS 1288 Appendix F structural silicone bite formula and the Clause 4.4.3 wind bending check on the glass pane itself; SLS feeds only the bending check.">?</span>
+            <label class="field-label" id="lbl-p4-wind-method">Input method
+                <span class="tip" tabindex="0" role="button" data-tip="Choose how you will enter the wind load. Use Pressures if you have a wind engineer's report with ULS and SLS values. Use N/C Rating if you are working from AS 4055 wind classifications. ULS feeds both the AS 1288 Appendix F structural silicone bite formula and the Clause 4.4.3 wind bending check on the glass pane itself; SLS feeds only the bending check.">?</span>
             </label>
-            <div class="toggle-group">
+            <div class="toggle-group" role="group" aria-labelledby="lbl-p4-wind-method">
                 <button class="toggle-btn active" id="p4-wind-pressure" onclick="setP4WindMethod('pressure')">Pressures (AS 1170.2)</button>
                 <button class="toggle-btn" id="p4-wind-nc" onclick="setP4WindMethod('nc')">N/C Rating (AS 4055)</button>
             </div>
@@ -836,14 +836,14 @@
         <div id="p4-pressure-inputs">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">ULS pressure (kPa)
-                        <span class="tip" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the silicone bite formula (Appendix F) and the glass pane's own wind bending check (Clause 4.4.3).">?</span>
+                    <label class="field-label" for="p4_uls_kpa">ULS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Ultimate Limit State wind pressure in kilopascals - used for both the silicone bite formula (Appendix F) and the glass pane's own wind bending check (Clause 4.4.3).">?</span>
                     </label>
                     <input class="field-input" type="number" id="p4_uls_kpa" placeholder="e.g. 2.0" min="0" step="0.01" oninput="markP4InputsChanged()">
                 </div>
                 <div class="field-group">
-                    <label class="field-label">SLS pressure (kPa)
-                        <span class="tip" data-tip="Serviceability Limit State wind pressure in kilopascals - used only for the glass pane's own wind bending check (Clause 4.4.3), not the silicone bite formula.">?</span>
+                    <label class="field-label" for="p4_sls_kpa">SLS pressure (kPa)
+                        <span class="tip" tabindex="0" role="button" data-tip="Serviceability Limit State wind pressure in kilopascals - used only for the glass pane's own wind bending check (Clause 4.4.3), not the silicone bite formula.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p4_sls_kpa" placeholder="e.g. 0.8" min="0" step="0.01" oninput="markP4InputsChanged()">
                 </div>
@@ -854,8 +854,8 @@
         <div id="p4-nc-inputs" style="display:none;">
             <div class="field-row-2">
                 <div class="field-group">
-                    <label class="field-label">Wind classification
-                        <span class="tip" data-tip="Wind classification from AS 4055.">?</span>
+                    <label class="field-label" for="p4_nc_rating">Wind classification
+                        <span class="tip" tabindex="0" role="button" data-tip="Wind classification from AS 4055.">?</span>
                     </label>
                     <select class="field-select" id="p4_nc_rating">
                         <option value="">Select rating</option>
@@ -865,10 +865,10 @@
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Window location
-                        <span class="tip" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
+                    <label class="field-label" id="lbl-p4-loc">Window location
+                        <span class="tip" tabindex="0" role="button" data-tip="General applies to most window and door positions. Corner applies to openings located within 20% of the building width from a corner.">?</span>
                     </label>
-                    <div class="toggle-group">
+                    <div class="toggle-group" role="group" aria-labelledby="lbl-p4-loc">
                         <button class="toggle-btn active" id="p4-loc-general" onclick="setP4Location('General')">General</button>
                         <button class="toggle-btn" id="p4-loc-corner" onclick="setP4Location('Corner')">Corner</button>
                     </div>
@@ -881,10 +881,10 @@
         <!-- Glass Types -->
         <div class="section-label">Glass Type(s) to Check</div>
         <div class="field-group">
-            <label class="field-label">Select one or more
-                <span class="tip" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from the silicone bite (wind + dead load) and, if safety glass is required, AS 1288 Table 5.1.">?</span>
+            <label class="field-label" id="lbl-p4-glass-types">Select one or more
+                <span class="tip" tabindex="0" role="button" data-tip="Select one or more glass subtypes to calculate. The calculator finds the governing thickness for each selected subtype from the silicone bite (wind + dead load) and, if safety glass is required, AS 1288 Table 5.1.">?</span>
             </label>
-            <div id="p4-glass-type-checkboxes">
+            <div id="p4-glass-type-checkboxes" role="group" aria-labelledby="lbl-p4-glass-types">
                 <!-- Populated by JS based on safety glass toggle -->
             </div>
         </div>
@@ -937,14 +937,14 @@
 <!-- ========== TOOLTIP POPUP ========== -->
 <div class="tooltip-popup" id="tooltip-popup"></div>
 
-<!-- ========== HIDDEN SNAPSHOT TEMPLATE (used for copy-as-image) ========== -->
+<!-- ========== HIDDEN SNAPSHOT TEMPLATE (used for download-as-image) ========== -->
 <div id="snapshot-container" style="position:absolute; left:-9999px; top:-9999px;"></div>
 
 <!-- ========== REPORT MODAL (View Report - shared by all 4 pathways) ========== -->
 <div class="report-modal-overlay" id="report-modal-overlay" onclick="if (event.target === this) closeReportModal()">
-    <div class="report-modal">
+    <div class="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-modal-title" tabindex="-1">
         <div class="report-modal-header">
-            <span class="report-modal-header-title"><i class="ti ti-file-text"></i> Calculation Report</span>
+            <span class="report-modal-header-title" id="report-modal-title"><i class="ti ti-file-text"></i> Calculation Report</span>
             <button class="report-modal-close" onclick="closeReportModal()" aria-label="Close">
                 <i class="ti ti-x"></i>
             </button>
@@ -1329,16 +1329,16 @@ function buildPaneInputs() {
             </div>
             <div class="pane-grid">
                 <div class="field-group">
-                    <label class="field-label">Glass type
-                        <span class="tip" data-tip="Select the glass type for the ${label.toLowerCase()} pane.">?</span>
+                    <label class="field-label" for="pane-type-${i}">Glass type
+                        <span class="tip" tabindex="0" role="button" data-tip="Select the glass type for the ${label.toLowerCase()} pane.">?</span>
                     </label>
                     <select class="field-select" id="pane-type-${i}" onchange="markInputsChanged()">
                         ${allTypes.map(t => `<option value="${t[0]}|${t[1]}">${t[2]}</option>`).join('')}
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Actual thickness (mm)
-                        <span class="tip" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
+                    <label class="field-label" for="pane-thickness-${i}">Actual thickness (mm)
+                        <span class="tip" tabindex="0" role="button" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
                     </label>
                     <input class="field-input" type="number" id="pane-thickness-${i}"
                            placeholder="e.g. 5.9" min="0" step="0.1" onchange="markInputsChanged()">
@@ -1626,9 +1626,6 @@ function renderResults(data, payload) {
                             <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
                         </span>
                     </button>
-                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml1}\`, this)' aria-label="Copy as image">
-                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-                    </button>
                     <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml1}\`, this)' aria-label="Download as image">
                         <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
@@ -1759,9 +1756,6 @@ function renderResults(data, payload) {
                             ${chevron2}
                         </span>
                     </${tag2}>
-                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml2}\`, this)' aria-label="Copy as image">
-                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-                    </button>
                     <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml2}\`, this)' aria-label="Download as image">
                         <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
@@ -1829,9 +1823,6 @@ function renderResults(data, payload) {
                         <button class="result-card-footer-fail main-action" style="border:none; cursor:pointer; flex:1; display:flex; align-items:center; justify-content:space-between;" onclick="toggleAccordion('${cardId2}', this)">
                             ${footerContentHtml}
                         </button>
-                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
-                            <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
-                        </button>
                         <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='downloadSnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Download as image">
                             <i class="ti ti-download" style="font-size:15px; color:#cf6679;"></i>
                         </button>
@@ -1897,7 +1888,35 @@ function generateReport() {
     .catch(() => showError('Could not generate report. Please try again.'));
 }
 
+// Shared by clearFields()/clearP2Fields()/clearP3Fields()/clearP4Fields() -
+// "essentially empty" means no text/number/select value has been typed and
+// no glass-type checkbox is ticked (toggle/mode selections are ignored -
+// clicking a toggle back to its own default isn't meaningful user input).
+// Confirmation is skipped in that case so re-clicking Clear on a form
+// nobody has touched yet stays a single click, per the audit's guidance to
+// only add friction when there's actually something to lose.
+function formHasMeaningfulInput(fieldIds, checkboxContainerId) {
+    const hasFieldValue = fieldIds.some(id => {
+        const el = document.getElementById(id);
+        return el && el.value !== '';
+    });
+    const hasCheckedBox = checkboxContainerId &&
+        document.querySelectorAll(`#${checkboxContainerId} input[type=checkbox]:checked`).length > 0;
+    return hasFieldValue || hasCheckedBox;
+}
+
+function confirmClearFields(fieldIds, checkboxContainerId) {
+    if (!formHasMeaningfulInput(fieldIds, checkboxContainerId)) return true;
+    return confirm('Clear all fields and results? This cannot be undone.');
+}
+
 function clearFields() {
+    if (!confirmClearFields(
+        ['height_mm', 'width_mm', 'uls_pa', 'sls_pa', 'nc_rating',
+         'pane-thickness-0', 'pane-thickness-1', 'pane-thickness-2'],
+        'glass-type-checkboxes'
+    )) return;
+
     // Clear all input fields
     document.getElementById('height_mm').value    = '';
     document.getElementById('width_mm').value     = '';
@@ -2234,9 +2253,6 @@ function renderP3Results(data, payload) {
                     <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
                 </span>
             </button>
-            <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
-                <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-            </button>
             <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
                 <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
             </button>
@@ -2249,6 +2265,11 @@ function renderP3Results(data, payload) {
 }
 
 function clearP3Fields() {
+    if (!confirmClearFields(
+        ['p3_height_mm', 'p3_width_1_mm', 'p3_width_2_mm', 'p3_angle_deg', 'p3_uls_kpa', 'p3_sls_kpa', 'p3_nc_rating'],
+        'p3-glass-type-checkboxes'
+    )) return;
+
     document.getElementById('p3_height_mm').value  = '';
     document.getElementById('p3_width_1_mm').value = '';
     document.getElementById('p3_width_2_mm').value = '';
@@ -2479,7 +2500,7 @@ function p4StatusBadge(status) {
 }
 
 // Human-readable labels for governing_criterion, shared between the result
-// card and the copy-as-image snapshot.
+// card and the downloadable snapshot image.
 const P4_CRITERION_LABELS = {
     dead_load_bite: 'Silicone bite (dead load)',
     wind_bite:      'Silicone bite (wind load)',
@@ -2578,9 +2599,6 @@ function renderP4Results(data, payload) {
                     <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
                 </span>
             </button>
-            <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
-                <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-            </button>
             <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
                 <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
             </button>
@@ -2593,6 +2611,11 @@ function renderP4Results(data, payload) {
 }
 
 function clearP4Fields() {
+    if (!confirmClearFields(
+        ['p4_height_mm', 'p4_width_mm', 'p4_uls_kpa', 'p4_sls_kpa', 'p4_nc_rating'],
+        'p4-glass-type-checkboxes'
+    )) return;
+
     document.getElementById('p4_height_mm').value = '';
     document.getElementById('p4_width_mm').value  = '';
     document.getElementById('p4_uls_kpa').value   = '';
@@ -2753,16 +2776,16 @@ function buildP2PaneInputs() {
             </div>
             <div class="pane-grid">
                 <div class="field-group">
-                    <label class="field-label">Glass type
-                        <span class="tip" data-tip="Select the glass type for this pane.">?</span>
+                    <label class="field-label" for="p2-pane-type-0">Glass type
+                        <span class="tip" tabindex="0" role="button" data-tip="Select the glass type for this pane.">?</span>
                     </label>
                     <select class="field-select" id="p2-pane-type-0" onchange="markP2InputsChanged()">
                         ${allTypes.map(t => `<option value="${t[0]}|${t[1]}">${t[2]}</option>`).join('')}
                     </select>
                 </div>
                 <div class="field-group">
-                    <label class="field-label">Actual thickness (mm)
-                        <span class="tip" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
+                    <label class="field-label" for="p2-pane-thickness-0">Actual thickness (mm)
+                        <span class="tip" tabindex="0" role="button" data-tip="The real measured thickness of the glass pane as supplied by the manufacturer. The calculator will determine the correct nominal thickness per AS 1288 Table 4.1.">?</span>
                     </label>
                     <input class="field-input" type="number" id="p2-pane-thickness-0"
                            placeholder="e.g. 5.9" min="0" step="0.1" onchange="markP2InputsChanged()">
@@ -2950,9 +2973,6 @@ function renderP2Results(data, payload) {
                             <i class="ti ti-chevron-down" style="font-size:16px; color:#3a8a54; transition: transform 0.15s;"></i>
                         </span>
                     </button>
-                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
-                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-                    </button>
                     <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
                         <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
@@ -3055,9 +3075,6 @@ function renderP2Results(data, payload) {
                             ${chevron}
                         </span>
                     </${tag}>
-                    <button class="copy-image-btn" onclick='copySnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Copy as image">
-                        <i class="ti ti-copy" style="font-size:15px; color:#3a8a54;"></i>
-                    </button>
                     <button class="copy-image-btn" onclick='downloadSnapshotAsImage(\`${snapHtml}\`, this)' aria-label="Download as image">
                         <i class="ti ti-download" style="font-size:15px; color:#3a8a54;"></i>
                     </button>
@@ -3110,9 +3127,6 @@ function renderP2Results(data, payload) {
                         <button class="result-card-footer-fail main-action" style="border:none; cursor:pointer; flex:1; display:flex; align-items:center; justify-content:space-between;" onclick="toggleAccordion('${cardId}', this)">
                             ${footerContentHtml}
                         </button>
-                        <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='copySnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Copy as image">
-                            <i class="ti ti-copy" style="font-size:15px; color:#cf6679;"></i>
-                        </button>
                         <button class="copy-image-btn" style="background:#2e0d0d; border-left:1px solid #4a1a1a;" onclick='downloadSnapshotAsImage(\`${snapHtmlFail}\`, this)' aria-label="Download as image">
                             <i class="ti ti-download" style="font-size:15px; color:#cf6679;"></i>
                         </button>
@@ -3132,6 +3146,11 @@ function renderP2Results(data, payload) {
 }
 
 function clearP2Fields() {
+    if (!confirmClearFields(
+        ['p2_height_mm', 'p2_width_mm', 'p2_uls_pa', 'p2_sls_pa', 'p2_nc_rating', 'p2-pane-thickness-0'],
+        'p2-glass-type-checkboxes'
+    )) return;
+
     document.getElementById('p2_height_mm').value = '';
     document.getElementById('p2_width_mm').value  = '';
     document.getElementById('p2_uls_pa').value     = '';
@@ -3172,7 +3191,7 @@ function generateP2Report() {
         'mode2': 'Compliance Checker'
     };
 
-    // buildSnapshotHTML()/copySnapshotAsImage() and /generate_report are
+    // buildSnapshotHTML()/downloadSnapshotAsImage() and /generate_report are
     // fully generic already (Section 8.2) — no duplication or
     // parameterisation needed, just building the same reportPayload shape
     // Pathway 1's generateReport() builds, with Pathway 2's own labels.
@@ -3294,10 +3313,14 @@ function buildSnapshotHTML(inputSummary, rows, governingLabel, governingValue) {
     </div>`;
 }
 
-// Shared by copySnapshotAsImage()/downloadSnapshotAsImage() - injects the
-// snapshot HTML into the off-screen #snapshot-container, rasterises it via
-// html2canvas, and cleans the container up afterwards regardless of outcome.
-// Returns the canvas, or null if generation failed (caller shows the error).
+// Used by downloadSnapshotAsImage() - injects the snapshot HTML into the
+// off-screen #snapshot-container, rasterises it via html2canvas, and cleans
+// the container up afterwards regardless of outcome. Returns the canvas, or
+// null if generation failed (caller shows the error). Previously also shared
+// with copySnapshotAsImage() (Clipboard API), removed - clipboard.write()
+// requires a secure context, so it silently no-ops on the live site
+// (glazing.duce.com.au is plain HTTP; only worked in local dev, where
+// localhost is always treated as secure).
 async function generateSnapshotCanvas(snapshotHtml) {
     const container = document.getElementById('snapshot-container');
     container.innerHTML = snapshotHtml;
@@ -3318,40 +3341,78 @@ async function generateSnapshotCanvas(snapshotHtml) {
 // REPORT MODAL (View Report - shared by all 4 pathways' generate*Report())
 // ---------------------------------------------------------------------------
 
+// Tracks whichever element had focus right before the modal opened (normally
+// the "View Report" button that triggered it), so closeReportModal() can
+// hand focus back rather than dropping it silently to <body>.
+let reportModalTriggerEl = null;
+
 function openReportModal(reportText) {
+    reportModalTriggerEl = document.activeElement;
+
     const body = document.getElementById('report-modal-body');
     body.innerHTML = '';
     const pre = document.createElement('pre');
     pre.textContent = reportText;
     body.appendChild(pre);
     document.getElementById('report-modal-overlay').classList.add('open');
+
+    // Move focus into the dialog itself (not a focusable descendant - the
+    // close button is a fine default, but the dialog container is a safer
+    // starting point since report length/content varies) so keyboard/screen
+    // reader users land inside it immediately, and so Tab has somewhere to
+    // trap from.
+    document.querySelector('.report-modal').focus();
 }
 
 function closeReportModal() {
     document.getElementById('report-modal-overlay').classList.remove('open');
+    if (reportModalTriggerEl && typeof reportModalTriggerEl.focus === 'function') {
+        reportModalTriggerEl.focus();
+    }
+    reportModalTriggerEl = null;
+}
+
+// Every Tab-focusable element currently inside the report modal, in DOM
+// order - recomputed on each Tab press since the report body's content
+// (and therefore its focusable children, e.g. none today, but this stays
+// correct if that changes) is rebuilt per open.
+function getReportModalFocusable() {
+    return Array.from(document.querySelectorAll(
+        '.report-modal [href], .report-modal button, .report-modal input, ' +
+        '.report-modal select, .report-modal textarea, .report-modal [tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.offsetParent !== null);
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeReportModal();
-});
+    const overlay = document.getElementById('report-modal-overlay');
+    if (!overlay.classList.contains('open')) return;
 
-async function copySnapshotAsImage(snapshotHtml, buttonEl) {
-    const canvas = await generateSnapshotCanvas(snapshotHtml);
-    if (!canvas) return;
+    if (e.key === 'Escape') {
+        closeReportModal();
+        return;
+    }
 
-    canvas.toBlob(async (blob) => {
-        try {
-            await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': blob })
-            ]);
-            const originalText = buttonEl.innerHTML;
-            buttonEl.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i> Copied';
-            setTimeout(() => { buttonEl.innerHTML = originalText; }, 1800);
-        } catch (err) {
-            showError('Could not copy image to clipboard. Your browser may not support this feature.');
+    // Focus trap: keep Tab/Shift+Tab cycling within the modal while it's open.
+    if (e.key === 'Tab') {
+        const focusable = getReportModalFocusable();
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last  = focusable[focusable.length - 1];
+        const modal = document.querySelector('.report-modal');
+
+        if (e.shiftKey) {
+            if (document.activeElement === first || document.activeElement === modal) {
+                e.preventDefault();
+                last.focus();
+            }
+        } else {
+            if (document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
         }
-    });
-}
+    }
+});
 
 async function downloadSnapshotAsImage(snapshotHtml, buttonEl) {
     const canvas = await generateSnapshotCanvas(snapshotHtml);
@@ -3373,18 +3434,48 @@ async function downloadSnapshotAsImage(snapshotHtml, buttonEl) {
 // TOOLTIPS
 // ---------------------------------------------------------------------------
 
+function showTooltip(el) {
+    const popup = document.getElementById('tooltip-popup');
+    popup.textContent  = el.dataset.tip;
+    popup.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    popup.style.left = `${rect.left + window.scrollX}px`;
+    popup.style.top  = `${rect.bottom + window.scrollY + 6}px`;
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip-popup').style.display = 'none';
+}
+
+// .tip elements are plain spans marked up as tabindex="0" role="button" (not
+// real <button>s, to keep the existing circular styling as-is) - mouse,
+// keyboard focus, and click/touch all need to reveal the same tooltip text,
+// since there's no other way to read these hints (they're the tool's only
+// inline help - see the frontend-design-audit report).
+//
+// attachTooltipListeners() is called more than once at page load (once
+// inside buildPaneInputs(), once inside buildP2PaneInputs(), once from
+// DOMContentLoaded itself) since each call also has to cover any .tip
+// elements those functions just rebuilt. Re-running querySelectorAll('.tip')
+// re-visits elements that were already bound on an earlier call, though -
+// the dataset guard below skips those, so each element gets exactly one set
+// of listeners. Without it, mouseenter/mouseleave/focus/blur stayed harmless
+// under duplicate binding (show/hide are idempotent), but a duplicated click
+// handler is not: two bound click listeners toggle twice per click and
+// cancel out, so the tooltip would stop responding to clicks entirely.
 function attachTooltipListeners() {
     document.querySelectorAll('.tip').forEach(el => {
-        el.addEventListener('mouseenter', e => {
+        if (el.dataset.tooltipBound) return;
+        el.dataset.tooltipBound = '1';
+
+        el.addEventListener('mouseenter', e => showTooltip(e.target));
+        el.addEventListener('mouseleave', hideTooltip);
+        el.addEventListener('focus', e => showTooltip(e.target));
+        el.addEventListener('blur', hideTooltip);
+        el.addEventListener('click', e => {
+            e.stopPropagation();
             const popup = document.getElementById('tooltip-popup');
-            popup.textContent  = e.target.dataset.tip;
-            popup.style.display = 'block';
-            const rect = e.target.getBoundingClientRect();
-            popup.style.left = `${rect.left + window.scrollX}px`;
-            popup.style.top  = `${rect.bottom + window.scrollY + 6}px`;
-        });
-        el.addEventListener('mouseleave', () => {
-            document.getElementById('tooltip-popup').style.display = 'none';
+            popup.style.display === 'block' ? hideTooltip() : showTooltip(e.target);
         });
     });
 }
