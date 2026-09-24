@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AS 1288 Human Impact Check — Duce Timber Windows and Doors</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.35.0/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* ===== HUMAN IMPACT PAGE — additions specific to this standalone
+           page, layered on top of style.css's shared design system (field-
+           group/toggle-group/result-card/etc.) rather than duplicating it. */
+
+        .hi-body {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px 20px 60px;
+            width: 100%;
+        }
+
+        .hi-scope-note {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .hi-scope-note strong { color: #ddd; }
+
+        .hi-method-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .hi-method-card {
+            background: #282828;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .hi-method-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .hi-method-card-title {
+            color: #f47920;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .hi-method-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .hi-method-inputs .field-group { margin-bottom: 0; }
+
+        .hi-result-card {
+            margin-top: 4px;
+        }
+
+        .hi-verdict {
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .hi-verdict.required {
+            background: #3d1a1a;
+            border: 1px solid #5c2a2a;
+            color: #ff8a8a;
+        }
+
+        .hi-verdict.not-required {
+            background: #1a3d2a;
+            border: 1px solid #2a5c3a;
+            color: #4caf76;
+        }
+
+        .hi-verdict.oos {
+            background: #2a1f00;
+            border: 1px solid #4a3800;
+            color: #f4a020;
+        }
+
+        .hi-table-tag {
+            display: inline-block;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 10px;
+            color: #bbb;
+            margin-left: 8px;
+        }
+
+        .hi-type-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .hi-type-row {
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 11px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+        }
+
+        .hi-type-row.ok {
+            border-color: #1a4a28;
+            background: #0d2e18;
+        }
+
+        .hi-type-row.blocked {
+            opacity: 0.55;
+        }
+
+        .hi-type-name {
+            color: #fff;
+            font-weight: 500;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .hi-type-row.ok .hi-type-name { color: #7ab890; }
+
+        .hi-type-detail {
+            color: #888;
+            font-size: 10.5px;
+            line-height: 1.4;
+        }
+
+        .hi-type-row.ok .hi-type-detail { color: #578f6a; }
+
+        .hi-notes {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .hi-trail-toggle {
+            background: transparent;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            color: #999;
+            font-size: 10.5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        .hi-trail-toggle:hover {
+            border-color: #f47920;
+            color: #f47920;
+        }
+
+        .hi-trail-list {
+            margin-top: 8px;
+            padding-left: 16px;
+            color: #888;
+            font-size: 10.5px;
+            line-height: 1.6;
+        }
+
+        .hi-results-placeholder {
+            color: #666;
+            font-size: 11px;
+            padding: 10px 0;
+        }
+
+        .hi-disabled-action {
+            background: transparent;
+            border: 1px dashed #444;
+            border-radius: 6px;
+            color: #666;
+            font-size: 11px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            cursor: not-allowed;
+            width: 100%;
+        }
+
+        /* ===== SCOPE / DISCLAIMER GATE MODAL — reuses .report-modal's shell ===== */
+        .hi-gate-list {
+            margin: 8px 0 0 18px;
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .hi-gate-list.oos-list { color: #999; }
+
+        .hi-gate-section-title {
+            color: #f47920;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 14px;
+        }
+
+        .hi-gate-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 14px 16px;
+            border-top: 1px solid #333;
+        }
+
+        .hi-gate-ack-btn {
+            background: #f47920;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 9px 18px;
+            cursor: pointer;
+        }
+
+        .hi-gate-ack-btn:hover { background: #e06810; }
+
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- ========== HEADER ========== -->
+<div class="app-header">
+    <div class="header-text">
+        <div class="header-title">AS 1288 Human Impact Check</div>
+        <div class="header-sub">Section 5 — Grade A Safety Glass Determination — Internal Use</div>
+    </div>
+    <img src="{{ url_for('static', filename='duce_logo.png') }}"
+         class="header-logo" alt="Duce Timber Windows and Doors">
+</div>
+
+<div class="version-footer">{{ app_version }} — standalone check, not yet linked into the wind-load pathways</div>
+
+<div class="back-to-selection-btn-row">
+    <a class="back-to-selection-btn" href="{{ url_for('index') }}" style="display:inline-block; text-decoration:none;">&larr; Back to main calculator</a>
+</div>
+
+<div class="hi-body" id="hi-page-body" hidden>
+
+    <div class="hi-scope-note">
+        <strong>What this checks:</strong> doors, side panels, and windows — each glazed as a fixed panel/sash,
+        a louvre, or sashless — in residential, school/early childhood, aged care, or bathroom locations, against
+        AS 1288 Section 5's Grade A safety glass requirements.
+        <br><br>
+        <strong>What it does not cover:</strong> shopfronts, stairways, balustrades, mirrors/backed glass,
+        wardrobe doors, roller doors, shower screen assemblies, window seat glazing, leadlights, faceted glazing,
+        Grade B anywhere, the vanity/bench and permanent-barrier exemptions (these are flagged but not assessed),
+        operable-position checks, or oversize louvre blades.
+        This tool does not replace judgement under AS 1288 — always confirm against the standard.
+    </div>
+
+    <!-- ===== SHARED CONTEXT ===== -->
+    <div class="hi-method-card">
+        <div class="hi-method-card-title" style="margin-bottom:12px;">Opening</div>
+        <div class="hi-method-inputs" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-opening">Opening type
+                    <span class="tip" tabindex="0" role="button" data-tip="Doors, side panels, and windows each carry different AS 1288 Section 5 clauses.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-opening">
+                    <button class="toggle-btn active" id="hi-opening-door" onclick="setOpeningType('door')">Door</button>
+                    <button class="toggle-btn" id="hi-opening-side_panel" onclick="setOpeningType('side_panel')">Side panel</button>
+                    <button class="toggle-btn" id="hi-opening-window" onclick="setOpeningType('window')">Window</button>
+                </div>
+            </div>
+            <div class="field-group" id="hi-reclass-row" hidden>
+                <label class="field-label" id="lbl-hi-reclass">Within 300mm of a doorway edge?
+                    <span class="tip" tabindex="0" role="button" data-tip="A window within 300mm of a doorway edge is assessed using the side panel rules (Clause 5.3.1), even though it still displays as a window here.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-reclass">
+                    <button class="toggle-btn active" id="hi-reclass-no" onclick="setReclassified(false)">No</button>
+                    <button class="toggle-btn" id="hi-reclass-yes" onclick="setReclassified(true)">Yes</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-use">Building use
+                    <span class="tip" tabindex="0" role="button" data-tip="Schools/early childhood and aged care carry their own AS 1288 clauses (5.10.2/5.10.3).">?</span>
+                </label>
+                <select class="field-select" id="hi_building_use" onchange="onSharedInputChanged()">
+                    <option value="residential">Residential</option>
+                    <option value="school">School / early childhood</option>
+                    <option value="aged">Aged care / nursing home</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="hi-method-inputs" style="grid-template-columns: 1fr 1fr;">
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-bathroom">Bathroom / ensuite / spa room?
+                    <span class="tip" tabindex="0" role="button" data-tip="AS 1288 Clause 5.8 applies extra requirements to glazing within 2000mm of the lowest sightline in a bathroom.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-bathroom">
+                    <button class="toggle-btn active" id="hi-bathroom-no" onclick="setBathroom(false)">No</button>
+                    <button class="toggle-btn" id="hi-bathroom-yes" onclick="setBathroom(true)">Yes</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-highrisk">High risk of breakage area?
+                    <span class="tip" tabindex="0" role="button" data-tip="AS 1288 Clause 5.24 - asked and assessed on every job regardless of building use.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-highrisk">
+                    <button class="toggle-btn active" id="hi-highrisk-no" onclick="setHighRisk(false)">No</button>
+                    <button class="toggle-btn" id="hi-highrisk-yes" onclick="setHighRisk(true)">Yes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== GLAZING METHOD SELECTOR ===== -->
+    <div class="hi-method-card">
+        <div class="hi-method-card-title" style="margin-bottom:12px;">Glazing method(s)</div>
+        <div id="hi-method-checkboxes"></div>
+        <div style="color:#666; font-size:10.5px; margin-top:4px;">Select one or more — each produces its own independent result below.</div>
+    </div>
+
+    <!-- ===== PER-METHOD INPUT + RESULT CARDS ===== -->
+    <div class="hi-method-grid" id="hi-method-cards"></div>
+
+</div><!-- /hi-page-body -->
+
+<!-- ========== TOOLTIP POPUP ========== -->
+<div class="tooltip-popup" id="tooltip-popup"></div>
+
+<!-- ========== SCOPE / DISCLAIMER GATE (shown first, must acknowledge) ========== -->
+<div class="report-modal-overlay open" id="hi-gate-overlay">
+    <div class="report-modal" role="dialog" aria-modal="true" aria-labelledby="hi-gate-title" tabindex="-1" style="max-width:640px;">
+        <div class="report-modal-header">
+            <span class="report-modal-header-title" id="hi-gate-title"><i class="ti ti-shield-check"></i> Human Impact Check — Scope</span>
+        </div>
+        <div class="report-modal-body">
+            <p style="color:#ccc; font-size:12px; line-height:1.6;">
+                This tool assesses AS 1288 Section 5 (Human Impact) Grade A safety glass requirements for a
+                limited set of configurations. Please read what is and isn't covered before continuing.
+            </p>
+
+            <div class="hi-gate-section-title">Covered</div>
+            <ul class="hi-gate-list">
+                <li>Doors, side panels, and windows</li>
+                <li>Glazed as a fixed panel/sash, a louvre, or sashless</li>
+                <li>Residential, school/early childhood, aged care, and bathroom locations</li>
+            </ul>
+
+            <div class="hi-gate-section-title">Not covered</div>
+            <ul class="hi-gate-list oos-list">
+                <li>Shopfronts, stairways, balustrades</li>
+                <li>Mirrors or backed glass, wardrobe doors, roller doors</li>
+                <li>Shower screen assemblies, window seat glazing, leadlights, faceted glazing</li>
+                <li>Grade B glass anywhere</li>
+                <li>The vanity/bench exemption (Clause 5.8) and permanent-barrier exemption (Clause 5.24) — flagged where relevant, not assessed</li>
+                <li>Whether an opening is in an operable position, and oversize louvre blades (outside Clause 5.12's tabulated sizes)</li>
+            </ul>
+
+            <p style="color:#888; font-size:11px; line-height:1.6; margin-top:14px;">
+                This tool does not replace professional judgement under AS 1288. Always confirm the result
+                against the current standard before relying on it.
+            </p>
+        </div>
+        <div class="hi-gate-actions">
+            <button class="hi-gate-ack-btn" onclick="acknowledgeGate()">I understand, continue</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// STATE
+// ---------------------------------------------------------------------------
+// This page is UI plumbing only around engine/human_impact/ (Phase 2) - no
+// rule logic is duplicated here. Every determination comes back from
+// POST /human_impact/check, which itself only translates JSON into the
+// engine's ctx shape (see app.py's human_impact_check()).
+
+const hiState = {
+    openingType: 'door',
+    reclassifiedAsSidePanel: false,
+    buildingUse: 'residential',
+    isBathroom: false,
+    highRisk: false,
+    selectedMethods: new Set(),   // subset of 'fixed' | 'louvre' | 'sashless'
+};
+
+const METHODS_BY_OPENING = {
+    door: ['fixed', 'louvre'],
+    side_panel: ['fixed', 'louvre', 'sashless'],
+    window: ['fixed', 'louvre', 'sashless'],
+};
+
+const METHOD_LABELS = {
+    fixed: 'Fixed panel / sash',
+    louvre: 'Louvre',
+    sashless: 'Sashless',
+};
+
+const TYPE_ORDER = [
+    'monolithic_annealed', 'monolithic_heat_strengthened', 'monolithic_toughened',
+    'laminated_annealed', 'laminated_heat_strengthened', 'laminated_toughened',
+];
+
+// ---------------------------------------------------------------------------
+// SCOPE GATE
+// ---------------------------------------------------------------------------
+
+function acknowledgeGate() {
+    document.getElementById('hi-gate-overlay').classList.remove('open');
+    document.getElementById('hi-page-body').hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// SHARED CONTEXT HANDLERS
+// ---------------------------------------------------------------------------
+
+function setOpeningType(type) {
+    hiState.openingType = type;
+    ['door', 'side_panel', 'window'].forEach(t => {
+        document.getElementById(`hi-opening-${t}`).classList.toggle('active', t === type);
+    });
+
+    document.getElementById('hi-reclass-row').hidden = (type !== 'window');
+    if (type !== 'window') {
+        hiState.reclassifiedAsSidePanel = false;
+        document.getElementById('hi-reclass-no').classList.add('active');
+        document.getElementById('hi-reclass-yes').classList.remove('active');
+    }
+
+    // Selected methods not valid for the new opening type are dropped.
+    const allowed = new Set(METHODS_BY_OPENING[type]);
+    hiState.selectedMethods.forEach(m => { if (!allowed.has(m)) hiState.selectedMethods.delete(m); });
+
+    buildMethodCheckboxes();
+    buildMethodCards();
+    runCheck();
+}
+
+function setReclassified(value) {
+    hiState.reclassifiedAsSidePanel = value;
+    document.getElementById('hi-reclass-no').classList.toggle('active', !value);
+    document.getElementById('hi-reclass-yes').classList.toggle('active', value);
+    onSharedInputChanged();
+}
+
+function setBathroom(value) {
+    hiState.isBathroom = value;
+    document.getElementById('hi-bathroom-no').classList.toggle('active', !value);
+    document.getElementById('hi-bathroom-yes').classList.toggle('active', value);
+    onSharedInputChanged();
+}
+
+function setHighRisk(value) {
+    hiState.highRisk = value;
+    document.getElementById('hi-highrisk-no').classList.toggle('active', !value);
+    document.getElementById('hi-highrisk-yes').classList.toggle('active', value);
+    onSharedInputChanged();
+}
+
+function onSharedInputChanged() {
+    hiState.buildingUse = document.getElementById('hi_building_use').value;
+    runCheck();
+}
+
+// ---------------------------------------------------------------------------
+// METHOD CHECKBOXES
+// ---------------------------------------------------------------------------
+
+function buildMethodCheckboxes() {
+    const allowed = METHODS_BY_OPENING[hiState.openingType];
+    const container = document.getElementById('hi-method-checkboxes');
+    container.innerHTML = allowed.map(m => `
+        <label class="checkbox-row">
+            <input type="checkbox" id="hi-method-cb-${m}" ${hiState.selectedMethods.has(m) ? 'checked' : ''}
+                   onchange="onMethodToggled('${m}', this.checked)">
+            <span>${METHOD_LABELS[m]}</span>
+        </label>
+    `).join('');
+}
+
+function onMethodToggled(method, checked) {
+    if (checked) hiState.selectedMethods.add(method);
+    else hiState.selectedMethods.delete(method);
+    buildMethodCards();
+    runCheck();
+}
+
+// ---------------------------------------------------------------------------
+// PER-METHOD INPUT CARDS
+// ---------------------------------------------------------------------------
+
+function buildMethodCards() {
+    const container = document.getElementById('hi-method-cards');
+    const isSidePanel = (hiState.openingType === 'side_panel') ||
+                         (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
+    const isGenuineWindow = (hiState.openingType === 'window') && !hiState.reclassifiedAsSidePanel;
+
+    let html = '';
+
+    if (hiState.selectedMethods.size === 0) {
+        container.innerHTML = `<div class="hi-results-placeholder">Select at least one glazing method above to begin.</div>`;
+        return;
+    }
+
+    if (hiState.selectedMethods.has('fixed')) {
+        html += buildFixedCard(isSidePanel, isGenuineWindow);
+    }
+    if (hiState.selectedMethods.has('louvre')) {
+        html += buildLouvreCard();
+    }
+    if (hiState.selectedMethods.has('sashless')) {
+        html += buildSashlessCard();
+    }
+
+    container.innerHTML = html;
+    attachTooltipListeners();
+}
+
+function buildFixedCard(isSidePanel, isGenuineWindow) {
+    let extra = '';
+
+    if (isSidePanel) {
+        extra += `
+        <div class="field-group" id="hi-fixed-exposed-row" hidden>
+            <label class="field-label" id="lbl-hi-fixed-exposed">Unframed edges exposed?
+                <span class="tip" tabindex="0" role="button" data-tip="Only relevant when this side panel is partly framed or unframed - Clause 5.3.1's exposed-edge condition.">?</span>
+            </label>
+            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-exposed">
+                <button class="toggle-btn active" id="hi-fixed-exposed-n" onclick="setFixedField('exposed_edges', 'n')">No</button>
+                <button class="toggle-btn" id="hi-fixed-exposed-y" onclick="setFixedField('exposed_edges', 'y')">Yes</button>
+            </div>
+        </div>`;
+    }
+
+    if (isGenuineWindow) {
+        extra += `
+        <div class="field-group">
+            <label class="field-label" id="lbl-hi-fixed-opaque">Opaque or patterned glazing?
+                <span class="tip" tabindex="0" role="button" data-tip="Clause 5.4 'mistaken for a doorway' exception.">?</span>
+            </label>
+            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-opaque">
+                <button class="toggle-btn active" id="hi-fixed-opaque-no" onclick="setFixedBool('opaque_or_patterned', false)">No</button>
+                <button class="toggle-btn" id="hi-fixed-opaque-yes" onclick="setFixedBool('opaque_or_patterned', true)">Yes</button>
+            </div>
+        </div>
+        <div class="field-group">
+            <label class="field-label" id="lbl-hi-fixed-rail">Crash/chair rail or transom fitted?
+                <span class="tip" tabindex="0" role="button" data-tip="Clause 5.4 exception - satisfied by either the upper or lower edge test below.">?</span>
+            </label>
+            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-rail">
+                <button class="toggle-btn active" id="hi-fixed-rail-no" onclick="setFixedBool('rail_present', false)">No</button>
+                <button class="toggle-btn" id="hi-fixed-rail-yes" onclick="setFixedBool('rail_present', true)">Yes</button>
+            </div>
+        </div>
+        <div id="hi-fixed-rail-edges" hidden>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_rail_upper">Rail/transom upper edge height (mm)</label>
+                <input class="field-input" type="number" id="hi_fixed_rail_upper" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_rail_lower">Rail/transom lower edge height (mm)</label>
+                <input class="field-input" type="number" id="hi_fixed_rail_lower" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+        </div>
+        <div class="field-group">
+            <label class="field-label" id="lbl-hi-fixed-level">Protects a level difference &ge;1000mm?
+                <span class="tip" tabindex="0" role="button" data-tip="Clause 5.4 exception.">?</span>
+            </label>
+            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-level">
+                <button class="toggle-btn active" id="hi-fixed-level-no" onclick="setFixedBool('level_difference', false)">No</button>
+                <button class="toggle-btn" id="hi-fixed-level-yes" onclick="setFixedBool('level_difference', true)">Yes</button>
+            </div>
+        </div>`;
+    }
+
+    return `
+    <div class="hi-method-card" id="hi-card-fixed">
+        <div class="hi-method-card-header">
+            <span class="hi-method-card-title">Fixed panel / sash</span>
+        </div>
+        <div class="hi-method-inputs">
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-fixed-framing">Framing
+                    <span class="tip" tabindex="0" role="button" data-tip="Fully framed, partly framed, or unframed.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-framing">
+                    <button class="toggle-btn active" id="hi-fixed-framing-fully" onclick="setFixedFraming('fully')">Fully</button>
+                    <button class="toggle-btn" id="hi-fixed-framing-partly" onclick="setFixedFraming('partly')">Partly</button>
+                    <button class="toggle-btn" id="hi-fixed-framing-unframed" onclick="setFixedFraming('unframed')">Unframed</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_sightline">Lowest sightline above floor/ground (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Height of the lowest point of visible glass above the floor or ground level.">?</span>
+                </label>
+                <input class="field-input" type="number" id="hi_fixed_sightline" placeholder="e.g. 0" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_sight_width">Sight width (mm)</label>
+                <input class="field-input" type="number" id="hi_fixed_sight_width" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_sight_height">Sight height (mm)</label>
+                <input class="field-input" type="number" id="hi_fixed_sight_height" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_panel_width">Panel width (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Used with panel height to test annealed/heat-strengthened alternative area and width caps.">?</span>
+                </label>
+                <input class="field-input" type="number" id="hi_fixed_panel_width" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_fixed_panel_height">Panel height (mm)</label>
+                <input class="field-input" type="number" id="hi_fixed_panel_height" min="0" oninput="onMethodInputChanged('fixed')">
+            </div>
+        </div>
+        ${extra}
+        <div class="hi-result-card" id="hi-result-fixed">
+            <div class="hi-results-placeholder">Enter inputs above to see the result.</div>
+        </div>
+    </div>`;
+}
+
+function buildLouvreCard() {
+    return `
+    <div class="hi-method-card" id="hi-card-louvre">
+        <div class="hi-method-card-header">
+            <span class="hi-method-card-title">Louvre</span>
+        </div>
+        <div class="hi-method-inputs">
+            <div class="field-group">
+                <label class="field-label" id="lbl-hi-louvre-framing">Framing</label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-louvre-framing">
+                    <button class="toggle-btn active" id="hi-louvre-framing-fully" onclick="setLouvreFraming('fully')">Fully</button>
+                    <button class="toggle-btn" id="hi-louvre-framing-partly" onclick="setLouvreFraming('partly')">Partly</button>
+                    <button class="toggle-btn" id="hi-louvre-framing-unframed" onclick="setLouvreFraming('unframed')">Unframed</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_louvre_sightline">Lowest sightline above floor/ground (mm)</label>
+                <input class="field-input" type="number" id="hi_louvre_sightline" min="0" oninput="onMethodInputChanged('louvre')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_louvre_sight_width">Opening sight width (mm)</label>
+                <input class="field-input" type="number" id="hi_louvre_sight_width" min="0" oninput="onMethodInputChanged('louvre')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_louvre_sight_height">Opening sight height (mm)</label>
+                <input class="field-input" type="number" id="hi_louvre_sight_height" min="0" oninput="onMethodInputChanged('louvre')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_louvre_blade_width">Blade width (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Clause 5.12's tabulated blade envelope is 230mm wide x 1000mm long.">?</span>
+                </label>
+                <input class="field-input" type="number" id="hi_louvre_blade_width" min="0" oninput="onMethodInputChanged('louvre')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_louvre_blade_length">Blade length (mm)</label>
+                <input class="field-input" type="number" id="hi_louvre_blade_length" min="0" oninput="onMethodInputChanged('louvre')">
+            </div>
+        </div>
+        <div class="hi-result-card" id="hi-result-louvre">
+            <div class="hi-results-placeholder">Enter inputs above to see the result.</div>
+        </div>
+    </div>`;
+}
+
+function buildSashlessCard() {
+    return `
+    <div class="hi-method-card" id="hi-card-sashless">
+        <div class="hi-method-card-header">
+            <span class="hi-method-card-title">Sashless</span>
+        </div>
+        <div class="hi-method-inputs" style="grid-template-columns: 1fr;">
+            <div class="field-group">
+                <label class="field-label" for="hi_sashless_span">Span (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Clause 5.15 is self-contained - no framing or geometry inputs needed beyond span.">?</span>
+                </label>
+                <input class="field-input" type="number" id="hi_sashless_span" min="0" oninput="onMethodInputChanged('sashless')">
+            </div>
+        </div>
+        <div class="hi-result-card" id="hi-result-sashless">
+            <div class="hi-results-placeholder">Enter span above to see the result.</div>
+        </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// PER-METHOD FIELD STATE HELPERS
+// ---------------------------------------------------------------------------
+
+const hiMethodState = {
+    fixed: { framing: 'fully', exposed_edges: 'n', opaque_or_patterned: false, rail_present: false, level_difference: false },
+    louvre: { framing: 'fully' },
+    sashless: {},
+};
+
+function setFixedFraming(framing) {
+    hiMethodState.fixed.framing = framing;
+    ['fully', 'partly', 'unframed'].forEach(f => {
+        document.getElementById(`hi-fixed-framing-${f}`).classList.toggle('active', f === framing);
+    });
+    const isSidePanel = (hiState.openingType === 'side_panel') ||
+                         (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
+    const exposedRow = document.getElementById('hi-fixed-exposed-row');
+    if (exposedRow) exposedRow.hidden = !(isSidePanel && framing !== 'fully');
+    runCheck();
+}
+
+function setFixedField(field, value) {
+    hiMethodState.fixed[field] = value;
+    if (field === 'exposed_edges') {
+        document.getElementById('hi-fixed-exposed-n').classList.toggle('active', value === 'n');
+        document.getElementById('hi-fixed-exposed-y').classList.toggle('active', value === 'y');
+    }
+    runCheck();
+}
+
+function setFixedBool(field, value) {
+    hiMethodState.fixed[field] = value;
+    const idBase = { opaque_or_patterned: 'hi-fixed-opaque', rail_present: 'hi-fixed-rail', level_difference: 'hi-fixed-level' }[field];
+    document.getElementById(`${idBase}-no`).classList.toggle('active', !value);
+    document.getElementById(`${idBase}-yes`).classList.toggle('active', value);
+
+    if (field === 'rail_present') {
+        const edgesDiv = document.getElementById('hi-fixed-rail-edges');
+        if (edgesDiv) edgesDiv.hidden = !value;
+    }
+    runCheck();
+}
+
+function setLouvreFraming(framing) {
+    hiMethodState.louvre.framing = framing;
+    ['fully', 'partly', 'unframed'].forEach(f => {
+        document.getElementById(`hi-louvre-framing-${f}`).classList.toggle('active', f === framing);
+    });
+    runCheck();
+}
+
+function onMethodInputChanged(method) {
+    runCheck();
+}
+
+// ---------------------------------------------------------------------------
+// BUILD REQUEST PAYLOAD
+// ---------------------------------------------------------------------------
+
+function val(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    return el.value === '' ? null : el.value;
+}
+
+// Sightline feeds every location clause in engine/human_impact (bathroom,
+// low-level residential, schools, aged care, mistaken-for-a-doorway all
+// gate on it) - including it in a request while blank sends a raw None
+// through to the engine's ctx. Most of the engine already guards that
+// with "is not None" checks, but one trail message (the bathroom-
+// considered-but-not-matched case) does not, and renders the literal
+// text "Nonemm". Rather than patch around that in one spot (or guess a
+// numeric default that would silently assert a real sightline value the
+// user never entered - 0mm is not a neutral default, it's a real and
+// consequential value for several of these clauses), gate the request
+// itself on sightline being filled in for any method that needs it -
+// engine/human_impact/ is out of scope for this fix, and this is the
+// only change that can't reintroduce the bug from some other missing
+// guard later.
+const SIGHTLINE_INPUT_ID = { fixed: 'hi_fixed_sightline', louvre: 'hi_louvre_sightline' };
+
+function hasSightline(method) {
+    const inputId = SIGHTLINE_INPUT_ID[method];
+    if (!inputId) return true; // sashless has no sightline concept at all
+    return val(inputId) !== null;
+}
+
+function buildPayload() {
+    const methods = {};
+
+    if (hiState.selectedMethods.has('fixed') && document.getElementById('hi-card-fixed') && hasSightline('fixed')) {
+        methods.fixed = {
+            framing: hiMethodState.fixed.framing,
+            exposed_edges: hiMethodState.fixed.exposed_edges,
+            sightline_mm: val('hi_fixed_sightline'),
+            sight_width_mm: val('hi_fixed_sight_width'),
+            sight_height_mm: val('hi_fixed_sight_height'),
+            panel_width_mm: val('hi_fixed_panel_width'),
+            panel_height_mm: val('hi_fixed_panel_height'),
+            opaque_or_patterned: !!hiMethodState.fixed.opaque_or_patterned,
+            rail_present: !!hiMethodState.fixed.rail_present,
+            rail_upper_edge_mm: val('hi_fixed_rail_upper'),
+            rail_lower_edge_mm: val('hi_fixed_rail_lower'),
+            level_difference: !!hiMethodState.fixed.level_difference,
+            level_difference_mm: hiMethodState.fixed.level_difference ? 1000 : null,
+        };
+    }
+
+    if (hiState.selectedMethods.has('louvre') && document.getElementById('hi-card-louvre') && hasSightline('louvre')) {
+        methods.louvre = {
+            framing: hiMethodState.louvre.framing,
+            sightline_mm: val('hi_louvre_sightline'),
+            sight_width_mm: val('hi_louvre_sight_width'),
+            sight_height_mm: val('hi_louvre_sight_height'),
+            blade_width_mm: val('hi_louvre_blade_width'),
+            blade_length_mm: val('hi_louvre_blade_length'),
+        };
+    }
+
+    if (hiState.selectedMethods.has('sashless') && document.getElementById('hi-card-sashless')) {
+        methods.sashless = {
+            span_mm: val('hi_sashless_span'),
+        };
+    }
+
+    return {
+        opening_type: hiState.openingType,
+        reclassified_as_side_panel: hiState.reclassifiedAsSidePanel,
+        building_use: hiState.buildingUse,
+        is_bathroom: hiState.isBathroom,
+        high_risk: hiState.highRisk,
+        methods,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// RUN CHECK
+// ---------------------------------------------------------------------------
+
+let hiRequestSeq = 0;
+
+function runCheck() {
+    if (hiState.selectedMethods.size === 0) return;
+
+    const payload = buildPayload();
+    const seq = ++hiRequestSeq;
+
+    // A selected method with a required field left blank (e.g. sightline)
+    // is left out of the request payload entirely (see hasSightline() /
+    // buildPayload() above) - render its own "needs input" placeholder
+    // immediately rather than leaving whatever result happened to be on
+    // screen before, which would otherwise look like a stale/frozen card.
+    ['fixed', 'louvre'].forEach(method => {
+        if (hiState.selectedMethods.has(method) && document.getElementById(`hi-card-${method}`) && !hasSightline(method)) {
+            renderNeedsInput(method, 'Enter the lowest sightline to see the result.');
+        }
+    });
+
+    fetch('/human_impact/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (seq !== hiRequestSeq) return; // a newer request has since fired - ignore this stale response
+        if (!data.success) {
+            console.error('Human impact check failed:', data.error);
+            return;
+        }
+        Object.keys(data.results).forEach(method => renderMethodResult(method, data.results[method]));
+    })
+    .catch(err => console.error('Human impact check request failed:', err));
+}
+
+// ---------------------------------------------------------------------------
+// RENDER RESULT
+// ---------------------------------------------------------------------------
+
+const TYPE_LABELS = {
+    monolithic_annealed: 'Monolithic Annealed',
+    monolithic_heat_strengthened: 'Monolithic Heat-strengthened',
+    monolithic_toughened: 'Monolithic Toughened',
+    laminated_annealed: 'Laminated Annealed',
+    laminated_heat_strengthened: 'Laminated Heat-strengthened',
+    laminated_toughened: 'Laminated Toughened',
+};
+
+function renderNeedsInput(method, message) {
+    const container = document.getElementById(`hi-result-${method}`);
+    if (!container) return;
+    container.innerHTML = `<div class="hi-results-placeholder">${escapeHtml(message)}</div>`;
+}
+
+function renderMethodResult(method, result) {
+    const container = document.getElementById(`hi-result-${method}`);
+    if (!container) return;
+
+    if (!result.scope) {
+        container.innerHTML = `
+            <div class="hi-verdict oos">Not assessed by this tool</div>
+            ${result.out_of_scope_reasons.map(r => `<div class="hi-notes"><div class="detail-note">${escapeHtml(r)}</div></div>`).join('')}
+            ${buildTrailHtml(method, result.trail)}
+        `;
+        return;
+    }
+
+    let html = '';
+
+    if (result.grade_a_required) {
+        html += `<div class="hi-verdict required">Grade A safety glass required
+            ${result.table ? `<span class="hi-table-tag">Table ${escapeHtml(result.table)}</span>` : ''}
+        </div>`;
+    } else {
+        html += `<div class="hi-verdict not-required">No requirement found</div>`;
+    }
+
+    // Six-type grid, in a fixed, consistent order (TYPE_ORDER) regardless
+    // of the order the engine happened to list them in.
+    const typesById = {};
+    (result.types || []).forEach(t => { typesById[t.id] = t; });
+
+    html += `<div class="hi-type-grid">`;
+    TYPE_ORDER.forEach(typeId => {
+        const t = typesById[typeId];
+        if (!t) return;
+        const label = TYPE_LABELS[typeId] || t.name;
+        if (t.ok) {
+            let detail = t.min_thickness != null ? `${t.min_thickness}mm minimum` : 'available';
+            if (t.cap) {
+                const capBits = [];
+                if (t.cap.max_area_m2 != null) capBits.push(`&le;${t.cap.max_area_m2}m&sup2;`);
+                if (t.cap.max_width_mm != null) capBits.push(`&le;${t.cap.max_width_mm}mm width`);
+                if (capBits.length) detail += ` (${capBits.join(', ')})`;
+            }
+            html += `<div class="hi-type-row ok">
+                <span class="hi-type-name">${label}</span>
+                <span class="hi-type-detail">${detail}</span>
+            </div>`;
+        } else {
+            html += `<div class="hi-type-row blocked">
+                <span class="hi-type-name">${label}</span>
+                <span class="hi-type-detail">${escapeHtml(t.why || 'not available')}</span>
+            </div>`;
+        }
+    });
+    html += `</div>`;
+
+    if (result.notes && result.notes.length) {
+        html += `<div class="hi-notes">` +
+            result.notes.map(n => `<div class="flag-row">${escapeHtml(n)}</div>`).join('') +
+            `</div>`;
+    }
+
+    html += buildTrailHtml(method, result.trail);
+
+    html += `<button class="hi-disabled-action" disabled title="Wired into the calculator's accept/override flow in Phase 3">
+        Apply to calculator (Phase 3 — not yet available)
+    </button>`;
+
+    container.innerHTML = html;
+}
+
+function buildTrailHtml(method, trail) {
+    if (!trail || !trail.length) return '';
+    const listId = `hi-trail-list-${method}`;
+    return `
+        <button class="hi-trail-toggle" onclick="toggleTrail('${listId}', this)">Show reasoning (${trail.length})</button>
+        <ul class="hi-trail-list" id="${listId}" hidden>
+            ${trail.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+        </ul>
+    `;
+}
+
+function toggleTrail(listId, btn) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const nowHidden = !list.hidden;
+    list.hidden = nowHidden;
+    btn.textContent = btn.textContent.replace(nowHidden ? 'Hide' : 'Show', nowHidden ? 'Show' : 'Hide');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// TOOLTIPS — identical mechanics to the main calculator page (index.html)
+// ---------------------------------------------------------------------------
+
+function showTooltip(el) {
+    const popup = document.getElementById('tooltip-popup');
+    popup.textContent = el.dataset.tip;
+    popup.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    popup.style.left = `${rect.left + window.scrollX}px`;
+    popup.style.top = `${rect.bottom + window.scrollY + 6}px`;
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip-popup').style.display = 'none';
+}
+
+function attachTooltipListeners() {
+    document.querySelectorAll('.tip').forEach(el => {
+        if (el.dataset.tooltipBound) return;
+        el.dataset.tooltipBound = '1';
+        el.addEventListener('mouseenter', e => showTooltip(e.target));
+        el.addEventListener('mouseleave', hideTooltip);
+        el.addEventListener('focus', e => showTooltip(e.target));
+        el.addEventListener('blur', hideTooltip);
+        el.addEventListener('click', e => {
+            e.stopPropagation();
+            const popup = document.getElementById('tooltip-popup');
+            popup.style.display === 'block' ? hideTooltip() : showTooltip(e.target);
+        });
+    });
+}
+
+// ---------------------------------------------------------------------------
+// INITIALISE
+// ---------------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', () => {
+    buildMethodCheckboxes();
+    buildMethodCards();
+    attachTooltipListeners();
+});
+</script>
+
+</body>
+</html>

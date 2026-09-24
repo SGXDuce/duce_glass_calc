@@ -1,0 +1,4 @@
+glass_type,max_span_mm,min_thickness_mm
+MT,1000,5
+MT,1200,6
+LT,750,6
