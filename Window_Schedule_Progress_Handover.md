@@ -8,11 +8,11 @@ This doc covers one thread only: the **window schedule input feature** and the *
 
 ---
 
-## 0. BLOCKING — the human impact engine is missing from this repo
+## 0. Resolved — human impact engine recovery
 
-**The human impact engine (Phase 1 rules engine + Phase 2 questionnaire UI, per `human-impact-engine-notes.md`) does not exist anywhere in github.com/SGXDuce/duce_glass_calc — not on `master`, not on any branch, not in history.** `master` stops at V1.32 (4 September), before this work was reportedly built and tested. `human-impact-engine-notes.md` documents a working `engine/human_impact/` package, passing test suites, and a live `/human_impact` Flask route — none of which is present in this repo on any ref.
+The human impact engine (Phase 1 rules engine + Phase 2 questionnaire UI, per `human-impact-engine-notes.md`) was at one point missing from this repo entirely — not on `master`, not on any branch, not in history — because `master` stopped at V1.32 (4 September), before this work was reportedly built and tested. Recorded here rather than deleted so future readers know this almost got lost and why the recovery mattered.
 
-This needs to be found (local machine, uncommitted, or an unpushed branch) and pushed to its own branch before Step C (which depends on it) can be built, and before it's at risk of being lost. **This is the single most important open item.**
+The engine, routes, page, data tables and tests were recovered from uncommitted local work (11 September session), merged via PR #3 (commit `1225c20`) into `master`. Post-merge regression on the merged `master`: **91 passed, 0 failed**, across `test_human_impact.py`, `test_human_impact_routes.py`, the full 8-suite regression, and `test_schedule_routes.py`.
 
 ---
 
