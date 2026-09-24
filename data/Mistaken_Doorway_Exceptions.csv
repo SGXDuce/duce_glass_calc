@@ -1,0 +1,8 @@
+exception_id,test,comparator,threshold,notes_plain
+1,sight_width_mm,lte,500,sight size width
+2,sight_height_mm,lte,1000,sight size height
+3,sightline_mm,gte,500,lowest sightline above floor/ground
+4,opaque_or_patterned,eq,true,opaque or patterned glazing
+5,rail_upper_edge_mm,gte,700,crash/chair rail or transom - upper edge test (OR with row 6)
+6,rail_lower_edge_mm,lte,1000,crash/chair rail or transom - lower edge test (OR with row 5)
+7,level_difference_mm,gte,1000,protects a level difference

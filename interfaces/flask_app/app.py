@@ -12,6 +12,7 @@ from engine.wind_load import run_calculation, run_compliance_check
 from engine.silicone_bite import run_bite_calculation
 from engine.combined import run_pathway3_calculation, run_pathway4_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
+from engine.human_impact import determine_fixed, determine_louvre, determine_sashless
 
 # ---------------------------------------------------------------------------
 # VERSION / EXPIRY (single source of truth - launcher.py imports EXPIRY_DATE
@@ -104,6 +105,139 @@ def configurator():
 def schedule():
     """Serves the window schedule page (standalone, reachable independently)."""
     return render_template('schedule.html', app_version=APP_VERSION)
+
+
+@app.route('/human_impact')
+def human_impact_page():
+    """
+    Serves the standalone AS 1288 Section 5 (Human Impact) check page -
+    Phase 2 (v1.29). Reachable independently of the four wind-load
+    pathways; not linked from the landing page yet and does not touch any
+    Pathway 1-4 form, report, or safety-glass toggle. Wiring this into the
+    pathway forms and the accept/override-into-calculator flow is Phase 3.
+    """
+    return render_template('human_impact.html', app_version=APP_VERSION)
+
+
+@app.route('/human_impact/check', methods=['POST'])
+def human_impact_check():
+    """
+    JSON API for the standalone Human Impact check page. Thin translation
+    layer only, per standing discipline (Section 13.1): no rule logic
+    lives here. Translates the page's request JSON into the ctx dict
+    shape engine.human_impact expects, calls determine_fixed/
+    determine_louvre/determine_sashless once per selected glazing method,
+    and returns each method's full result dict (as produced by
+    make_human_impact_result) keyed by method id.
+
+    Request JSON shape:
+      {
+        "opening_type": "door" | "side_panel" | "window",
+        "reclassified_as_side_panel": bool,  // only meaningful when
+                                              // opening_type == "window"
+        "building_use": "residential" | "school" | "aged" | "other",
+        "is_bathroom": bool,
+        "high_risk": bool,
+        "methods": {
+          "fixed":    { ...method-specific fields... } | omitted,
+          "louvre":   { ...method-specific fields... } | omitted,
+          "sashless": { "span_mm": float } | omitted
+        }
+      }
+
+    Response JSON: { "fixed": {...result...}, "louvre": {...}, ... } -
+    only keys for methods actually present in the request's "methods".
+    """
+    try:
+        data = request.get_json()
+
+        opening_type = data.get('opening_type')
+        is_side_panel = (
+            opening_type == 'side_panel'
+            or (opening_type == 'window' and bool(data.get('reclassified_as_side_panel')))
+        )
+        shared = dict(
+            opening_type=opening_type,
+            is_side_panel=is_side_panel,
+            building_use=data.get('building_use', 'other'),
+            is_bathroom=bool(data.get('is_bathroom')),
+            high_risk=bool(data.get('high_risk')),
+        )
+
+        methods = data.get('methods', {})
+        results = {}
+
+        if 'fixed' in methods:
+            m = methods['fixed']
+            ctx = dict(shared)
+            ctx['is_louvre'] = False
+            ctx['framing'] = m.get('framing')
+            ctx['exposed_edges'] = m.get('exposed_edges')
+            ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
+            ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
+            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
+            ctx['opaque_or_patterned'] = bool(m.get('opaque_or_patterned'))
+            ctx['rail_present'] = bool(m.get('rail_present'))
+            ctx['rail_upper_edge_mm'] = _to_float(m.get('rail_upper_edge_mm'))
+            ctx['rail_lower_edge_mm'] = _to_float(m.get('rail_lower_edge_mm'))
+            ctx['level_difference_mm'] = _to_float(m.get('level_difference_mm')) if m.get('level_difference') else None
+            panel_area_m2, panel_width_mm = _panel_area_and_width(m)
+            ctx['panel_area_m2'] = panel_area_m2
+            ctx['panel_width_mm'] = panel_width_mm
+            results['fixed'] = determine_fixed(ctx)
+
+        if 'louvre' in methods:
+            m = methods['louvre']
+            ctx = dict(shared)
+            ctx['framing'] = m.get('framing')
+            ctx['exposed_edges'] = m.get('exposed_edges')
+            ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
+            ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
+            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
+            ctx['opaque_or_patterned'] = False
+            ctx['rail_present'] = False
+            ctx['rail_upper_edge_mm'] = None
+            ctx['rail_lower_edge_mm'] = None
+            ctx['level_difference_mm'] = None
+            panel_area_m2, panel_width_mm = _panel_area_and_width(m)
+            ctx['panel_area_m2'] = panel_area_m2
+            ctx['panel_width_mm'] = panel_width_mm
+            ctx['blade_width_mm'] = _to_float(m.get('blade_width_mm'))
+            ctx['blade_length_mm'] = _to_float(m.get('blade_length_mm'))
+            results['louvre'] = determine_louvre(ctx)
+
+        if 'sashless' in methods:
+            span_mm = _to_float(methods['sashless'].get('span_mm'))
+            results['sashless'] = determine_sashless(span_mm)
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def _to_float(value):
+    """None/''/missing -> None, otherwise float(value). Small helper so
+    the route above doesn't repeat this guard at every field."""
+    if value is None or value == '':
+        return None
+    return float(value)
+
+
+def _panel_area_and_width(method_data):
+    """
+    Derives panel_area_m2/panel_width_mm from the page's width/height
+    fields, if supplied - these feed the annealed/heat-strengthened
+    area/width cap tests in combine_alts(). Both are optional; a method
+    card that never asks for panel width/height (e.g. sashless) simply
+    yields (None, None), which the engine treats as "no dimensions to
+    test the cap against" per its own None-guards.
+    """
+    width_mm = _to_float(method_data.get('panel_width_mm'))
+    height_mm = _to_float(method_data.get('panel_height_mm'))
+    if width_mm is None or height_mm is None:
+        return None, None
+    return (width_mm * height_mm) / 1_000_000.0, width_mm
 
 
 @app.route('/calculate', methods=['POST'])

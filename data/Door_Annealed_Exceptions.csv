@@ -1,0 +1,4 @@
+exception_id,min_thickness_mm,max_area_m2,max_width_mm,framing_required,notes_plain
+1,3,0.10,125,fully_framed,"3-4mm band, Clause 5.2(f)(i)"
+2,5,0.26,300,fully_framed,"5-8mm band, Clause 5.2(f)(ii); 8mm inherits this band by Duce interpretation, not literal clause text"
+3,10,0.50,,fully_framed,"10mm+ band, Clause 5.2(g)"

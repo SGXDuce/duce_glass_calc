@@ -353,6 +353,53 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
     }
 
 
+def make_human_impact_result(scope=True, grade_a_required=None, table=None,
+                              types=None, notes=None, trail=None,
+                              clauses=None, out_of_scope_reasons=None):
+    """
+    Builds an engine/human_impact result dictionary with a guaranteed,
+    consistent set of keys. Every return path in determine_fixed(),
+    determine_louvre(), and determine_sashless() must call this instead of
+    building its own dict - same "one constructor, every return path goes
+    through it" discipline as make_mode1_result() etc., see Section 6.4 of
+    the project summary. Lets the structural-consistency test pattern
+    extend cleanly to this engine.
+
+    scope: False means this configuration is not assessed by the tool at
+    all (see out_of_scope_reasons) - grade_a_required and table are then
+    meaningless and left None, types is empty.
+
+    grade_a_required: None only when scope is False. Otherwise True/False.
+
+    types: list of dicts, one per glass type actually reported on this
+    call - {id, name, ok, min_thickness, cap, why}. 'cap' is the
+    area/width cap dict (or None) for annealed/heat-strengthened
+    alternative routes; 'why' explains an ok=False result (or None).
+
+    notes: informational, non-blocking messages (e.g. the bathroom
+    vanity/bench exemption note, the high-risk permanent-barrier note).
+
+    trail: ordered list of human-readable strings recording which clauses
+    were tested and why they did or didn't match - the audit trail for
+    match_location()'s reasoning.
+
+    clauses: the AS 1288 clause references actually engaged for this
+    result (e.g. ['5.2', '5.8']).
+
+    out_of_scope_reasons: populated only when scope is False.
+    """
+    return {
+        'scope': scope,
+        'grade_a_required': grade_a_required,
+        'table': table,
+        'types': types if types is not None else [],
+        'notes': notes if notes is not None else [],
+        'trail': trail if trail is not None else [],
+        'clauses': clauses if clauses is not None else [],
+        'out_of_scope_reasons': out_of_scope_reasons if out_of_scope_reasons is not None else [],
+    }
+
+
 def make_structural_glazing_result(status, height_m=None, width_m=None,
                                     glass_thickness_nominal_mm=None, pz_kpa=None,
                                     sealed_edges=None, wind_span_m=None,
