@@ -81,3 +81,79 @@ def get_nominal_thickness(df_nominal, glass_type, actual_thickness_mm):
             nominal_thickness = int(row['Nominal Thickness (mm)'])
 
     return nominal_thickness
+
+
+# ---------------------------------------------------------------------------
+# HUMAN IMPACT (engine/human_impact) DATA LOADERS
+#
+# Added for the human_impact engine (AS 1288 Section 5). Same pure-data-
+# access discipline as the loaders above - no dependency on anything else
+# in the engine.
+# ---------------------------------------------------------------------------
+
+def load_human_impact_table_5_4(csv_path):
+    """
+    Loads AS 1288 Table 5.4 (bathroom, partly framed/unframed) from CSV.
+
+    *** PLACEHOLDER DATA *** - Sahil is supplying the real values for this
+    table. The interim rows here are derived from clause discussion only,
+    to make the engine testable now. Replace data/Table_5_4_Bathroom_Partly_Framed.csv
+    once the real table arrives.
+
+    Returns a pandas DataFrame with columns: glass_type, min_thickness_mm,
+    area_allowance_max_m2, area_allowance_min_thickness_mm. The area
+    allowance columns are blank/NaN for glass types with no reduced-
+    thickness allowance in the interim data (currently LT - do not guess
+    a value, leave as NaN until the real CSV is supplied).
+    """
+    df = pd.read_csv(csv_path)
+    numeric_columns = ['min_thickness_mm', 'area_allowance_max_m2', 'area_allowance_min_thickness_mm']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
+
+
+def load_mistaken_doorway_exceptions(csv_path):
+    """
+    Loads AS 1288 Clause 5.4 "mistaken for a doorway" exceptions from CSV.
+    Returns a pandas DataFrame with columns: exception_id, test, comparator,
+    threshold, notes_plain. 'threshold' is left as-is (str) since it can be
+    numeric (mm figures) or 'true' (boolean-style test) - callers coerce
+    per-row based on 'test'.
+    """
+    return pd.read_csv(csv_path)
+
+
+def load_sashless_span_table(csv_path):
+    """
+    Loads the AS 1288 Clause 5.15 sashless span table from CSV.
+    Returns a pandas DataFrame with columns: glass_type, max_span_mm,
+    min_thickness_mm. Rows are in ascending max_span_mm order per glass
+    type - callers rely on this order to find the first (narrowest)
+    qualifying band.
+    """
+    df = pd.read_csv(csv_path)
+    numeric_columns = ['max_span_mm', 'min_thickness_mm']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col])
+    return df
+
+
+def load_door_annealed_exceptions(csv_path):
+    """
+    Loads AS 1288 Clause 5.2(f)/(g) annealed/heat-strengthened door
+    exception bands from CSV. Returns a pandas DataFrame with columns:
+    exception_id, min_thickness_mm, max_area_m2, max_width_mm,
+    framing_required, notes_plain. max_width_mm is NaN for the top band
+    (no width limit).
+
+    Duce interpretation (see data/Door_Annealed_Exceptions.csv notes):
+    applies to monolithic annealed AND monolithic heat-strengthened -
+    heat-strengthened tracks annealed for every human impact exception in
+    this engine.
+    """
+    df = pd.read_csv(csv_path)
+    numeric_columns = ['min_thickness_mm', 'max_area_m2', 'max_width_mm']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
