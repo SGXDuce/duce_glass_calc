@@ -145,20 +145,24 @@ Section 14.5 rule 7 ("horizontal span out of scope") is documentation-only — n
 
 ---
 
-## 11. Sliding panel height and double-hung jamb corrections — RESOLVED, verified against real code
+## 11. Sliding panel height and double-hung jamb corrections — DISPUTED, re-verification in progress
 
-Configurator batches 57–59 (commit `89d802c` on github.com/SGXDuce/Configurator) fixed:
+Configurator batches 57–59 (commit `89d802c` on github.com/SGXDuce/Configurator) were recorded below as fixing:
 - sliding-window/door `heightMM` now includes the head/sill tuck-in (40mm total, person-confirmed, sashless = flush/0)
 - a real bug in batch 57 (`O` wrongly getting the height correction) was found and fixed in batch 58
 - double-hung `widthMM` now includes a per-UNIT jamb tuck-in (40mm total per unit, including a boxed-in DDD middle unit)
 
-All verified directly against the diff, not just the batch report. `widthMM`/`heightMM` are now trustworthy for both axes, both families, framed and sashless.
+That claim was originally logged as "verified directly against the diff, not just the batch report."
+
+**Disputed (24 Sept, this session):** the Configurator project's own session, working from its attached `configurator_prototype_oxxo_8.html`, reports that file only goes through batch 56 (its own Project Summary header says "Next free batch: 57"), that batches 57–59 and commit `024a9f8` aren't present in it, and that the live `yMM`/`heightMM` code has **no tuck-in correction logic at all** — `heightMM: l.h` is the raw drawn leaf height, and the comment above it reads "yMM is untouched... sliding panel height is still the opening height, an open gap, not addressed here." That session's own project memory logs the tuck-in fix as "a request for the next build session," not built.
+
+Two explanations, neither confirmed from here: (1) batches 57–59 happened elsewhere and haven't propagated back into that project's attached file/summary yet, so the original claim still holds once it catches up; or (2) the work never actually landed and the "RESOLVED, verified against real code" claim below was wrong. **Do not trust `widthMM`/`heightMM` as tuck-in-corrected for sliding/double-hung panes until this resolves** — treat §14's dependency on them (via §12) as blocked in the meantime. A follow-up request has gone to the Configurator project asking it to re-export a known test geometry and report back `yMM`, `heightMM`, and `sashEdgesMM.bottom` directly, to settle which case this is.
 
 ---
 
 ## 12. Step A (schedule page + configurator embed) — built and verified
 
-Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator at commit `6cc789e` (needs re-vendoring to pick up batches 57–59 before Step C work starts — the field mapping in §14 depends on trustworthy `widthMM`/`heightMM`, which batches 57–59 provide).
+Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator at commit `6cc789e` (needs re-vendoring to pick up batches 57–59 before Step C work starts — the field mapping in §14 depends on trustworthy `widthMM`/`heightMM`. **§11 now disputes whether batches 57–59 actually deliver that fix** — resolve §11 before treating this re-vendoring step as sufficient).
 
 Full click-through test passed via Claude in Chrome: add row, edit geometry, build a sashless OX, Done, pane table populated correctly (sashless + `unframedEdgeReasons` both matched), reopen round-trips the same layout, close-without-Done leaves data unchanged. All 8 existing test suites still pass, no engine code touched.
 
