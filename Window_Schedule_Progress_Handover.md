@@ -158,7 +158,7 @@ All verified directly against the diff, not just the batch report. `widthMM`/`he
 
 ## 12. Step A (schedule page + configurator embed) — built and verified
 
-Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator at commit `6cc789e` (needs re-vendoring to pick up batches 57–59 before Step C work starts).
+Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator at commit `6cc789e` (needs re-vendoring to pick up batches 57–59 before Step C work starts — the field mapping in §14 depends on trustworthy `widthMM`/`heightMM`, which batches 57–59 provide).
 
 Full click-through test passed via Claude in Chrome: add row, edit geometry, build a sashless OX, Done, pane table populated correctly (sashless + `unframedEdgeReasons` both matched), reopen round-trips the same layout, close-without-Done leaves data unchanged. All 8 existing test suites still pass, no engine code touched.
 
@@ -171,3 +171,40 @@ Full click-through test passed via Claude in Chrome: add row, edit geometry, bui
 - Engineering logic gets validated by hand, against Michael, or against the standard **before** code is written.
 - The configurator project has no visibility into this project, so every handoff must be self-contained.
 - **Verification status note:** `side_panel_rule_tester.html`, referenced in the configurator's own project summary as "built and verified," could not be found in either project's repo or files. Treat the side-panel rule (§6.3-referenced in the configurator's own docs) as documented but **unverified** on both sides until it turns up or is rebuilt.
+
+---
+
+## 14. Step C — ctx field mapping (human impact engine inputs)
+
+Traced directly against the real recovered engine code (`engine/human_impact/__init__.py`, `location_rules.py`) on `master`, not against the original design notes — field names and required-vs-optional status confirmed from `match_location()`'s actual body.
+
+### Fields derivable directly from the configurator export, no new question needed
+
+| ctx field | Source |
+|---|---|
+| `opening_type` | pane's `productClass` — `'door'` or `'window'` map directly; `'side-panel'` also maps to `'window'`, with `is_side_panel` set separately |
+| `is_side_panel` | `productClass === 'side-panel'`, via the configurator's own section 6.3 derivation rule |
+| `is_louvre` | pane type === `'louvre'` |
+| `blade_width_mm` / `blade_length_mm` | pane's `bladeWidthMM` / `bladeLengthMM`, already exported for louvre panes |
+| `sight_width_mm` / `sight_height_mm` | `widthMM`/`heightMM` minus `sashEdgesMM` per side (see §6 item 5) |
+| `panel_area_m2` / `panel_width_mm` | derived from the sight-size values above |
+| `framing` (`'fully'`/`'partly'`/`'unframed'`) | derived from `unframedEdgeReasons`, using the opposite-vs-adjacent-edges rule (§10) and the four-reason routing table (§8) |
+
+### Fields from the schedule row, already decided
+
+| ctx field | Source |
+|---|---|
+| `building_use` | schedule row's building type |
+| `is_bathroom` | schedule row's room type (kitchens included, NCC 8.4.6) |
+| `high_risk` | schedule row's separate yes/no question |
+
+### Fields that still need a real question asked somewhere, not derivable from geometry
+
+| ctx field | Where it has to be asked |
+|---|---|
+| `sightline_mm` | Per pane. System FFL + pane's own `yMM` offset. **OPEN QUESTION, unresolved:** does `sightline_mm` mean the pane's lowest visible point above FFL, or something else the engine assumes? Needs one-line confirmation before a formula is built around it. |
+| `opaque_or_patterned` | Per pane, a glass-order property the configurator has no reason to know |
+| `rail_present`, `rail_upper_edge_mm`, `rail_lower_edge_mm`, `level_difference_mm` | The mistaken-for-doorway sub-questions (Clause 5.4) — per pane, asked only when relevant |
+| framing for the `frame-off` edge case | Still needs the hybrid confirm-or-mark-edges question (§6 item 3) before framing can be computed for that case |
+
+**Build-order note:** the translation layer (pure geometry → ctx) and the question UI (the four items above) are separable. The translation layer can be built and tested first with hand-supplied values for the question-driven fields, without waiting on UI design.
