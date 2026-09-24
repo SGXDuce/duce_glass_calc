@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Window Schedule — Duce Timber Windows and Doors</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.35.0/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- ========== HEADER ========== -->
+<div class="app-header">
+    <div class="header-text">
+        <div class="header-title">Window Schedule</div>
+        <div class="header-sub">Geometry Input — Internal Use</div>
+    </div>
+    <img src="{{ url_for('static', filename='duce_logo.png') }}"
+         class="header-logo" alt="Duce Timber Windows and Doors">
+</div>
+
+<div class="version-footer">{{ app_version }}</div>
+
+<div class="schedule-page">
+    <div class="schedule-intro">
+        <div class="schedule-title">Window Schedule</div>
+        <div class="schedule-sub">One row per window/door system. Build each system's geometry in the configurator, then review its panes below.</div>
+    </div>
+
+    <button class="schedule-add-row-btn" onclick="addRow()">+ Add row</button>
+
+    <div id="schedule-rows" class="schedule-rows"></div>
+    <div id="schedule-empty" class="schedule-empty">No rows yet — click "Add row" to start a schedule.</div>
+</div>
+
+<!-- ========== CONFIGURATOR MODAL ========== -->
+<div id="configurator-modal-overlay" class="report-modal-overlay configurator-modal">
+    <div class="report-modal">
+        <div class="report-modal-header">
+            <div class="report-modal-header-title">
+                <i class="ti ti-frame"></i>
+                <span id="configurator-modal-title">Edit geometry</span>
+            </div>
+            <button class="report-modal-close" onclick="closeConfiguratorModal()" aria-label="Close">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+        <div id="configurator-modal-error" class="configurator-modal-error"></div>
+        <div class="report-modal-body">
+            <iframe id="configurator-iframe" title="Configurator"></iframe>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// WINDOW SCHEDULE — in-memory rows + configurator embed
+//
+// Rows live only in this page's JS memory (state.rows) - no persistence yet
+// (Window_Schedule_Progress_Handover.md item 6.6, pending the account/
+// database decision). Each row optionally holds the full export object
+// returned by the configurator's 'done' message; rawState inside it is
+// opaque and passed back unread on the next 'load'.
+// ---------------------------------------------------------------------------
+
+const state = {
+    rows: [],
+    nextRowId: 1,
+    openRowId: null,   // which row's modal is currently open
+};
+
+const CONFIGURATOR_SCHEMA_VERSION = 5;
+let configuratorReadyHandler = null; // the message listener bound to the currently-open modal
+
+function addRow() {
+    state.rows.push({
+        id: state.nextRowId++,
+        export: null, // full {schemaVersion, system, rawState} from the configurator's 'done', or null
+    });
+    renderRows();
+}
+
+function findRow(rowId) {
+    return state.rows.find(r => r.id === rowId);
+}
+
+function renderRows() {
+    const container = document.getElementById('schedule-rows');
+    const empty = document.getElementById('schedule-empty');
+    container.innerHTML = '';
+    empty.style.display = state.rows.length === 0 ? 'block' : 'none';
+
+    state.rows.forEach((row, index) => {
+        const el = document.createElement('div');
+        el.className = 'schedule-row';
+        el.innerHTML = buildRowHTML(row, index);
+        container.appendChild(el);
+    });
+}
+
+function buildRowHTML(row, index) {
+    const hasGeometry = !!row.export;
+    const statusText = hasGeometry
+        ? `${row.export.system.elevationCount} elevation(s), ${row.export.system.elevations.reduce((n, e) => n + e.panes.length, 0)} pane(s)`
+        : 'No geometry set yet.';
+
+    let html = `
+        <div class="schedule-row-head">
+            <span class="schedule-row-label">Row ${index + 1}</span>
+            <button class="schedule-edit-geometry-btn" onclick="openConfiguratorModal(${row.id})">
+                Edit geometry
+            </button>
+        </div>
+        <div class="schedule-geometry-status${hasGeometry ? ' set' : ''}">${statusText}</div>
+    `;
+
+    if (hasGeometry) {
+        html += buildPaneTablesHTML(row.export);
+    }
+
+    return html;
+}
+
+function buildPaneTablesHTML(exportData) {
+    const sys = exportData.system;
+    let html = `
+        <div class="schedule-system-meta">
+            System — angledJoinAngleDeg: ${sys.angledJoinAngleDeg ?? 'null'},
+            angledJoinType: ${sys.angledJoinType ?? 'null'}
+        </div>
+    `;
+
+    sys.elevations.forEach(ev => {
+        html += `
+            <div class="schedule-pane-table-wrap">
+                <table class="schedule-pane-table">
+                    <caption>${escapeHtml(ev.name)}</caption>
+                    <thead>
+                        <tr>
+                            <th>Pane ID</th>
+                            <th>Type</th>
+                            <th>Product class</th>
+                            <th>X (mm)</th>
+                            <th>Y (mm)</th>
+                            <th>Width (mm)</th>
+                            <th>Height (mm)</th>
+                            <th>Sashless</th>
+                            <th>Unframed T/B/L/R</th>
+                            <th>Unframed reasons T/B/L/R</th>
+                            <th>Linked pane</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ev.panes.map(paneRowHTML).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+
+    return html;
+}
+
+function boolCell(b) { return b ? 'Y' : 'N'; }
+function reasonCell(r) { return r == null ? '—' : escapeHtml(r); }
+
+function paneRowHTML(p) {
+    const uf = p.unframedEdges;
+    const ufr = p.unframedEdgeReasons;
+    return `
+        <tr>
+            <td>${escapeHtml(p.id)}</td>
+            <td>${escapeHtml(p.type)}</td>
+            <td>${escapeHtml(p.productClass ?? '')}</td>
+            <td>${p.xMM}</td>
+            <td>${p.yMM}</td>
+            <td>${p.widthMM}</td>
+            <td>${p.heightMM}</td>
+            <td>${boolCell(p.sashless)}</td>
+            <td>${boolCell(uf.top)}/${boolCell(uf.bottom)}/${boolCell(uf.left)}/${boolCell(uf.right)}</td>
+            <td>${reasonCell(ufr.top)}/${reasonCell(ufr.bottom)}/${reasonCell(ufr.left)}/${reasonCell(ufr.right)}</td>
+            <td>${p.linkedPaneId == null ? '—' : escapeHtml(p.linkedPaneId)}</td>
+        </tr>
+    `;
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURATOR MODAL / postMessage HANDSHAKE
+//
+// Protocol (configurator -> parent -> configurator -> parent):
+//   1. 'ready'  {type:'ready', schemaVersion:5}
+//   2. 'load'   {type:'load', state: null | <stored rawState>}   (sent by us)
+//   3. 'done'   {type:'done', export:{schemaVersion, system, rawState}}
+//
+// Both sides send with window.location.origin as targetOrigin, never '*'.
+// We only accept a message when event.origin === window.location.origin
+// AND event.source is exactly the iframe's own contentWindow - anything
+// else (wrong origin, or a message from some other frame) is silently
+// dropped, per the agreed protocol.
+//
+// The configurator sends no cancel message and has no close control when
+// embedded - closing the modal is entirely our job (the close button below).
+// If an export is blocked (e.g. a cross-elevation pane mismatch), the
+// configurator shows its own in-page error and sends nothing; we never see
+// that case at all, so there is nothing for us to handle for it.
+// ---------------------------------------------------------------------------
+
+function openConfiguratorModal(rowId) {
+    const row = findRow(rowId);
+    if (!row) return;
+
+    state.openRowId = rowId;
+
+    const overlay = document.getElementById('configurator-modal-overlay');
+    const iframe = document.getElementById('configurator-iframe');
+    const errorBox = document.getElementById('configurator-modal-error');
+    errorBox.classList.remove('show');
+    errorBox.textContent = '';
+
+    // Remove any previous listener before attaching a new one, and reload
+    // the iframe fresh each time so every open gets its own real 'ready'
+    // handshake rather than reusing a stale configurator session.
+    if (configuratorReadyHandler) {
+        window.removeEventListener('message', configuratorReadyHandler);
+        configuratorReadyHandler = null;
+    }
+
+    configuratorReadyHandler = function (event) {
+        if (event.origin !== window.location.origin) return;
+        if (event.source !== iframe.contentWindow) return;
+        const msg = event.data;
+        if (!msg || typeof msg !== 'object') return;
+
+        if (msg.type === 'ready') {
+            if (msg.schemaVersion !== CONFIGURATOR_SCHEMA_VERSION) {
+                showConfiguratorModalError(
+                    `Configurator schema mismatch: expected schemaVersion ${CONFIGURATOR_SCHEMA_VERSION}, ` +
+                    `got ${JSON.stringify(msg.schemaVersion)}. Not sending saved geometry - please contact support.`
+                );
+                return;
+            }
+            const currentRow = findRow(state.openRowId);
+            const storedRawState = (currentRow && currentRow.export) ? currentRow.export.rawState : null;
+            iframe.contentWindow.postMessage(
+                { type: 'load', state: storedRawState },
+                window.location.origin
+            );
+            return;
+        }
+
+        if (msg.type === 'done') {
+            const currentRow = findRow(state.openRowId);
+            if (currentRow && msg.export) {
+                currentRow.export = msg.export;
+            }
+            closeConfiguratorModal();
+            renderRows();
+            return;
+        }
+        // Any other message type is not part of the agreed protocol - ignored.
+    };
+
+    window.addEventListener('message', configuratorReadyHandler);
+
+    overlay.classList.add('open');
+    // Setting src (rather than reusing a previously-loaded iframe) forces a
+    // fresh document load, so the configurator's own module-load-time
+    // 'ready' send always fires for this open.
+    iframe.src = '/configurator';
+}
+
+function closeConfiguratorModal() {
+    const overlay = document.getElementById('configurator-modal-overlay');
+    const iframe = document.getElementById('configurator-iframe');
+    overlay.classList.remove('open');
+    iframe.src = 'about:blank';
+    if (configuratorReadyHandler) {
+        window.removeEventListener('message', configuratorReadyHandler);
+        configuratorReadyHandler = null;
+    }
+    state.openRowId = null;
+}
+
+function showConfiguratorModalError(message) {
+    const errorBox = document.getElementById('configurator-modal-error');
+    errorBox.textContent = message;
+    errorBox.classList.add('show');
+}
+
+renderRows();
+</script>
+
+</body>
+</html>
