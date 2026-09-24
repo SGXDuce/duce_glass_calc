@@ -1,7 +1,7 @@
 # AS 1288 Glass Thickness Calculator - Flask Web Application
 # Duce Timber Windows and Doors
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import datetime
 import os
 import sys
@@ -77,6 +77,33 @@ def index():
         app_version=APP_VERSION,
         pathway_4_enabled=PATHWAY_4_ENABLED,
     )
+
+
+# ---------------------------------------------------------------------------
+# WINDOW SCHEDULE / CONFIGURATOR EMBED
+#
+# The configurator is a separate project, vendored as a single self-contained
+# HTML file under static/configurator/ (see VARIANT_CHANGES.md there - never
+# edit that file directly). It is served through this dedicated route,
+# rather than relying on Flask's default static handler, purely so the
+# Content-Security-Policy header below can be attached to it specifically.
+# ---------------------------------------------------------------------------
+
+CONFIGURATOR_DIR = os.path.join(app.static_folder, 'configurator')
+
+
+@app.route('/configurator')
+def configurator():
+    """Serves the vendored configurator page for embedding in an iframe."""
+    response = send_from_directory(CONFIGURATOR_DIR, 'configurator.html')
+    response.headers['Content-Security-Policy'] = "frame-ancestors 'self'"
+    return response
+
+
+@app.route('/schedule')
+def schedule():
+    """Serves the window schedule page (standalone, reachable independently)."""
+    return render_template('schedule.html', app_version=APP_VERSION)
 
 
 @app.route('/calculate', methods=['POST'])
