@@ -152,13 +152,17 @@ Configurator batches 57–59 (commit `89d802c` on github.com/SGXDuce/Configurato
 - a real bug in batch 57 (`O` wrongly getting the height correction) was found and fixed in batch 58
 - double-hung `widthMM` now includes a per-UNIT jamb tuck-in (40mm total per unit, including a boxed-in DDD middle unit)
 
-All verified directly against the diff, not just the batch report. `widthMM`/`heightMM` are now trustworthy for both axes, both families, framed and sashless.
+All verified directly against the diff, not just the batch report. `widthMM`/`heightMM` are now trustworthy for both axes, both families, framed and sashless, **for preset-built assemblies**.
+
+**Batch 61 (commit `dad98aa`) extends this to a lone (non-preset) sliding leaf** — a sliding-window/door pane typed directly via the per-pane dropdown, with no OX/OXX/OXXO preset, previously exported flush/uncorrected on both axes. Re-verified independently after re-vendoring (see §14's `sightline_mm` worked example): 1800x2100mm/60mm frame/single horizontal-slider door leaf, 40mm sash, no preset now exports `yMM` 40, `heightMM` 2020 (was `yMM` 60, `heightMM` 1980 before the fix).
+
+**Known gap:** this same lone-leaf fix does not yet extend to a vertical slider's own up/down tuck-in when built outside the D/DD/DDD preset. Do not treat a non-preset vertical-slider pane's `yMM`/`heightMM` as trustworthy until that is fixed upstream.
 
 ---
 
 ## 12. Step A (schedule page + configurator embed) — built and verified
 
-Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator at commit `6cc789e` (needs re-vendoring to pick up batches 57–59 before Step C work starts — the field mapping in §14 depends on trustworthy `widthMM`/`heightMM`, which batches 57–59 provide).
+Live on branch `claude/determined-allen-duepf4` of github.com/SGXDuce/duce_glass_calc. Vendored configurator re-vendored to commit `dad98aa` (batch 61 — picks up batches 57–61, including the lone non-preset sliding-leaf tuck-in export fix; see §11 and §14's `sightline_mm` resolution).
 
 Full click-through test passed via Claude in Chrome: add row, edit geometry, build a sashless OX, Done, pane table populated correctly (sashless + `unframedEdgeReasons` both matched), reopen round-trips the same layout, close-without-Done leaves data unchanged. All 8 existing test suites still pass, no engine code touched.
 
@@ -198,13 +202,31 @@ Traced directly against the real recovered engine code (`engine/human_impact/__i
 | `is_bathroom` | schedule row's room type (kitchens included, NCC 8.4.6) |
 | `high_risk` | schedule row's separate yes/no question |
 
+### `sightline_mm` — RESOLVED
+
+**Meaning (confirmed by Sahil):** height of the bottom edge of the visible glass above finished floor level (FFL).
+
+**Formula:**
+```
+sightline_mm = row's height of lowest part of system above FFL + pane.yMM + pane.sashEdgesMM.bottom
+```
+
+**`yMM` convention**, per the Configurator export: measured from the elevation's main origin (bottom-left corner of the outer frame, or of the opening if there is no frame), Y increasing upward, and it is the pane's own bottom-left corner. The Configurator's internal drawing coordinates are top-down; the export code converts them. The AS 1288 tool only ever consumes the exported (bottom-up) version.
+
+For fixed panes `sashEdgesMM` is zero, so the sash rail term is zero.
+
+**Verified worked example:** 1800 x 2100 opening, 60mm frame all round, single plain horizontal-slider door pane, 40mm sash all edges, FFL height 0. Fresh export after re-vendoring to `dad98aa` (batch 61 — see §11/§12) gave `yMM` 40, `heightMM` 2020, `sashEdgesMM.bottom` 40, so `sightline_mm = 0 + 40 + 40 = 80mm`. This matches the hand calculation (60mm sill, 20mm of the 40mm rail tucked in, 20mm visible, 60 + 20 = 80).
+
+Before re-vendoring (`6cc789e`) the same case exported `yMM` 60 and `heightMM` 1980, giving 100mm — the wrong result, now fixed upstream.
+
+**Known gap:** the Configurator's tuck-in fix does not yet cover a vertical slider's own up/down tuck-in when built outside the D/DD/DDD preset. Do not apply the `sightline_mm` formula above to that pane type until it is fixed upstream. Preset-built assemblies (OX/OXX/OXXO, D/DD/DDD) were already correct.
+
 ### Fields that still need a real question asked somewhere, not derivable from geometry
 
 | ctx field | Where it has to be asked |
 |---|---|
-| `sightline_mm` | Per pane. System FFL + pane's own `yMM` offset. **OPEN QUESTION, unresolved:** does `sightline_mm` mean the pane's lowest visible point above FFL, or something else the engine assumes? Needs one-line confirmation before a formula is built around it. |
 | `opaque_or_patterned` | Per pane, a glass-order property the configurator has no reason to know |
 | `rail_present`, `rail_upper_edge_mm`, `rail_lower_edge_mm`, `level_difference_mm` | The mistaken-for-doorway sub-questions (Clause 5.4) — per pane, asked only when relevant |
 | framing for the `frame-off` edge case | Still needs the hybrid confirm-or-mark-edges question (§6 item 3) before framing can be computed for that case |
 
-**Build-order note:** the translation layer (pure geometry → ctx) and the question UI (the four items above) are separable. The translation layer can be built and tested first with hand-supplied values for the question-driven fields, without waiting on UI design.
+**Status:** the translation layer (pure geometry → ctx) is now fully specified for every geometry-derived field, including `sightline_mm` above. The remaining open items are all question-driven fields (`opaque_or_patterned`, the rail-height/`level_difference_mm` sub-questions) still using hand-supplied stub values pending UI design — they do not block building or testing the translation layer itself.
