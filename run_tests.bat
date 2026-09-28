@@ -2,9 +2,9 @@
 setlocal enabledelayedexpansion
 
 rem AS 1288 Glass Thickness Calculator - Full Regression Runner (Windows)
-rem Runs all 8 tracked test suites in one command:
-rem   - 5 pytest suites (test_pathway3, test_pathway4, test_silicone_bite,
-rem     test_structural_glazing, test_table_5_3)
+rem Runs all 9 tracked test suites in one command:
+rem   - 6 pytest suites (test_pathway3, test_pathway4, test_silicone_bite,
+rem     test_structural_glazing, test_table_5_3, test_schedule_translation)
 rem   - 3 standalone script-style test files (test_runner, test_runner_2,
 rem     test_structural_consistency) - these are NOT pytest-discoverable
 rem     and do not exit non-zero on failure, so pass/fail is determined by
@@ -23,9 +23,9 @@ set STEP4=FAIL
 
 echo ============================================================
 echo   STEP 1/4: pytest suites (pathway3, pathway4, silicone_bite,
-echo             structural_glazing, table_5_3)
+echo             structural_glazing, table_5_3, schedule_translation)
 echo ============================================================
-"%PYTHON%" -m pytest tests/test_pathway3.py tests/test_pathway4.py tests/test_silicone_bite.py tests/test_structural_glazing.py tests/test_table_5_3.py -v
+"%PYTHON%" -m pytest tests/test_pathway3.py tests/test_pathway4.py tests/test_silicone_bite.py tests/test_structural_glazing.py tests/test_table_5_3.py tests/test_schedule_translation.py -v
 if %errorlevel% equ 0 set STEP1=PASS
 
 echo.
@@ -62,14 +62,14 @@ echo.
 echo ============================================================
 echo   REGRESSION SUMMARY
 echo ============================================================
-echo   1. pytest suites (5)              : !STEP1!
+echo   1. pytest suites (6)              : !STEP1!
 echo   2. test_runner.py                 : !STEP2!
 echo   3. test_runner_2.py               : !STEP3!
 echo   4. test_structural_consistency.py : !STEP4!
 echo ============================================================
 
 if "!STEP1!!STEP2!!STEP3!!STEP4!"=="PASSPASSPASSPASS" (
-    echo   OVERALL: ALL 8 SUITES PASSED
+    echo   OVERALL: ALL 9 SUITES PASSED
     exit /b 0
 ) else (
     echo   OVERALL: FAILURE DETECTED - see steps marked FAIL above
