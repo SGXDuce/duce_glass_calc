@@ -522,6 +522,96 @@ def test_24():
 
 
 # ---------------------------------------------------------------------------
+# TEST 25 — Bathroom trail text with a missing sightline (no "None" leak)
+# ---------------------------------------------------------------------------
+
+MISSING_SIGHTLINE_TRAIL = ("Clause 5.8 (bathroom) could not be checked - sightline not "
+                            "provided, so the 2000mm trigger was not tested.")
+ABOVE_TRIGGER_TEXT = "is above the 2000mm trigger"
+
+
+def test_25():
+    # Bathroom, sightline_mm=None -> the "not matched" trail message must
+    # read in plain words, never interpolate the missing value raw. Also
+    # pins grade_a_required/table/types to the pre-fix values so the fix
+    # is confirmed to only change trail wording, not any matching result.
+    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+                   sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000)
+    result = determine_fixed(ctx)
+    no_none_in_trail = all('None' not in line for line in result['trail'])
+    has_new_message = any(MISSING_SIGHTLINE_TRAIL in line for line in result['trail'])
+    no_above_trigger_text = all(ABOVE_TRIGGER_TEXT not in line for line in result['trail'])
+    expected_types = [
+        {'id': 'monolithic_annealed', 'name': 'Monolithic Annealed', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
+        {'id': 'monolithic_heat_strengthened', 'name': 'Monolithic Heat-strengthened', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
+        {'id': 'monolithic_toughened', 'name': 'Monolithic Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
+        {'id': 'laminated_annealed', 'name': 'Laminated Annealed', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
+        {'id': 'laminated_heat_strengthened', 'name': 'Laminated Heat-strengthened', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
+        {'id': 'laminated_toughened', 'name': 'Laminated Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
+    ]
+    checks = [
+        ('no "None" in trail', True, no_none_in_trail, no_none_in_trail),
+        ('new "could not be checked" message present', True, has_new_message, has_new_message),
+        ('old "is above the 2000mm trigger" text absent', True, no_above_trigger_text, no_above_trigger_text),
+        ('grade_a_required unchanged', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('table unchanged', '5.1', result['table'], result['table'] == '5.1'),
+        ('types unchanged', expected_types, result['types'], result['types'] == expected_types),
+    ]
+
+    # Real sightline (2100mm, above the 2000mm trigger) must keep the
+    # original wording unchanged.
+    ctx_real = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+                        sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000)
+    result_real = determine_fixed(ctx_real)
+    has_above_trigger_text = any(ABOVE_TRIGGER_TEXT in line for line in result_real['trail'])
+    checks.append(('sightline=2100 keeps "is above the 2000mm trigger" wording',
+                   True, has_above_trigger_text, has_above_trigger_text))
+
+    return report('25', 'Bathroom fixed panel, sightline_mm=None -> exact new trail wording, result unchanged', checks)
+
+
+def test_26():
+    # Same missing-sightline check for determine_louvre.
+    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+                   sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000,
+                   blade_width_mm=200, blade_length_mm=900)
+    result = determine_louvre(ctx)
+    no_none_in_trail = all('None' not in line for line in result['trail'])
+    has_new_message = any(MISSING_SIGHTLINE_TRAIL in line for line in result['trail'])
+    no_above_trigger_text = all(ABOVE_TRIGGER_TEXT not in line for line in result['trail'])
+    expected_types = [
+        {'id': t, 'name': n, 'ok': True, 'min_thickness': None, 'cap': None, 'why': None}
+        for t, n in [
+            ('monolithic_annealed', 'Monolithic Annealed'),
+            ('monolithic_heat_strengthened', 'Monolithic Heat-strengthened'),
+            ('monolithic_toughened', 'Monolithic Toughened'),
+            ('laminated_annealed', 'Laminated Annealed'),
+            ('laminated_heat_strengthened', 'Laminated Heat-strengthened'),
+            ('laminated_toughened', 'Laminated Toughened'),
+        ]
+    ]
+    checks = [
+        ('no "None" in trail', True, no_none_in_trail, no_none_in_trail),
+        ('new "could not be checked" message present', True, has_new_message, has_new_message),
+        ('old "is above the 2000mm trigger" text absent', True, no_above_trigger_text, no_above_trigger_text),
+        ('grade_a_required unchanged', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('table unchanged', None, result['table'], result['table'] is None),
+        ('types unchanged', expected_types, result['types'], result['types'] == expected_types),
+    ]
+
+    # Real sightline (2100mm) must keep the original wording for louvres too.
+    ctx_real = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+                        sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000,
+                        blade_width_mm=200, blade_length_mm=900)
+    result_real = determine_louvre(ctx_real)
+    has_above_trigger_text = any(ABOVE_TRIGGER_TEXT in line for line in result_real['trail'])
+    checks.append(('sightline=2100 keeps "is above the 2000mm trigger" wording',
+                   True, has_above_trigger_text, has_above_trigger_text))
+
+    return report('26', 'Bathroom louvre, sightline_mm=None -> exact new trail wording, result unchanged', checks)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -535,7 +625,7 @@ def run_tests():
         test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8,
         test_9, test_10, test_11, test_12, test_13, test_14, test_15,
         test_16, test_17, test_18, test_19, test_20, test_21, test_22,
-        test_23, test_24,
+        test_23, test_24, test_25, test_26,
     ]
     results = [t() for t in tests]
 
