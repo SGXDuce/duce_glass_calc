@@ -1,13 +1,27 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.32 (Accessibility/usability audit pass — six fixes live-verified: label association, keyboard focus visibility (including a toggle-group outline-clipping bug found and fixed mid-session), result-label contrast (required two passes to hit the correctly-specified selectors), tooltip keyboard access, report modal focus trap, clear-fields confirmation. Separately, clipboard copy-as-image removed entirely — permanently broken on the live HTTP site due to the Clipboard API's secure-context requirement — superseded by the unaffected download-as-image path. Pushed to both `origin` and `cpanel` (live) by Sahil.)
-### Last Updated: 4 September 2026
+### Version: V1.33 (Schedule translation layer — `engine/schedule/translation.py` — built and merged to master, not yet wired to the engine, schedule page, or any route; 38/38 own tests, 131/131 full regression. Human impact bathroom-trail `is not None` guard closed at the source, engine fix with no logic change, tests 25/26 added.)
+### Last Updated: 28 September 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.33 — 28 September 2026 — Schedule translation layer built and merged (unwired); human impact bathroom-trail guard fix
+
+**Commit hash:** not recorded in this session — Sahil to fill in from `git log` once committed.
+
+**Schedule translation layer (`engine/schedule/translation.py`) built and merged to `master`, not yet wired to anything.** Implements the geometry-to-human-impact-ctx mapping specified in `Window_Schedule_Progress_Handover.md` sections 6–14: `translate_pane()` and `translate_system()`, producing one of three output methods per pane (`fixed`, `louvre`, `sashless`), including the `exposed_edges` field the human impact engine needs for partly framed/unframed side panels (missing from the section 14 ctx table until now). Tested in `tests/test_schedule_translation.py` — 38 passed. Full regression at merge: 131 passed. No route, UI, or data-model changes — the module is not called from the engine, the schedule page, or any route yet. New locked-in decisions from the build (door/side-panel geometric classification, sashless span formula, framing derivation, slider warning behaviour, stub-answer defaults) are recorded in the handover's new section 15 and in `engineering-decisions-notes.md`; two questions were opened for Michael (sight-size-vs-true-glass-size for human impact caps, and the 1200mm side-panel sightline figure against the standard).
+
+A bug in the side-panel gap function (a pane to the LEFT of a door always measured a gap of 0, regardless of actual distance) was found in review and fixed before merge, with boundary tests added at gap 100/300/301/1000mm in both directions.
+
+**Human impact engine: bathroom-trail `is not None` guard closed (engine fix, no logic change).** `engine/human_impact/location_rules.py`'s bathroom branch previously interpolated `sightline_mm` into its trail message without a null guard, producing the literal text "Nonemm" when sightline was missing — flagged as a residual item in a prior session, fixed client-side only at the time. Now closed at the source: the trail says the bathroom rule could not be checked when sightline is missing. `tests/test_human_impact.py` tests 25 and 26 added; suite is now 26/26. No rule logic changed — a missing sightline still fails open (switches off the bathroom, low-level, school, and aged-care triggers), so callers, including the new translation layer, must never pass `None` for sightline.
+
+**Also recorded, separately (not part of this session's own work):** the upstream Configurator's batch 60 (`dad98aa` + `24f1e45`) now corrects a lone or manually split slider's tuck-in per edge (both slider types); this repo's vendored copy remains `dad98aa` alone until re-vendored. See `Window_Schedule_Progress_Handover.md` section 11 for detail — no code in this repo changed as a result.
+
+**Outstanding as of this entry:** commit hash to be filled in once Sahil commits (see top of this entry). Wiring the translation layer into the engine/schedule page/routes is not started. Re-vendoring the Configurator to pick up batch 60 in full is not started. `__pycache__` `.pyc` files are tracked in git and need untracking (flagged in the handover's open items).
 
 ### v1.32 — 4 September 2026 — Accessibility/usability audit pass (six fixes, live-verified); clipboard copy-as-image removed, superseded by download-as-image
 
