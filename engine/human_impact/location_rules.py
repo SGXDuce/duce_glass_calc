@@ -141,8 +141,12 @@ def match_location(ctx, data):
                           "monolithic/laminated toughened.")
         notes.append(VANITY_EXEMPTION_NOTE)
     elif is_bathroom:
-        trail.append("Clause 5.8 (bathroom) considered but sightline "
-                      f"{sightline_mm}mm is above the 2000mm trigger - not matched.")
+        if sightline_mm is None:
+            trail.append("Clause 5.8 (bathroom) could not be checked - sightline not "
+                          "provided, so the 2000mm trigger was not tested.")
+        else:
+            trail.append("Clause 5.8 (bathroom) considered but "
+                          f"sightline {sightline_mm}mm is above the 2000mm trigger - not matched.")
 
     # --- Doors (Clause 5.2) --- only when not bathroom-triggered
     if opening_type == 'door' and not bathroom_triggered:
