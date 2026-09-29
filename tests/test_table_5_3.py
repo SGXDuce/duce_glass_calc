@@ -29,7 +29,9 @@ TABLE_5_3 = load_table_5_3(csv_path)
 def report(test_id, description, checks):
     """
     checks is a list of (label, expected, actual, ok) tuples.
-    Prints each check and returns True if all checks passed.
+    Prints each check, then asserts every one passed - a wrong actual
+    value now fails the test under pytest, not just under the __main__
+    script runner.
     """
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
@@ -39,6 +41,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -54,7 +58,7 @@ def test_1():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 6, result['min_thickness_mm'], result['min_thickness_mm'] == 6),
     ]
-    return report('1', 'Basic lookup, no restrictions', checks)
+    report('1', 'Basic lookup, no restrictions', checks)
 
 
 def test_2():
@@ -65,7 +69,7 @@ def test_2():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 6, result['min_thickness_mm'], result['min_thickness_mm'] == 6),
     ]
-    return report('2', 'Height band boundary (1.2m)', checks)
+    report('2', 'Height band boundary (1.2m)', checks)
 
 
 def test_3():
@@ -76,7 +80,7 @@ def test_3():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 8, result['min_thickness_mm'], result['min_thickness_mm'] == 8),
     ]
-    return report('3', 'Taller panel, thicker glass (1.5m)', checks)
+    report('3', 'Taller panel, thicker glass (1.5m)', checks)
 
 
 def test_4():
@@ -87,7 +91,7 @@ def test_4():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 6, result['min_thickness_mm'], result['min_thickness_mm'] == 6),
     ]
-    return report('4', 'Width-restricted row applies', checks)
+    report('4', 'Width-restricted row applies', checks)
 
 
 def test_5():
@@ -98,7 +102,7 @@ def test_5():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 8, result['min_thickness_mm'], result['min_thickness_mm'] == 8),
     ]
-    return report('5', 'Width exceeds restricted row, falls to unrestricted', checks)
+    report('5', 'Width exceeds restricted row, falls to unrestricted', checks)
 
 
 def test_6():
@@ -109,7 +113,7 @@ def test_6():
         ('status', 'NOT_PERMITTED', result['status'], result['status'] == 'NOT_PERMITTED'),
         ('min_thickness_mm', None, result['min_thickness_mm'], result['min_thickness_mm'] is None),
     ]
-    return report('6', 'Glass type not permitted at this height', checks)
+    report('6', 'Glass type not permitted at this height', checks)
 
 
 def test_7():
@@ -124,7 +128,7 @@ def test_7():
             result['glass_type_used'] == 'Toughened',
         ),
     ]
-    return report('7', 'Laminated Toughened uses Toughened rows (Note 2)', checks)
+    report('7', 'Laminated Toughened uses Toughened rows (Note 2)', checks)
 
 
 def test_8():
@@ -135,7 +139,7 @@ def test_8():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 6, result['min_thickness_mm'], result['min_thickness_mm'] == 6),
     ]
-    return report('8', 'Worked example - 2 butt joints', checks)
+    report('8', 'Worked example - 2 butt joints', checks)
 
 
 def test_9():
@@ -146,7 +150,7 @@ def test_9():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 6, result['min_thickness_mm'], result['min_thickness_mm'] == 6),
     ]
-    return report('9', 'Panel width exactly at the limit (1.2m)', checks)
+    report('9', 'Panel width exactly at the limit (1.2m)', checks)
 
 
 def test_10():
@@ -157,7 +161,7 @@ def test_10():
         ('status', 'COMPLIANT', result['status'], result['status'] == 'COMPLIANT'),
         ('min_thickness_mm', 8, result['min_thickness_mm'], result['min_thickness_mm'] == 8),
     ]
-    return report('10', 'Panel width just over the limit (1.21m)', checks)
+    report('10', 'Panel width just over the limit (1.21m)', checks)
 
 
 def test_11():
@@ -220,7 +224,7 @@ def test_11():
          dict(wind_mod.GLASS_TYPE_THICKNESSES),
          dict(wind_mod.GLASS_TYPE_THICKNESSES) == orig_thicknesses),
     ]
-    return report('11', 'Table 5.3-driven NO_COMPLIANT_THICKNESS (Mode 1, monkeypatched stock list - real data has no reachable case)', checks)
+    report('11', 'Table 5.3-driven NO_COMPLIANT_THICKNESS (Mode 1, monkeypatched stock list - real data has no reachable case)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +232,11 @@ def test_11():
 # ---------------------------------------------------------------------------
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Table 5.3 Test Runner')
     print('  Duce Timber Windows and Doors')
@@ -238,10 +247,14 @@ def run_tests():
         test_6, test_7, test_8, test_9, test_10,
         test_11,
     ]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)

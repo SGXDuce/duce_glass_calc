@@ -20,6 +20,9 @@ client = flask_app_module.app.test_client()
 
 
 def report(test_id, description, checks):
+    # Prints each check, then asserts every one passed - a wrong actual
+    # value now fails the test under pytest, not just under the __main__
+    # script runner.
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
     print()
@@ -28,6 +31,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -68,7 +73,7 @@ def test_1():
         ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
         ('monolithic_annealed min_thickness', 3.0, ma['min_thickness'], ma['min_thickness'] == 3.0),
     ]
-    return report('1', 'POST /human_impact/check - door, fully framed, 0.08m² -> annealed 3mm', checks)
+    report('1', 'POST /human_impact/check - door, fully framed, 0.08m² -> annealed 3mm', checks)
 
 
 def test_2():
@@ -94,7 +99,7 @@ def test_2():
          mt['ok'] is True and mt['min_thickness'] == 10),
         ('monolithic_annealed blocked', False, ma['ok'], ma['ok'] is False),
     ]
-    return report('2', 'POST /human_impact/check - door, unframed -> toughened only, 10mm', checks)
+    report('2', 'POST /human_impact/check - door, unframed -> toughened only, 10mm', checks)
 
 
 def test_3():
@@ -123,7 +128,7 @@ def test_3():
         ('monolithic_toughened min_thickness', 5.0, mt['min_thickness'], mt['min_thickness'] == 5.0),
         ('laminated_toughened min_thickness', 6.0, lt['min_thickness'], lt['min_thickness'] == 6.0),
     ]
-    return report('3', 'POST /human_impact/check - bathroom window, partly framed, 1.5m² -> Table 5.4', checks)
+    report('3', 'POST /human_impact/check - bathroom window, partly framed, 1.5m² -> Table 5.4', checks)
 
 
 def test_4():
@@ -147,7 +152,7 @@ def test_4():
          mt['ok'] is True and mt['min_thickness'] == 5.0),
         ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
     ]
-    return report('4', 'POST /human_impact/check - sashless, span 900mm -> MT 5mm, LT blocked', checks)
+    report('4', 'POST /human_impact/check - sashless, span 900mm -> MT 5mm, LT blocked', checks)
 
 
 def test_5():
@@ -190,20 +195,29 @@ def test_5():
          (ma['ok'], ma['min_thickness']), ma['ok'] is True and ma['min_thickness'] == 5.0),
         ('louvre result independently returned', True, 'grade_a_required' in louvre, 'grade_a_required' in louvre),
     ]
-    return report('5', 'POST /human_impact/check - multiple methods + window reclassification', checks)
+    report('5', 'POST /human_impact/check - multiple methods + window reclassification', checks)
 
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Human Impact Route Wiring Test')
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
     tests = [test_1, test_2, test_3, test_4, test_5]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)

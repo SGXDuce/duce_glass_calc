@@ -16,7 +16,9 @@ from engine.human_impact import determine_fixed, determine_louvre, determine_sas
 def report(test_id, description, checks):
     """
     checks is a list of (label, expected, actual, ok) tuples.
-    Prints each check and returns True if all checks passed.
+    Prints each check, then asserts every one passed - a wrong actual
+    value now fails the test under pytest, not just under the __main__
+    script runner.
     """
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
@@ -26,6 +28,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -79,7 +83,7 @@ def test_1():
         ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
         ('monolithic_annealed min_thickness', 3.0, ma['min_thickness'], ma['min_thickness'] == 3.0),
     ]
-    return report('1', 'Door, fully framed, 0.08m²/100mm -> annealed 3mm available', checks)
+    report('1', 'Door, fully framed, 0.08m²/100mm -> annealed 3mm available', checks)
 
 
 def test_2():
@@ -92,7 +96,7 @@ def test_2():
         ('why cites the exceeded limit', True, 'exception band accommodates' in (ma['why'] or ''),
          'exception band accommodates' in (ma['why'] or '')),
     ]
-    return report('2', 'Door, fully framed, 0.60m²/500mm -> no annealed band fits -> ok=False', checks)
+    report('2', 'Door, fully framed, 0.60m²/500mm -> no annealed band fits -> ok=False', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +123,7 @@ def test_3():
         ('laminated_annealed ok', False, la['ok'], la['ok'] is False),
         ('laminated_heat_strengthened ok', False, lh['ok'], lh['ok'] is False),
     ]
-    return report('3', 'Door, unframed -> only toughened family ok, 10mm', checks)
+    report('3', 'Door, unframed -> only toughened family ok, 10mm', checks)
 
 
 def test_4():
@@ -137,7 +141,7 @@ def test_4():
          lt['ok'] is True and lt['min_thickness'] == 10),
         ('monolithic_annealed still blocked', False, ma['ok'], ma['ok'] is False),
     ]
-    return report('4', 'Door, unframed, school, sightline 800mm -> same as test 3 (most-restrictive-wins)', checks)
+    report('4', 'Door, unframed, school, sightline 800mm -> same as test 3 (most-restrictive-wins)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +159,7 @@ def test_5():
         ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
         ('monolithic_annealed min_thickness', 5.0, ma['min_thickness'], ma['min_thickness'] == 5.0),
     ]
-    return report('5', 'Side panel, fully framed, 0.25m² -> annealed 5mm available', checks)
+    report('5', 'Side panel, fully framed, 0.25m² -> annealed 5mm available', checks)
 
 
 def test_6():
@@ -169,7 +173,7 @@ def test_6():
         ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
         ('why cites area exceeded', True, 'area' in (ma['why'] or ''), 'area' in (ma['why'] or '')),
     ]
-    return report('6', 'Side panel, fully framed, 0.35m² -> exceeds 0.30m² cap -> ok=False', checks)
+    report('6', 'Side panel, fully framed, 0.35m² -> exceeds 0.30m² cap -> ok=False', checks)
 
 
 def test_7():
@@ -188,7 +192,7 @@ def test_7():
          '5.3.1' in result['clauses'] and '5.5' in result['clauses'],
          '5.3.1' in result['clauses'] and '5.5' in result['clauses']),
     ]
-    return report('7', 'Side panel + low-level stacking, 1.0m² -> 5.3.1 0.30m² cap blocks annealed', checks)
+    report('7', 'Side panel + low-level stacking, 1.0m² -> 5.3.1 0.30m² cap blocks annealed', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +217,7 @@ def test_8():
          '5.4' in result['clauses'] and '5.5' in result['clauses']),
         ('monolithic_annealed blocked by 5.4 no-alt', False, ma['ok'], ma['ok'] is False),
     ]
-    return report('8', 'Window not exempt from 5.4, also triggers 5.5 -> 5.4 no-alt blocks annealed entirely', checks)
+    report('8', 'Window not exempt from 5.4, also triggers 5.5 -> 5.4 no-alt blocks annealed entirely', checks)
 
 
 def test_9():
@@ -232,7 +236,7 @@ def test_9():
         ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
         ('monolithic_annealed min_thickness', 5.0, ma['min_thickness'], ma['min_thickness'] == 5.0),
     ]
-    return report('9', 'Window exempt from 5.4 (width<=500), 5.5 alone -> annealed 5mm available', checks)
+    report('9', 'Window exempt from 5.4 (width<=500), 5.5 alone -> annealed 5mm available', checks)
 
 
 def test_10():
@@ -247,7 +251,7 @@ def test_10():
          len(result['out_of_scope_reasons']) > 0),
         ('no table returned', None, result['table'], result['table'] is None),
     ]
-    return report('10', 'Window, partly framed, low-level, not side panel -> out of scope', checks)
+    report('10', 'Window, partly framed, low-level, not side panel -> out of scope', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +272,7 @@ def test_11():
         ('monolithic_toughened min_thickness', 5.0, mt['min_thickness'], mt['min_thickness'] == 5.0),
         ('laminated_toughened min_thickness', 6.0, lt['min_thickness'], lt['min_thickness'] == 6.0),
     ]
-    return report('11', 'Bathroom, partly framed, 1.5m² -> MT 5mm, LT flat 6mm', checks)
+    report('11', 'Bathroom, partly framed, 1.5m² -> MT 5mm, LT flat 6mm', checks)
 
 
 def test_12():
@@ -281,7 +285,7 @@ def test_12():
     checks = [
         ('monolithic_toughened min_thickness', 6.0, mt['min_thickness'], mt['min_thickness'] == 6.0),
     ]
-    return report('12', 'Bathroom, partly framed, 3.0m² (exceeds allowance) -> MT 6mm', checks)
+    report('12', 'Bathroom, partly framed, 3.0m² (exceeds allowance) -> MT 6mm', checks)
 
 
 def test_13():
@@ -293,7 +297,7 @@ def test_13():
         ('table', '5.1', result['table'], result['table'] == '5.1'),
         ('only 5.8 matched, not 5.2', ['5.8'], result['clauses'], result['clauses'] == ['5.8']),
     ]
-    return report('13', 'Bathroom door, fully framed -> 5.8 only, 5.2 does not also run', checks)
+    report('13', 'Bathroom door, fully framed -> 5.8 only, 5.2 does not also run', checks)
 
 
 def test_14():
@@ -316,7 +320,7 @@ def test_14():
         ('monolithic_annealed blocked by 5.8 no-alt', False, ma['ok'], ma['ok'] is False),
         ('monolithic_toughened still ok', True, mt['ok'], mt['ok'] is True),
     ]
-    return report('14', 'Bathroom side panel, fully framed, 0.2m² -> 5.8 no-alt blocks annealed despite 5.3.1', checks)
+    report('14', 'Bathroom side panel, fully framed, 0.2m² -> 5.8 no-alt blocks annealed despite 5.3.1', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +342,7 @@ def test_15():
         ('5.12 note present', True,
          any('5.12' in n for n in result['notes']), any('5.12' in n for n in result['notes'])),
     ]
-    return report('15', 'Louvre, no Grade A trigger -> all types ok, 5.12 note', checks)
+    report('15', 'Louvre, no Grade A trigger -> all types ok, 5.12 note', checks)
 
 
 def test_16():
@@ -360,7 +364,7 @@ def test_16():
          mt['ok'] is True and mt['min_thickness'] == 5),
         ('every other type blocked', True, others_blocked, others_blocked),
     ]
-    return report('16', 'Louvre, high risk, blade within envelope -> MT only, 5mm', checks)
+    report('16', 'Louvre, high risk, blade within envelope -> MT only, 5mm', checks)
 
 
 def test_17():
@@ -388,7 +392,7 @@ def test_17():
          (True, 6.0), (mt_high['ok'], mt_high['min_thickness']),
          mt_high['ok'] is True and mt_high['min_thickness'] == 6.0),
     ]
-    return report('17', 'Louvre + bathroom Table 5.4 area-conditional thickness, most-restrictive-wins', checks)
+    report('17', 'Louvre + bathroom Table 5.4 area-conditional thickness, most-restrictive-wins', checks)
 
 
 def test_18():
@@ -408,7 +412,7 @@ def test_18():
          any('specific design' in r for r in result['out_of_scope_reasons']),
          any('specific design' in r for r in result['out_of_scope_reasons'])),
     ]
-    return report('18', 'Louvre, blade exceeds 230mm envelope -> out of scope, specific design', checks)
+    report('18', 'Louvre, blade exceeds 230mm envelope -> out of scope, specific design', checks)
 
 
 def test_19():
@@ -429,7 +433,7 @@ def test_19():
          any('never assessed against Clause 5.4' in t for t in result['trail']),
          any('never assessed against Clause 5.4' in t for t in result['trail'])),
     ]
-    return report('19', 'Louvre, would-be 5.4 geometry -> 5.4 skipped entirely, no Grade A established', checks)
+    report('19', 'Louvre, would-be 5.4 geometry -> 5.4 skipped entirely, no Grade A established', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -446,7 +450,7 @@ def test_20():
          mt['ok'] is True and mt['min_thickness'] == 5.0),
         ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
     ]
-    return report('20', 'Sashless, span 900mm -> MT 5mm, LT out of range', checks)
+    report('20', 'Sashless, span 900mm -> MT 5mm, LT out of range', checks)
 
 
 def test_21():
@@ -460,7 +464,7 @@ def test_21():
          mt['ok'] is True and mt['min_thickness'] == 6.0),
         ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
     ]
-    return report('21', 'Sashless, span 1100mm -> MT 6mm (crosses tier), LT out of range', checks)
+    report('21', 'Sashless, span 1100mm -> MT 6mm (crosses tier), LT out of range', checks)
 
 
 def test_22():
@@ -472,7 +476,7 @@ def test_22():
         ('out_of_scope_reasons non-empty', True, len(result['out_of_scope_reasons']) > 0,
          len(result['out_of_scope_reasons']) > 0),
     ]
-    return report('22', 'Sashless, span 1400mm -> no combination covers it, out of scope', checks)
+    report('22', 'Sashless, span 1400mm -> no combination covers it, out of scope', checks)
 
 
 def test_23():
@@ -487,7 +491,7 @@ def test_23():
         ('laminated_toughened ok/thickness', (True, 6.0), (lt['ok'], lt['min_thickness']),
          lt['ok'] is True and lt['min_thickness'] == 6.0),
     ]
-    return report('23', 'Sashless, span 700mm -> MT 5mm, LT 6mm (both within caps)', checks)
+    report('23', 'Sashless, span 700mm -> MT 5mm, LT 6mm (both within caps)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -518,7 +522,7 @@ def test_24():
     if not all_same:
         for i, ks in enumerate(key_sets):
             print(f"    result {i} keys: {sorted(ks)}")
-    return report('24', 'Structural consistency - identical key set across every return path', checks)
+    report('24', 'Structural consistency - identical key set across every return path', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -567,7 +571,7 @@ def test_25():
     checks.append(('sightline=2100 keeps "is above the 2000mm trigger" wording',
                    True, has_above_trigger_text, has_above_trigger_text))
 
-    return report('25', 'Bathroom fixed panel, sightline_mm=None -> exact new trail wording, result unchanged', checks)
+    report('25', 'Bathroom fixed panel, sightline_mm=None -> exact new trail wording, result unchanged', checks)
 
 
 def test_26():
@@ -608,7 +612,7 @@ def test_26():
     checks.append(('sightline=2100 keeps "is above the 2000mm trigger" wording',
                    True, has_above_trigger_text, has_above_trigger_text))
 
-    return report('26', 'Bathroom louvre, sightline_mm=None -> exact new trail wording, result unchanged', checks)
+    report('26', 'Bathroom louvre, sightline_mm=None -> exact new trail wording, result unchanged', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +620,11 @@ def test_26():
 # ---------------------------------------------------------------------------
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Human Impact Engine Test Runner')
     print('  Duce Timber Windows and Doors')
@@ -627,10 +636,14 @@ def run_tests():
         test_16, test_17, test_18, test_19, test_20, test_21, test_22,
         test_23, test_24, test_25, test_26,
     ]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)
