@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.34 (Sashless span orientation corrected for Configurator batch 63 / schema v6 — `engine/schedule/translation.py` — span now read per pane from `unframedEdgeReasons`, fail-closed on unknown reasons; 52/52 own tests, 145/145 full regression.)
+### Version: V1.35 (Test suite: return-based checks in seven test files converted to real assertions — a wrong actual value now fails under pytest, not just under each file's own `__main__` runner; no test logic changed; `tests/test_schedule_translation.py` unaffected, still 52/52; 145/145 full regression.)
 ### Last Updated: 29 September 2026
 
 ---
@@ -9,9 +9,23 @@
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
 
+### v1.35 — 29 September 2026 — Test suite: return-based checks converted to real assertions
+
+**Commit hash:** work commit `65f738b`, merged to master as `c30ea7c` (PR #12).
+
+**Seven test files had test functions that returned `True`/`False` instead of asserting.** `tests/test_human_impact.py`, `test_human_impact_routes.py`, `test_pathway3.py`, `test_pathway4.py`, `test_silicone_bite.py`, `test_structural_glazing.py`, and `test_table_5_3.py` (88 test functions total) each built a list of checks and returned whether they all passed, rather than asserting. Under pytest, a returned `False` counts as a pass — pytest only fails a test on an uncaught exception or a failed `assert`, and these functions never raised or asserted. So any pytest pass count quoted in earlier changelog entries for these 88 tests means "did not crash", not "answer verified". Each file's own `__main__` script runner (`python -m tests.test_X`) did check the returned values and tally them honestly, so results obtained that way were meaningful the whole time — only the pytest-collected runs were silently toothless.
+
+**Now converted to real assertions.** Each file's `report()` helper now asserts every check itself, with a message showing the failing label, expected value, and actual value — a wrong actual value now fails the test under pytest, not just under the script runner. The `__main__` runners were updated to catch the resulting `AssertionError` per test so they still tally and print a pass count, matching their previous behaviour exactly. No expected value, input, tolerance, or engine code was changed — assertions only. One test per file was deliberately broken (a wrong expected value substituted) to confirm it now genuinely fails under pytest, then restored exactly. All 145 tests pass, with zero `PytestReturnNotNoneWarning` warnings (previously 88) — the total pass count is unchanged.
+
+**Known small weakness left for later.** Each check tuple writes its expected value twice — once as the message text shown on failure, once inside the boolean pass/fail condition computed separately. The two can disagree without the test noticing, since only the boolean drives the assertion; the message is just descriptive text. This is not a correctness problem in what the tests check, but a readability trap in failure messages if the two ever drift apart. Cleanup deferred, not part of this session's scope.
+
+**Not changed:** no test counts in older changelog entries below were edited or "corrected" — those entries describe what was true when they were written (a pass count under the return-based pattern), and are left as history, not restated.
+
+**Outstanding as of this entry:** the check-tuple double-expected-value weakness noted above is unresolved. Everything else outstanding from v1.34 (schemaVersion pre-v6 sashless detection, translation layer still unwired) is unchanged by this session, which touched tests only.
+
 ### v1.34 — 29 September 2026 — Sashless span orientation corrected for Configurator batch 63 / schema v6
 
-**Commit hash:** not recorded — Sahil to fill in.
+**Commit hash:** work commit `c2e904d`, merged to master as commit `2ca7d8f` (PR #11).
 
 **`engine/schedule/translation.py`'s sashless span derivation corrected.** The Configurator's sashless orientation was fixed upstream at commit `c86374a` (batch 63, schema v6): a sashless horizontal slider holds the glass top/bottom (free left/right); a sashless double-hung (vertical slider) is the mirror, holding left/right (free top/bottom, including the meeting-rail edge). The translation layer's old sashless branch still assumed the pre-batch-63 orientation — span = `widthMM` minus both stile widths, with a hand-picked 20mm stile figure — which was backwards for a double-hung. Span is now derived per pane from `unframedEdgeReasons`'s new `'sashless-free-edge'` value: the sight dimension measured between the two held edges, whichever pair that is. The stile-width subtraction and the 20mm assumption are removed entirely.
 
@@ -23,11 +37,11 @@ Every update to this document is logged here. Before editing, check the latest e
 
 **Not changed:** `translate_pane()`/`translate_system()` have no access to the export's `schemaVersion` at the point sashless panes are handled, and none was added. A sashless pane from a pre-v6 export would silently carry the old (now-known-wrong) orientation and produce a wrong span — flagged, not fixed, pending Sahil's decision on how to handle it (see open items below).
 
-**Outstanding as of this entry:** commit hash to be filled in once Sahil commits. Wiring the translation layer into the engine/schedule page/routes is still not started (unchanged from v1.33). Whether/how to detect and reject a pre-v6 sashless export is undecided.
+**Outstanding as of this entry:** wiring the translation layer into the engine/schedule page/routes is still not started (unchanged from v1.33). Whether/how to detect and reject a pre-v6 sashless export is undecided.
 
 ### v1.33 — 28 September 2026 — Schedule translation layer built and merged (unwired); human impact bathroom-trail guard fix
 
-**Commit hash:** not recorded in this session — Sahil to fill in from `git log` once committed.
+**Commit hash:** translation layer commit `c206a47`; human impact bathroom-trail guard commit `dfa038b`.
 
 **Schedule translation layer (`engine/schedule/translation.py`) built and merged to `master`, not yet wired to anything.** Implements the geometry-to-human-impact-ctx mapping specified in `Window_Schedule_Progress_Handover.md` sections 6–14: `translate_pane()` and `translate_system()`, producing one of three output methods per pane (`fixed`, `louvre`, `sashless`), including the `exposed_edges` field the human impact engine needs for partly framed/unframed side panels (missing from the section 14 ctx table until now). Tested in `tests/test_schedule_translation.py` — 38 passed. Full regression at merge: 131 passed. No route, UI, or data-model changes — the module is not called from the engine, the schedule page, or any route yet. New locked-in decisions from the build (door/side-panel geometric classification, sashless span formula, framing derivation, slider warning behaviour, stub-answer defaults) are recorded in the handover's new section 15 and in `engineering-decisions-notes.md`; two questions were opened for Michael (sight-size-vs-true-glass-size for human impact caps, and the 1200mm side-panel sightline figure against the standard).
 
@@ -37,7 +51,7 @@ A bug in the side-panel gap function (a pane to the LEFT of a door always measur
 
 **Also recorded, separately (not part of this session's own work):** the upstream Configurator's batch 60 (`dad98aa` + `24f1e45`) now corrects a lone or manually split slider's tuck-in per edge (both slider types); this repo's vendored copy remains `dad98aa` alone until re-vendored. See `Window_Schedule_Progress_Handover.md` section 11 for detail — no code in this repo changed as a result.
 
-**Outstanding as of this entry:** commit hash to be filled in once Sahil commits (see top of this entry). Wiring the translation layer into the engine/schedule page/routes is not started. Re-vendoring the Configurator to pick up batch 60 in full is not started. `__pycache__` `.pyc` files are tracked in git and need untracking (flagged in the handover's open items).
+**Outstanding as of this entry:** wiring the translation layer into the engine/schedule page/routes is not started. Re-vendoring the Configurator to pick up batch 60 in full is not started. `__pycache__` `.pyc` files are tracked in git and need untracking (flagged in the handover's open items).
 
 ### v1.32 — 4 September 2026 — Accessibility/usability audit pass (six fixes, live-verified); clipboard copy-as-image removed, superseded by download-as-image
 
