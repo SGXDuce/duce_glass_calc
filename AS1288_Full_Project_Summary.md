@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.35 (Test suite: return-based checks in seven test files converted to real assertions — a wrong actual value now fails under pytest, not just under each file's own `__main__` runner; no test logic changed; `tests/test_schedule_translation.py` unaffected, still 52/52; 145/145 full regression.)
+### Version: V1.36 (Schedule page's CONFIGURATOR_SCHEMA_VERSION mismatch against the vendored Configurator fixed (5 -> 6); read-only survey of the codebase against the "System check" design ask, findings marked verified or unverified.)
 ### Last Updated: 29 September 2026
 
 ---
@@ -8,6 +8,32 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.36 — 29 September 2026 — Schedule schemaVersion fix (5→6); read-only codebase survey for System check design
+
+**Commit hash:** `2102217`, merged to master as `d0b6b51` (PR #14).
+
+**Schedule page's schema-version constant fixed: 5 → 6.** `interfaces/flask_app/templates/schedule.html` line 73's `CONFIGURATOR_SCHEMA_VERSION` still read `5` after the vendored Configurator moved to schema v6 (v1.34), and the handshake protocol comment's worked example at line 198 still showed `schemaVersion:5`. This mismatch was **live on master** from the point the vendored Configurator reached schema v6 until this fix: the `ready` handshake's version check (schedule.html:242) showed the red schema-mismatch banner **every time the Configurator modal opened, including for a brand-new row with no saved geometry** — not only on reopen — and, per that branch's own logic, skipped sending the saved raw geometry state back into the iframe. The `done` export was not blocked by this — `Done` still returned data. The banner made the mismatch visible every time, so it was not silent in the browser; it was silent only in the sense that neither this doc nor the handover recorded it at the time it was introduced. Full regression: 145/145 passed. Browser-verified by Sahil.
+
+**Read-only survey of the current codebase, run to ground the "System check" mode design** (see `Window_Schedule_Progress_Handover.md`, new section "System check mode (design, 29 September 2026)" for the design itself). No code, tests, or data changed as part of the survey. Findings below are marked by verification status; UNVERIFIED items were reported by the survey but not independently confirmed against the running app or a second read, and should not be relied on without checking first.
+
+- **VERIFIED BY SAHIL:** a results-snapshot "download as image" feature already exists in `interfaces/flask_app/templates/index.html` (`downloadSnapshotAsImage`) — confirmed at five call sites, lines 1629, 1759, 1826, 2256, 2602 (the first five shown by Sahil's own search, which was truncated to five results). An earlier pass of the survey wrongly reported that no such feature existed. The second survey reports **nine** call sites in total for this function — **UNVERIFIED**, not independently re-checked against the five confirmed above.
+- **VERIFIED BY SAHIL:** `calculate_kpane` (`engine/wind_load/formulas.py:99`) takes `t_pane` and `all_thicknesses` — i.e. it already takes all glass panel thicknesses in an insulating glass unit, not just one.
+- **VERIFIED BY SAHIL:** `get_safety_glass_max_area` (`engine/wind_load/formulas.py:339`) takes `glass_type`, `glass_subtype`, `nominal_thickness_mm` only — no factor argument and no insulating-glass-unit-specific input. Called from `engine/combined/pathway3.py:81` and `engine/combined/pathway4.py:131`. **UNVERIFIED (second survey):** three more callers reported in `engine/wind_load/checks/wind.py` at lines 323, 802 and 935 — Sahil's own search covered only one folder level and could not see them. The older entry near line 455 of this document (the "EXTRAPOLATE" fix) independently names three separate call sites in `engine/wind_load/checks/wind.py` plus one each in pathway3 and pathway4, consistent with the survey; the wind.py line numbers 323, 802, 935 are still not independently checked.
+- **VERIFIED BY SAHIL:** `schedule.html:242` compares the `ready` message's `schemaVersion` against the `CONFIGURATOR_SCHEMA_VERSION` constant (the same check implicated in the fix above).
+- **UNVERIFIED (reported by survey, not independently confirmed):** the schedule page currently exposes only two routes, `/schedule` and `/configurator`, and neither calls `engine/schedule/translation.py`.
+- **UNVERIFIED:** schedule rows are held as `{id, export}` objects in a JS array in page memory only — nothing is persisted server-side, and the `export` object stored on a row includes its own `schemaVersion`.
+- **UNVERIFIED:** the wind load engine takes a design wind pressure in kPa directly as a single global value for the whole calculation; there is no per-elevation wind pressure input anywhere in the engine.
+- **UNVERIFIED:** Mode 2 (insulating glass unit) checks each glass panel against wind load with its own independent thickness and a load-sharing factor; Mode 1 assumes all panels in a system share one equal thickness.
+- **UNVERIFIED:** `build_report` in `app.py` takes a flat per-panel list as input, with no grouping by pane or by insulating-glass-unit system.
+- **UNVERIFIED:** the PyInstaller spec bundles `templates`, `static` (including the vendored Configurator), and `data` — this was read from the spec file itself, not confirmed by an actual PyInstaller build.
+- **UNVERIFIED:** `translate_pane`/`translate_system`'s row-side inputs (`ffl_height_mm`, `building_use`, and the human-impact questionnaire's answers) have no corresponding UI built yet — the translation layer remains unwired, consistent with v1.33/v1.34's outstanding notes.
+- **UNVERIFIED (second survey):** `translate_pane(pane, elevation_panes, angle_deg, row, answers)` at `engine/schedule/translation.py:346-467` returns `{pane_id, status, method, payload, reasons, warnings, missing}`; `translate_system(export, row, answers_by_pane)` at `:470-495` returns a flat list of those results plus `elevation_index`. Row-side fields: `ffl_height_mm`, `building_use`, `is_bathroom`, `high_risk`. Hand-supplied answers: `opaque_or_patterned`, `rail_present`, `rail_upper_edge_mm`, `rail_lower_edge_mm`, `level_difference_mm`, `frame_off_exposed`. `schedule.html` is display only with zero input fields, so none of these have any UI. `translate_pane`/`translate_system` are only re-exported by `engine/schedule/__init__.py` and not called from `app.py`.
+- **UNVERIFIED (second survey):** snapshot code — `buildSnapshotHTML` at `index.html:3280-3314` (one result card, one glazing string), `generateSnapshotCanvas` at `:3324-3338` (rasterises one root element via `html2canvas`), `downloadSnapshotAsImage` at `:3417+`; each call site builds one single-result snapshot. `build_report` (`app.py:779+`) takes one flat single-panel-shaped dict; not checked past about line 878.
+
+**Not changed:** no engine logic, route, or test was touched by the survey itself — only the schemaVersion constant and its adjacent comment (both single-line changes, see diff for exact scope).
+
+**Outstanding as of this entry:** the UNVERIFIED survey findings above are not yet independently confirmed and should be checked before being relied on for the System check mode build. The "System check" mode itself is design-only as of this entry — see the handover doc; no implementation has started.
 
 ### v1.35 — 29 September 2026 — Test suite: return-based checks converted to real assertions
 
@@ -1229,6 +1255,7 @@ A related, more general check also exists in Mode 2: if a classified nominal thi
 - Ineligible (returns `SG_INELIGIBLE`): Monolithic Annealed, Monolithic Heat-strengthened.
 - Sequence: independent search (see 7.6) → governs if higher than ULS/SLS.
 - Known limitation (deferred, not part of V2.0): **AS 1288 Clause 5.22** — for IGUs with human impact possible from both sides, both panes must comply and area limits get ×1.5; for one-side-accessible, only the accessible pane needs to comply at the standard limit. Current beta applies standard limits uniformly with no IGU-side-access distinction.
+  - **See `Window_Schedule_Progress_Handover.md`, "System check mode" (design, 29 September 2026):** the ×1.5 factor is now decided as applying to the Table 5.1 maximum area only, both-sides-access case only, with annealed exception caps never multiplied.
 
 ### 7.8 — Bushfire (BAL) Filter (Beta) — AS 3959
 Six distinct rules — Window/Door × BAL-12.5/19/29 — each independently specifying eligible glass types and a minimum thickness:
@@ -1326,6 +1353,7 @@ Live click-testing can be performed directly from a claude.ai chat using the Cla
 The following items have been discussed but are explicitly **not committed to any version**. They are conceptual only and should not influence V2 architecture or scheduling. Revisit only in a dedicated future conversation if/when a concrete need arises.
 
 10. **Full Human Impact Engine** replacing the beta Safety Glass check — proper AS 1288 Section 5 compliance, including the Clause 5.22 IGU ×1.5 area factor (see 7.7). May land in V3 or later, or may be re-scoped entirely. The beta Safety Glass check stays as-is for the foreseeable future.
+   - **See `Window_Schedule_Progress_Handover.md`, "System check mode" (design, 29 September 2026):** the ×1.5 factor is now decided as applying to the Table 5.1 maximum area only, both-sides-access case only, with annealed exception caps never multiplied.
 11. **Client → Job → Stage → Proposal → Opening record-keeping backbone** — explored in detail in conversation but NOT committed to. The user explicitly does not want this built as a calculator-specific feature, but as shared infrastructure that multiple future tools would plug into. A client can have multiple jobs; a job can have multiple stages; each stage has its own independent chain of superseding proposal revisions (only the latest revision per stage is active/editable; creating a new revision auto-copies the previous one forward). Recommended storage if ever built: SQLite, not flat JSON files, specifically for fast cross-cutting queries. Explicitly NOT scheduled — user said "hold for now." Mentioned only briefly and loosely to the prospective hosting developer (Jamal) as a 6–12-month-out possibility, not a current requirement. **A related, separately-raised idea (v1.16 timeframe): future tools may need more substantial database storage for sensitive data like pricing — also not scheduled, mentioned only in passing during hosting discussions.**
 12. **Third calculation mode (TBD)** — based on another existing company Excel calculator. User is reviewing it independently before bringing it to a session. No details yet.
 13. **Excel add-in** — discussed and explicitly de-prioritised once the complexity was understood. Not actively planned; only worth revisiting as a thin layer over the existing API if a concrete need arises.
