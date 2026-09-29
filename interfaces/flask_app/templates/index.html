@@ -30,11 +30,42 @@
      Shown by default on page load. Routes to one of the pathway placeholder
      views below via showPathway(); "Back to selection" returns here.
      ======================================================================== -->
-<div id="landing-view">
+{% if system_check_enabled %}
+<!-- ========================================================================
+     MODE SELECT — top-level screen in front of the pathway tiles (system
+     check mode, gated server-side on system_check_enabled). Resets on every
+     page load; no stored choice. "Check a single glass" reveals the
+     existing landing-view (unchanged); "Build a system" navigates to
+     /system-check.
+     ======================================================================== -->
+<div id="mode-select-view">
+    <div class="landing-intro">
+        <div class="landing-title">What do you want to do?</div>
+    </div>
+    <div class="pathway-grid">
+        <button class="pathway-tile" id="tile-mode-single" onclick="showPathwaySelect()">
+            <div class="pathway-tile-label">Check a single glass</div>
+            <div class="pathway-tile-desc">Use one of the three pathways to check a single piece of glass</div>
+        </button>
+
+        <button class="pathway-tile" id="tile-mode-system" onclick="window.location.href='/system-check'">
+            <div class="pathway-tile-label">Build a system</div>
+            <div class="pathway-tile-desc">Draw a multi-panel window or door system and check every pane</div>
+        </button>
+    </div>
+</div><!-- /mode-select-view -->
+{% endif %}
+
+<div id="landing-view"{% if system_check_enabled %} style="display:none;"{% endif %}>
     <div class="landing-intro">
         <div class="landing-title">Select your glazing configuration</div>
         <div class="landing-sub">Choose the pathway that matches your job — each leads to its own calculation.</div>
     </div>
+    {% if system_check_enabled %}
+    <div class="back-to-selection-btn-row">
+        <button class="back-to-selection-btn" onclick="showModeSelect()">&larr; Back</button>
+    </div>
+    {% endif %}
     <div class="pathway-grid">
 
         <!-- Pathway 1 — Fully Framed -->
@@ -1098,6 +1129,27 @@ function showLanding() {
     document.getElementById('pathway3-view').style.display = 'none';
     document.getElementById('pathway4-view').style.display = 'none';
     updateHumanImpactFooter(false, '');
+}
+
+// ---------------------------------------------------------------------------
+// Mode select routing (system check mode, gated server-side on
+// system_check_enabled) — shows the mode-select screen or the pathway tile
+// screen (landing-view). Only reachable when the mode-select markup exists
+// in the DOM (flag ON), same display-toggle pattern as showLanding().
+// ---------------------------------------------------------------------------
+function showModeSelect() {
+    document.getElementById('mode-select-view').style.display = 'block';
+    document.getElementById('landing-view').style.display = 'none';
+    document.getElementById('pathway1-view').style.display = 'none';
+    document.getElementById('pathway2-view').style.display = 'none';
+    document.getElementById('pathway3-view').style.display = 'none';
+    document.getElementById('pathway4-view').style.display = 'none';
+    updateHumanImpactFooter(false, '');
+}
+
+function showPathwaySelect() {
+    document.getElementById('mode-select-view').style.display = 'none';
+    document.getElementById('landing-view').style.display = 'block';
 }
 
 function showPathway(pathway) {
