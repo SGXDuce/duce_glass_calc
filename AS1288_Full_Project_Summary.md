@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.37 (Docs-only correction to the System check design's classification model — building type, room type, and a separate high-risk yes/no replace the earlier single "room type" dropdown wording; high-risk 2000mm cutoff and question rule recorded, one decided, one proposed.)
+### Version: V1.38 (`run_tests` correction plus System check mode-select screen record — the standing regression command is fixed to cover every pytest file under `tests/`, and the previously-merged mode-select screen behind `SYSTEM_CHECK_ENABLED` is logged.)
 ### Last Updated: 29 September 2026
 
 ---
@@ -8,6 +8,12 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.38 — 29 September 2026 — `run_tests` fixed to cover every pytest file; System check mode-select screen recorded
+
+**`run_tests` correction.** The 145/145 figures quoted in prior changelog entries were real `pytest tests/` output, run directly, and did not come from `run_tests.bat`/`run_tests.sh` — that standing command never covered `test_human_impact.py`, `test_human_impact_routes.py`, `test_schedule_routes.py`, or `test_system_check_routes.py` (41 tests), since it named only 6 pytest files explicitly. `run_tests.bat` and `run_tests.sh` now run `pytest tests/` (every file under the folder) plus the same 3 standalone scripts as before, so the standing command genuinely covers everything pytest collects. Reported by Claude Code: `run_tests.bat` printed `150 passed` with all 3 standalone scripts PASS. Verified by Sahil in his own run of `run_tests.bat`: all four steps (pytest suites, `test_runner.py`, `test_runner_2.py`, `test_structural_consistency.py`) reported PASS. `run_tests.sh` was NOT run (no bash was available to Claude Code) and is untested; its change is the same one-line edit as the `.bat`. Reported by Claude Code, not repeated by Sahil: a test in `test_human_impact.py` was deliberately, temporarily broken, `run_tests.bat` was rerun and confirmed to report the failure (exit code 1, `FAILURE DETECTED`), then the file was restored exactly (`git checkout --`) and confirmed unmodified.
+
+**System check mode-select screen recorded** (previously merged, not yet logged in this document). `SYSTEM_CHECK_ENABLED` flag added to `app.py`, `False` by default. A two-choice mode-select screen was added to `index.html`, shown only when the flag is on. The `/system-check` route returns 404 when the flag is off, and a placeholder page when it is on. `tests/test_system_check_routes.py` added (5 tests). Work commit `fb85d0e`, merged as `893e18d` (PR #17). `pytest tests/` total: 150.
 
 ### v1.37 — 29 September 2026 — System check design correction: classification model split into building type, room type, and high-risk
 
@@ -29,6 +35,8 @@ Every update to this document is logged here. Before editing, check the latest e
 **Not changed:** `engine/human_impact/location_rules.py`, `engine/schedule/translation.py`, and every other engine/route/template file are untouched by this entry — this is a documentation correction only, recording decisions and open questions ahead of any build work.
 
 **Outstanding as of this entry:** the high-risk question-visibility rule, the 2000mm boundary's inclusivity, and whether the standalone single-glass human impact page should also adopt the 2000mm cutoff are all open — see `Window_Schedule_Progress_Handover.md`'s "System check mode" open items (d)–(h).
+
+**Commit** `5bb7ea1`, merged as `bd46c7e` (PR #16).
 
 ### v1.36 — 29 September 2026 — Schedule schemaVersion fix (5→6); read-only codebase survey for System check design
 
@@ -55,6 +63,8 @@ Every update to this document is logged here. Before editing, check the latest e
 **Not changed:** no engine logic, route, or test was touched by the survey itself — only the schemaVersion constant and its adjacent comment (both single-line changes, see diff for exact scope).
 
 **Outstanding as of this entry:** the UNVERIFIED survey findings above are not yet independently confirmed and should be checked before being relied on for the System check mode build. The "System check" mode itself is design-only as of this entry — see the handover doc; no implementation has started.
+
+**Docs commit** `d0af655`, merged as `a58252b` (PR #15).
 
 ### v1.35 — 29 September 2026 — Test suite: return-based checks converted to real assertions
 
@@ -214,7 +224,7 @@ git push cpanel master   # live deploy — only works from a whitelisted IP
 - Verified this detection actually works, not just assumed: a failure was deliberately, temporarily forced into `test_structural_consistency.py` (`overall_ok = False`), rerun, confirmed the grep-based check correctly caught it and the batch file returned exit code 1 — then reverted immediately, `git status`/`git diff --stat` confirmed zero net changes to any test file afterward.
 - Final output is a 4-line PASS/FAIL summary plus an overall verdict, so a failure is impossible to miss even with the full verbose pytest output scrolling past above it.
 
-**Going forward, `run_tests.bat` (or `run_tests.sh`) is the standing "run the full regression" command** — replaces the previous multi-command sequence (pytest + 3 separate direct script invocations) that had to be manually reconstructed each session.
+**Going forward, `run_tests.bat` (or `run_tests.sh`) is the standing "run the full regression" command** — replaces the previous multi-command sequence (pytest + 3 separate direct script invocations) that had to be manually reconstructed each session. It now runs every pytest file under `tests/` plus the 3 standalone scripts. Before this change (through PR #17), it ran only 6 named pytest files (109 tests) plus the standalone scripts, and skipped `test_human_impact.py`, `test_human_impact_routes.py`, `test_schedule_routes.py`, and `test_system_check_routes.py` (41 tests).
 
 **Not yet done as of this entry — explicitly outstanding, not assumed complete:** the EXE has not been rebuilt for 2.0 yet. `AS1288_Calculator_V2.exe` in `dist/` still reflects the pre-2.0 build. Per this project's standing discipline (Section 0), being committed/tested at the source level does not mean the distributed artifact reflects it — the rebuild (same `.spec`, `--noconfirm`), HTTP-level verification against the built EXE itself (not the dev server), and a live-browser click-test of the built EXE are all still required before 2.0 is treated as release-ready. This entry will need a follow-up ("v1.29 continued" or a new entry) once that's done, matching the pattern of every prior EXE-rebuild session (v1.26/v1.27/v1.28).
 
