@@ -1,7 +1,7 @@
 # AS 1288 Glass Thickness Calculator - Flask Web Application
 # Duce Timber Windows and Doors
 
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 import datetime
 import os
 import sys
@@ -36,6 +36,14 @@ EXPIRY_DATE = datetime.datetime(2026, 9, 30, 23, 59, 59)
 # route stays live but unreachable from the UI. Re-enabling is a single
 # flag flip back to True, no other code changes needed.
 PATHWAY_4_ENABLED = False
+
+# System check mode (multi-panel window/door system builder) is a new
+# top-level mode-select screen in front of the existing pathway tiles.
+# OFF by default so the live site and internal testers see no change until
+# this is turned on. When OFF, the mode-select screen does not render at
+# all (index.html wraps it in {% if system_check_enabled %}) and the
+# /system-check route is unreachable (404). Single flag flip to enable.
+SYSTEM_CHECK_ENABLED = False
 
 # ---------------------------------------------------------------------------
 # FLASK APP SETUP
@@ -77,6 +85,7 @@ def index():
         'index.html',
         app_version=APP_VERSION,
         pathway_4_enabled=PATHWAY_4_ENABLED,
+        system_check_enabled=SYSTEM_CHECK_ENABLED,
     )
 
 
@@ -105,6 +114,18 @@ def configurator():
 def schedule():
     """Serves the window schedule page (standalone, reachable independently)."""
     return render_template('schedule.html', app_version=APP_VERSION)
+
+
+@app.route('/system-check')
+def system_check():
+    """
+    Serves the System check placeholder page. Only reachable when
+    SYSTEM_CHECK_ENABLED is True - otherwise 404s, matching the mode-select
+    tile being hidden entirely from the landing page (index.html).
+    """
+    if not SYSTEM_CHECK_ENABLED:
+        abort(404)
+    return render_template('system_check.html', app_version=APP_VERSION)
 
 
 @app.route('/human_impact')
