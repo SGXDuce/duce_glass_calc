@@ -29,7 +29,9 @@ csv_path_5_3 = os.path.join(script_dir, '..', 'data', 'Table_5_3.csv')
 def report(test_id, description, checks):
     """
     checks is a list of (label, expected, actual, ok) tuples.
-    Prints each check and returns True if all checks passed.
+    Prints each check, then asserts every one passed - a wrong actual
+    value now fails the test under pytest, not just under the __main__
+    script runner.
     """
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
@@ -39,6 +41,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -77,7 +81,7 @@ def test_1():
         ('Laminated Annealed bite_thickness_mm', 16, lam_ann['bite_thickness_mm'], lam_ann['bite_thickness_mm'] == 16),
         ('Laminated Annealed governing_thickness_mm (bite governs)', 16, lam_ann['governing_thickness_mm'], lam_ann['governing_thickness_mm'] == 16),
     ]
-    return report('1', 'Case A - bite governs over wind and human impact', checks)
+    report('1', 'Case A - bite governs over wind and human impact', checks)
 
 
 def test_2():
@@ -105,7 +109,7 @@ def test_2():
         ('human_impact_thickness_mm (toggle off)', None, mono_ann['human_impact_thickness_mm'], mono_ann['human_impact_thickness_mm'] is None),
         ('governing_thickness_mm (wind ULS governs)', 25, mono_ann['governing_thickness_mm'], mono_ann['governing_thickness_mm'] == 25),
     ]
-    return report('2', 'Case B - wind (ULS) governs over bite', checks)
+    report('2', 'Case B - wind (ULS) governs over bite', checks)
 
 
 def test_3():
@@ -136,7 +140,7 @@ def test_3():
         ('human_impact_thickness_mm (Table 5.1)', 8, mono_tough['human_impact_thickness_mm'], mono_tough['human_impact_thickness_mm'] == 8),
         ('governing_thickness_mm (Table 5.1 governs)', 8, mono_tough['governing_thickness_mm'], mono_tough['governing_thickness_mm'] == 8),
     ]
-    return report('3', 'Case C - angle exactly 90 deg, Table 5.1 governs', checks)
+    report('3', 'Case C - angle exactly 90 deg, Table 5.1 governs', checks)
 
 
 def test_4():
@@ -179,7 +183,7 @@ def test_4():
             (f'[{edge_condition}] human_impact_thickness_mm (Table 5.3)', 12, mono_tough['human_impact_thickness_mm'], mono_tough['human_impact_thickness_mm'] == 12),
             (f'[{edge_condition}] governing_thickness_mm (Table 5.3 governs)', 12, mono_tough['governing_thickness_mm'], mono_tough['governing_thickness_mm'] == 12),
         ])
-    return report('4', 'Case D - angle 130 deg, Table 5.3 governs (2-edge and 3-edge)', checks)
+    report('4', 'Case D - angle 130 deg, Table 5.3 governs (2-edge and 3-edge)', checks)
 
 
 def test_5():
@@ -218,7 +222,7 @@ def test_5():
         ('Laminated Annealed governing_thickness_mm', None, lam_ann['governing_thickness_mm'], lam_ann['governing_thickness_mm'] is None),
         ('Laminated Toughened status (short-circuited too)', 'BITE_NO_COMPLIANT_THICKNESS', lam_tough['status'], lam_tough['status'] == 'BITE_NO_COMPLIANT_THICKNESS'),
     ]
-    return report('5', 'Case E - bite NO_COMPLIANT_THICKNESS for Laminated only, Monolithic unaffected', checks)
+    report('5', 'Case E - bite NO_COMPLIANT_THICKNESS for Laminated only, Monolithic unaffected', checks)
 
 
 def test_6():
@@ -248,7 +252,7 @@ def test_6():
         ('Monolithic Heat-strengthened status', 'HUMAN_IMPACT_INELIGIBLE', mono_hs['status'], mono_hs['status'] == 'HUMAN_IMPACT_INELIGIBLE'),
         ('Monolithic Heat-strengthened governing_thickness_mm still populated', 15, mono_hs['governing_thickness_mm'], mono_hs['governing_thickness_mm'] == 15),
     ]
-    return report('6', 'Case F - ineligible subtype still returns bite/wind results, not a crash', checks)
+    report('6', 'Case F - ineligible subtype still returns bite/wind results, not a crash', checks)
 
 
 def test_7():
@@ -278,7 +282,7 @@ def test_7():
             {'PASS', 'HUMAN_IMPACT_INELIGIBLE'}.issubset(statuses_present),
         ),
     ]
-    return report('7', 'Result dict structural consistency across subtypes/statuses', checks)
+    report('7', 'Result dict structural consistency across subtypes/statuses', checks)
 
 
 def test_8():
@@ -311,7 +315,7 @@ def test_8():
          round(mono_tough['usable_bite_mm'], 1) == round(mono_tough['actual_thickness_mm'] - mono_tough['deduction_mm'], 1),
          round(mono_tough['usable_bite_mm'], 1) == round(mono_tough['actual_thickness_mm'] - mono_tough['deduction_mm'], 1)),
     ]
-    return report('8', 'Silicone-bite transparency fields - butt joint, no floor', checks)
+    report('8', 'Silicone-bite transparency fields - butt joint, no floor', checks)
 
 
 def test_9():
@@ -331,7 +335,7 @@ def test_9():
         ('deduction_type', 'chamfer', mono_tough['deduction_type'], mono_tough['deduction_type'] == 'chamfer'),
         ('usable_bite_mm populated', True, mono_tough['usable_bite_mm'] is not None, mono_tough['usable_bite_mm'] is not None),
     ]
-    return report('9', 'Silicone-bite transparency fields - mitred joint', checks)
+    report('9', 'Silicone-bite transparency fields - mitred joint', checks)
 
 
 def test_10():
@@ -356,7 +360,7 @@ def test_10():
          mono_tough['required_bite_raw_mm'] != mono_tough['required_bite_floored_mm'],
          mono_tough['required_bite_raw_mm'] != mono_tough['required_bite_floored_mm']),
     ]
-    return report('10', 'Silicone-bite transparency fields - floor-triggered case', checks)
+    report('10', 'Silicone-bite transparency fields - floor-triggered case', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -364,16 +368,25 @@ def test_10():
 # ---------------------------------------------------------------------------
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Pathway 3 Test Runner')
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
     tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8, test_9, test_10]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)

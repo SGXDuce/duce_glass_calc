@@ -69,7 +69,9 @@ csv_path = os.path.join(script_dir, '..', 'data', 'Wind_Load_Check_Tables_Full.c
 def report(test_id, description, checks):
     """
     checks is a list of (label, expected, actual, ok) tuples.
-    Prints each check and returns True if all checks passed.
+    Prints each check, then asserts every one passed - a wrong actual
+    value now fails the test under pytest, not just under the __main__
+    script runner.
     """
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
@@ -79,6 +81,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -114,7 +118,7 @@ def test_1():
          result['sealed_edges'] == 'verticals_only'),
         ('message populated', True, result['message'] is not None, result['message'] is not None),
     ]
-    return report('1', "scenario='verticals_only' returns CONFIGURATION_OUT_OF_SCOPE_V1 (engine not called)", checks)
+    report('1', "scenario='verticals_only' returns CONFIGURATION_OUT_OF_SCOPE_V1 (engine not called)", checks)
 
 
 def test_2():
@@ -133,7 +137,7 @@ def test_2():
          result['sealed_edges'] == 'horizontals_only'),
         ('message populated', True, result['message'] is not None, result['message'] is not None),
     ]
-    return report('2', "scenario='horizontals_only' returns CONFIGURATION_OUT_OF_SCOPE_V1 (engine not called)", checks)
+    report('2', "scenario='horizontals_only' returns CONFIGURATION_OUT_OF_SCOPE_V1 (engine not called)", checks)
 
 
 def test_3():
@@ -143,7 +147,7 @@ def test_3():
         ('SUPPORTED_SCENARIOS_V1', ('full_perimeter',), SUPPORTED_SCENARIOS_V1,
          SUPPORTED_SCENARIOS_V1 == ('full_perimeter',)),
     ]
-    return report('3', 'SUPPORTED_SCENARIOS_V1 is exactly (full_perimeter,)', checks)
+    report('3', 'SUPPORTED_SCENARIOS_V1 is exactly (full_perimeter,)', checks)
 
 
 def test_4():
@@ -210,7 +214,7 @@ def test_4():
             f'{glass_type} {glass_subtype} table_5_1_thickness_mm is None (toggle OFF)',
             None, entry['table_5_1_thickness_mm'], entry['table_5_1_thickness_mm'] is None
         ))
-    return report('4', 'Case A geometry, toggle OFF - dead load bite governs, all five criteria populated', checks)
+    report('4', 'Case A geometry, toggle OFF - dead load bite governs, all five criteria populated', checks)
 
 
 def test_5():
@@ -243,7 +247,7 @@ def test_5():
             f'{glass_type} {glass_subtype} governing_criterion', 'dead_load_bite',
             entry['governing_criterion'], entry['governing_criterion'] == 'dead_load_bite'
         ))
-    return report('5', 'Case C geometry (low pressure), toggle OFF - dead load bite governs regardless of pressure', checks)
+    report('5', 'Case C geometry (low pressure), toggle OFF - dead load bite governs regardless of pressure', checks)
 
 
 def test_6():
@@ -280,7 +284,7 @@ def test_6():
         ('Laminated Annealed governing_criterion', 'wind_bite', lam_ann['governing_criterion'],
          lam_ann['governing_criterion'] == 'wind_bite'),
     ]
-    return report('6', 'Case D geometry (high pressure), toggle OFF - wind bite governs (matches v1.19/v1.20 figures)', checks)
+    report('6', 'Case D geometry (high pressure), toggle OFF - wind bite governs (matches v1.19/v1.20 figures)', checks)
 
 
 def test_7():
@@ -328,7 +332,7 @@ def test_7():
         ('Laminated Annealed table_5_1_thickness_mm', 6, lam_ann['table_5_1_thickness_mm'],
          lam_ann['table_5_1_thickness_mm'] == 6),
     ]
-    return report('7', 'Toggle ON, HUMAN_IMPACT_INELIGIBLE fallthrough confirmed alongside eligible-subtype Table 5.1 search', checks)
+    report('7', 'Toggle ON, HUMAN_IMPACT_INELIGIBLE fallthrough confirmed alongside eligible-subtype Table 5.1 search', checks)
 
 
 def test_8():
@@ -377,7 +381,7 @@ def test_8():
         ('governing_criterion', 'dead_load_bite', entry['governing_criterion'],
          entry['governing_criterion'] == 'dead_load_bite'),
     ]
-    return report('8', 'SLS exceeds ULS as a sub-criterion (hand-calculated) - confirms independent per-criterion search; dead load bite still governs overall', checks)
+    report('8', 'SLS exceeds ULS as a sub-criterion (hand-calculated) - confirms independent per-criterion search; dead load bite still governs overall', checks)
 
 
 def test_9():
@@ -409,7 +413,7 @@ def test_9():
             f'{expected_crit} wins with criteria={criteria}', (expected_crit, expected_val), (crit, val),
             crit == expected_crit and val == expected_val
         ))
-    return report('9', 'max()-with-key governing-criterion selection logic, all five possible winners (synthetic inputs, not a physical scenario)', checks)
+    report('9', 'max()-with-key governing-criterion selection logic, all five possible winners (synthetic inputs, not a physical scenario)', checks)
 
 
 def test_10():
@@ -449,7 +453,7 @@ def test_10():
         ('governing_criterion', 'table_5_1', entry['governing_criterion'],
          entry['governing_criterion'] == 'table_5_1'),
     ]
-    return report('10', 'Table 5.1 governs the overall result (hand-verified, real geometry, toggle ON)', checks)
+    report('10', 'Table 5.1 governs the overall result (hand-verified, real geometry, toggle ON)', checks)
 
 
 def test_11():
@@ -478,7 +482,7 @@ def test_11():
         ('message populated', True, entry['message'] is not None, entry['message'] is not None),
         ('bite_trace populated', True, len(entry['bite_trace']) > 0, len(entry['bite_trace']) > 0),
     ]
-    return report('11', 'BITE_NO_COMPLIANT_THICKNESS - both bite lookups fail independently', checks)
+    report('11', 'BITE_NO_COMPLIANT_THICKNESS - both bite lookups fail independently', checks)
 
 
 def test_12():
@@ -516,7 +520,7 @@ def test_12():
          round(mono_tough['wind_usable_bite_mm'], 1) == round(mono_tough['wind_actual_thickness_mm'] - 2, 1),
          round(mono_tough['wind_usable_bite_mm'], 1) == round(mono_tough['wind_actual_thickness_mm'] - 2, 1)),
     ]
-    return report('12', 'Silicone-bite transparency fields - Case A, no floor', checks)
+    report('12', 'Silicone-bite transparency fields - Case A, no floor', checks)
 
 
 def test_13():
@@ -554,7 +558,7 @@ def test_13():
         ('wind_usable_bite_mm at floored 6mm nominal', 3.8, mono_tough['wind_usable_bite_mm'],
          mono_tough['wind_usable_bite_mm'] == 3.8),
     ]
-    return report('13', 'Silicone-bite transparency fields - floor-triggered case (both criteria)', checks)
+    report('13', 'Silicone-bite transparency fields - floor-triggered case (both criteria)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -562,6 +566,11 @@ def test_13():
 # ---------------------------------------------------------------------------
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Pathway 4 Orchestrator Test Runner')
     print('  Duce Timber Windows and Doors')
@@ -569,10 +578,14 @@ def run_tests():
 
     tests = [test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8, test_9, test_10, test_11,
               test_12, test_13]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)

@@ -19,7 +19,9 @@ def close(actual, expected, tol=1e-2):
 def report(test_id, description, checks):
     """
     checks is a list of (label, expected, actual, ok) tuples.
-    Prints each check and returns True if all checks passed.
+    Prints each check, then asserts every one passed - a wrong actual
+    value now fails the test under pytest, not just under the __main__
+    script runner.
     """
     overall = all(ok for _, _, _, ok in checks)
     marker = 'PASS' if overall else 'FAIL'
@@ -29,6 +31,8 @@ def report(test_id, description, checks):
         sub_marker = 'PASS' if ok else 'FAIL'
         print(f"    [{sub_marker}] {label}: expected={expected!r} actual={actual!r}")
     print(f"  -> {marker}")
+    for label, expected, actual, ok in checks:
+        assert ok, f"TEST {test_id} — {description}: {label}: expected={expected!r} actual={actual!r}"
     return overall
 
 
@@ -81,7 +85,7 @@ def test_1():
         ('nominal_monolithic', 12, result['nominal_monolithic'], result['nominal_monolithic'] == 12),
         ('nominal_laminated', 12, result['nominal_laminated'], result['nominal_laminated'] == 12),
     ]
-    return report('1', 'Case A - full perimeter sealed, Pz=2.0kPa (span fix: dead load now governs, edge-polish deduction applied)', checks)
+    report('1', 'Case A - full perimeter sealed, Pz=2.0kPa (span fix: dead load now governs, edge-polish deduction applied)', checks)
 
 
 def test_2():
@@ -107,7 +111,7 @@ def test_2():
         ('nominal_monolithic', None, result['nominal_monolithic'], result['nominal_monolithic'] is None),
         ('nominal_laminated', None, result['nominal_laminated'], result['nominal_laminated'] is None),
     ]
-    return report('2', 'Case B - verticals sealed only, Pz=2.0kPa (dead load exceeds all sizes)', checks)
+    report('2', 'Case B - verticals sealed only, Pz=2.0kPa (dead load exceeds all sizes)', checks)
 
 
 def test_3():
@@ -145,7 +149,7 @@ def test_3():
         ('nominal_monolithic', 12, result['nominal_monolithic'], result['nominal_monolithic'] == 12),
         ('nominal_laminated', 12, result['nominal_laminated'], result['nominal_laminated'] == 12),
     ]
-    return report('3', 'Case C - full perimeter sealed, Pz=0.5kPa (dead load governs, span fix + edge-polish deduction applied)', checks)
+    report('3', 'Case C - full perimeter sealed, Pz=0.5kPa (dead load governs, span fix + edge-polish deduction applied)', checks)
 
 
 def test_4():
@@ -162,7 +166,7 @@ def test_4():
          result['sealed_edges'] == 'horizontals_only'),
         ('message populated', True, result['message'] is not None, result['message'] is not None),
     ]
-    return report('4', "sealed_edges='horizontals_only' returns CONFIGURATION_OUT_OF_SCOPE", checks)
+    report('4', "sealed_edges='horizontals_only' returns CONFIGURATION_OUT_OF_SCOPE", checks)
 
 
 def test_5():
@@ -186,7 +190,7 @@ def test_5():
          out_of_scope_result['status'] == 'CONFIGURATION_OUT_OF_SCOPE'),
         ('all three key sets identical', True, all_identical, all_identical),
     ]
-    return report('5', 'Result dict structural consistency', checks)
+    report('5', 'Result dict structural consistency', checks)
 
 
 def test_6():
@@ -233,7 +237,7 @@ def test_6():
         ('nominal_monolithic', 15, result['nominal_monolithic'], result['nominal_monolithic'] == 15),
         ('nominal_laminated', 16, result['nominal_laminated'], result['nominal_laminated'] == 16),
     ]
-    return report('6', 'Case D - full perimeter sealed, Pz=4.0kPa (wind governs, edge-polish deduction applied)', checks)
+    report('6', 'Case D - full perimeter sealed, Pz=4.0kPa (wind governs, edge-polish deduction applied)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -241,16 +245,25 @@ def test_6():
 # ---------------------------------------------------------------------------
 
 def run_tests():
+    # report() now asserts internally, so a test function either completes
+    # (pass) or raises AssertionError (fail) - it no longer returns a bool.
+    # This loop catches per-test AssertionErrors itself so the script-mode
+    # runner still tallies and prints a pass count, matching its previous
+    # behaviour.
     print('=' * 70)
     print('  AS 1288 Calculator — Structural Glazing Test Runner')
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
     tests = [test_1, test_2, test_3, test_4, test_5, test_6]
-    results = [t() for t in tests]
-
-    passed = sum(1 for r in results if r)
-    total = len(results)
+    passed = 0
+    for t in tests:
+        try:
+            t()
+            passed += 1
+        except AssertionError as e:
+            print(f"    ASSERTION FAILED: {e}")
+    total = len(tests)
 
     print()
     print('=' * 70)
