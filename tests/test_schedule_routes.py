@@ -51,4 +51,4 @@ def test_configurator_route_sets_csp_header():
 def test_configurator_route_serves_expected_schema_version():
     client = get_client()
     response = client.get('/configurator')
-    assert b"schemaVersion: 5" in response.data
+    assert b"schemaVersion: 6" in response.data
