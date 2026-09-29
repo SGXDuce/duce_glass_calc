@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.36 (Schedule page's CONFIGURATOR_SCHEMA_VERSION mismatch against the vendored Configurator fixed (5 -> 6); read-only survey of the codebase against the "System check" design ask, findings marked verified or unverified.)
+### Version: V1.37 (Docs-only correction to the System check design's classification model — building type, room type, and a separate high-risk yes/no replace the earlier single "room type" dropdown wording; high-risk 2000mm cutoff and question rule recorded, one decided, one proposed.)
 ### Last Updated: 29 September 2026
 
 ---
@@ -8,6 +8,27 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.37 — 29 September 2026 — System check design correction: classification model split into building type, room type, and high-risk
+
+**Docs only — no code, tests, or data changed this entry.**
+
+**Corrects the System check mode design's classification wording.** The v1.36-adjacent design section in `Window_Schedule_Progress_Handover.md` ("System check mode (design, 29 September 2026)") originally described a single "room type" dropdown that pre-filled from building type. This was wrong: the project's actual classification (per `engineering-decisions-notes.md`) is two separate, required inputs — building type (aged care / school or early childhood / residential / other, feeding `building_use`) and room type (bathroom, with kitchens counted as bathrooms, or other, feeding `is_bathroom`) — plus a third, separate high-risk-of-breakage yes/no (feeding `high_risk`), which is not a room type and is not defaulted from either of the other two. Both building type and room type are now recorded as required with no defaults; the "building type as a default only" wording is removed.
+
+**Records a decided Duce interpretation for the high-risk (Clause 5.24) height cutoff.** Clause 5.24 itself states no height limit, but System check applies high-risk only to panes whose own lowest sightline is 2000mm or less above the surface a person stands on — glass above that height is not subject to human impact at all. This is applied entirely in System check's own wiring (a pane above 2000mm is passed into the engine with `high_risk` False); `engine/human_impact/location_rules.py`'s Clause 5.24 rule itself is unchanged and still has no height gate.
+
+**Records a high-risk question-visibility rule as PROPOSED, not decided.** The rule (ask the high-risk yes/no once per system, hide it only when every pane is above 2000mm or already covered by another location rule at that pane's height) was proposed this session and is not yet confirmed by Sahil. It corrects an earlier assumption that low-level glass and sidelights could safely skip the question — a read-only engine run this session (see below) showed that assumption was wrong.
+
+**Read-only survey findings recorded, all UNVERIFIED unless stated otherwise:**
+- `translate_pane` (`engine/schedule/translation.py`) only treats two fields as blocking: `ffl_height_mm` missing returns `not_assessable`, and `frame_off_exposed` missing (when relevant) returns `needs_answer`. Every other row/answers field — `building_use`, `is_bathroom`, `high_risk`, and the five Clause 5.4 answers (`opaque_or_patterned`, `rail_present`, `rail_upper_edge_mm`, `rail_lower_edge_mm`, `level_difference_mm`) — defaults silently and is never named as missing, so an unanswered question silently skips the school, aged care, bathroom, or high-risk rule it would have triggered.
+- `building_use` is matched against exact string literals in `location_rules.py`, so System check's option values must match those literals exactly, and each option should have a test proving it actually triggers its rule.
+- The five Clause 5.4 answers apply to any ordinary window pane that is not a side panel, regardless of framing — only `frame_off_exposed` is framing-gated. This is **not** IGU-specific. An earlier note in this design suggesting an IGU pane would need fewer questions was wrong; if `translate_pane` is called twice per IGU (inside/outside), those five answers are per pane, not per glass panel, and must be supplied identically both times.
+
+**Reported by a Claude Code direct engine run this session (not the survey); NOT re-run by Sahil:** flipping only `high_risk` from False to True on two existing real test cases — `tests/test_human_impact.py` test_5 (fully framed side panel, area 0.25 m², annealed passes at 5mm) and test_9 (fully framed low-level window via Clause 5.5, annealed passes at 5mm) — blocked the annealed route entirely in both cases (Clause 5.24 offers no alternative, and the engine's `combine_alts` treats any no-alternative match as an absolute veto). `location_rules.py` lines 298-304 apply Clause 5.24 with no height, building-use, or area gate of any kind (this part was also seen directly by Sahil in his own search output).
+
+**Not changed:** `engine/human_impact/location_rules.py`, `engine/schedule/translation.py`, and every other engine/route/template file are untouched by this entry — this is a documentation correction only, recording decisions and open questions ahead of any build work.
+
+**Outstanding as of this entry:** the high-risk question-visibility rule, the 2000mm boundary's inclusivity, and whether the standalone single-glass human impact page should also adopt the 2000mm cutoff are all open — see `Window_Schedule_Progress_Handover.md`'s "System check mode" open items (d)–(h).
 
 ### v1.36 — 29 September 2026 — Schedule schemaVersion fix (5→6); read-only codebase survey for System check design
 
