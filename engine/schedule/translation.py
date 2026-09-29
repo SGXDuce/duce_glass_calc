@@ -28,6 +28,20 @@ SIDE_PANEL_GAP_MAX_MM = 300
 
 SLIDER_TYPES = ('horizontal-slider', 'vertical-slider')
 
+# The complete set of unframedEdgeReasons values this layer understands
+# (configurator schema v6). Any reason not in this set is unrecognised and
+# must never be treated as a held edge - see _check_known_edge_reasons().
+KNOWN_EDGE_REASONS = frozenset((
+    None, 'angled-joint', 'silicone-flat', 'frame-off', 'next-to-sashless',
+    'sashless-free-edge',
+))
+
+_EDGE_NAMES = ('top', 'bottom', 'left', 'right')
+_OPPOSITE_FREE_EDGE_PAIRS = {
+    frozenset(('left', 'right')): ('top', 'bottom'),
+    frozenset(('top', 'bottom')): ('left', 'right'),
+}
+
 
 def _edge_of_visible_glass(pane, side):
     """
@@ -112,6 +126,86 @@ def _sight_size(pane):
     sight_width_mm = pane['widthMM'] - pane['sashEdgesMM']['left'] - pane['sashEdgesMM']['right']
     sight_height_mm = pane['heightMM'] - pane['sashEdgesMM']['top'] - pane['sashEdgesMM']['bottom']
     return sight_width_mm, sight_height_mm
+
+
+def _check_known_edge_reasons(pane):
+    """
+    R1: fail closed on any edge reason this layer doesn't recognise. Checked
+    for every pane, sashless or not, before any framing or span logic runs -
+    an unrecognised reason must never be silently treated as a held edge.
+
+    Returns an error message naming the bad edge and value, or None if every
+    edge's reason is in KNOWN_EDGE_REASONS.
+    """
+    reasons = pane.get('unframedEdgeReasons')
+    if not isinstance(reasons, dict):
+        return f"pane {pane.get('id')!r}: unframedEdgeReasons is missing or not a dict"
+
+    for edge in _EDGE_NAMES:
+        if edge not in reasons:
+            return f"pane {pane.get('id')!r}: edge '{edge}' has no reason entry"
+        reason = reasons[edge]
+        if reason is not None and not isinstance(reason, str):
+            return f"pane {pane.get('id')!r}: edge '{edge}' reason {reason!r} is not a string or None"
+        if reason == '':
+            return f"pane {pane.get('id')!r}: edge '{edge}' reason is an empty string"
+        if reason not in KNOWN_EDGE_REASONS:
+            return f"pane {pane.get('id')!r}: edge '{edge}' has unrecognised reason {reason!r}"
+    return None
+
+
+def _sashless_free_and_held_edges(pane):
+    """
+    R2: a sashless pane must have exactly two 'sashless-free-edge' edges,
+    and they must be opposite each other (left+right, or top+bottom) -
+    those are the edges with no sash rail, where the glass is unsupported.
+    The other two edges are where the glass is actually held, and both
+    must have reason None (any other reason on a held edge is a
+    contradiction in the export, not a case to guess through).
+
+    Returns (free_edges, held_edges) as frozensets of edge names, or None
+    if the pattern doesn't match R2.
+    """
+    reasons = pane['unframedEdgeReasons']
+    free_edges = frozenset(
+        edge for edge in _EDGE_NAMES if reasons[edge] == 'sashless-free-edge'
+    )
+    held_edges = _OPPOSITE_FREE_EDGE_PAIRS.get(free_edges)
+    if held_edges is None:
+        return None
+    for edge in held_edges:
+        if reasons[edge] is not None:
+            return None
+    return free_edges, frozenset(held_edges)
+
+
+def _sashless_span_mm(pane, sight_width_mm, sight_height_mm):
+    """
+    R3: sashless span is the sight dimension measured between the two HELD
+    edges - the distance the glass actually spans, unsupported, between the
+    two edges that do hold it. Which edges are held depends on the slider's
+    orientation and is read from unframedEdgeReasons, not assumed from the
+    pane type.
+
+    Returns (span_mm, error_message). error_message is set (span_mm None)
+    on any R1/R2/R4 violation.
+    """
+    known_error = _check_known_edge_reasons(pane)
+    if known_error:
+        return None, known_error
+
+    pattern = _sashless_free_and_held_edges(pane)
+    if pattern is None:
+        return None, (
+            f"pane {pane['id']!r}: sashless pane does not have exactly two "
+            "opposite 'sashless-free-edge' edges with the remaining two "
+            "edges held (reason None)"
+        )
+    free_edges, _held_edges = pattern
+
+    if free_edges == frozenset(('left', 'right')):
+        return sight_height_mm, None
+    return sight_width_mm, None
 
 
 def _is_door_pane(pane, elevation_panes):
@@ -204,7 +298,8 @@ def _framing(pane, angle_deg, answers):
     frame_off_present = False
     frame_off_exposed_yes = False
 
-    for edge, reason in reasons.items():
+    for edge in _EDGE_NAMES:
+        reason = reasons[edge]
         if reason is None:
             continue
         if reason == 'angled-joint':
@@ -213,6 +308,11 @@ def _framing(pane, angle_deg, answers):
             if angle_deg == 90:
                 continue  # held
             not_held.append(edge)
+        elif reason == 'sashless-free-edge':
+            # R4: this reason only makes sense on a sashless pane. Reaching
+            # here means a non-sashless pane carries it - an inconsistent
+            # export, not something to guess through.
+            return 'not_assessable', missing, None
         elif reason in ('silicone-flat', 'next-to-sashless', 'frame-off'):
             not_held.append(edge)
             if reason == 'frame-off':
@@ -263,6 +363,17 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
     reasons = []
     missing = []
 
+    # R1: fail closed on any unrecognised edge reason, before any framing
+    # or span logic runs - never treat an unrecognised reason as held.
+    edge_reason_error = _check_known_edge_reasons(pane)
+    if edge_reason_error:
+        reasons.append(edge_reason_error)
+        return {
+            'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
+            'payload': None, 'reasons': reasons, 'warnings': warnings,
+            'missing': missing,
+        }
+
     sightline_mm = _sightline_mm(pane, row)
     if sightline_mm is None:
         missing.append('ffl_height_mm')
@@ -280,7 +391,14 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
     # Sashless panes skip match_location() entirely - determine_sashless()
     # is self-contained (see engine/human_impact/__init__.py docstring).
     if pane.get('sashless'):
-        span_mm = pane['widthMM'] - pane['sashEdgesMM']['left'] - pane['sashEdgesMM']['right']
+        span_mm, span_error = _sashless_span_mm(pane, sight_width_mm, sight_height_mm)
+        if span_error:
+            reasons.append(span_error)
+            return {
+                'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
+                'payload': None, 'reasons': reasons, 'warnings': warnings,
+                'missing': missing,
+            }
         return {
             'pane_id': pane['id'], 'status': 'ready', 'method': 'sashless',
             'payload': {'span_mm': span_mm}, 'reasons': reasons,

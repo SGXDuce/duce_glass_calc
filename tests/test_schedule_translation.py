@@ -8,10 +8,20 @@
 # Run from the project root (duce_glass_calc/):
 #   python -m pytest tests/test_schedule_translation.py -v
 
+import json
+import os
+
 from engine.schedule.translation import (
     translate_pane, translate_system, ASSUMED_BAR_TUCKIN_MM,
 )
 from engine.human_impact import determine_fixed, determine_sashless
+
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
+
+
+def load_fixture(filename):
+    with open(os.path.join(FIXTURES_DIR, filename), encoding='utf-8') as f:
+        return json.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -635,27 +645,271 @@ def test_t10_louvre_pane():
 
 
 # ---------------------------------------------------------------------------
-# T11 - sashless (HAND-BUILT stile width, unverified)
+# T11 - sashless span, orientation read from unframedEdgeReasons
+#
+# REWRITTEN for Configurator batch 63 / schema v6. The old version of this
+# test hand-built a horizontal-slider with a hard-coded 20mm stile and
+# asserted span = widthMM minus both stile widths - that was the pre-batch-63
+# orientation (glass held left/right). Upstream now corrects this: a
+# horizontal slider's glass is held top/bottom (free left/right), and a
+# vertical slider (double-hung) is the mirror - held left/right, free
+# top/bottom. Span is now derived from which edges unframedEdgeReasons marks
+# 'sashless-free-edge', never from the pane type or a hand-picked stile
+# figure. See R1-R4 in engine/schedule/translation.py.
 # ---------------------------------------------------------------------------
 
-def test_t11_sashless_span():
-    pane = make_pane(type='horizontal-slider', widthMM=1040, sash_left=20, sash_right=20, sashless=True)
+def test_t11a_sashless_ox_window_real_export():
+    # REAL verified Configurator export (schema v6, batch 63):
+    # tests/fixtures/sashless_ox_window.json. The sashless pane is a
+    # horizontal-slider: free edges left/right, held top/bottom -> span is
+    # measured top-to-bottom (sight_height_mm).
+    #
+    # sight_width_mm (900) != sight_height_mm (1050) for this pane, so the
+    # assertions below discriminate direction directly: span must equal the
+    # HELD-edge dimension (sight_height_mm) and must NOT equal the other
+    # dimension (sight_width_mm) - this fails against the pre-batch-63
+    # width-based formula, which returns 900 here (confirmed: swapping in
+    # master's translation.py makes this test fail).
+    export = load_fixture('sashless_ox_window.json')
+    panes = export['system']['elevations'][0]['panes']
+    sashless_pane = next(p for p in panes if p['sashless'])
+    assert sashless_pane['type'] == 'horizontal-slider'
+
+    reasons = sashless_pane['unframedEdgeReasons']
+    assert reasons['left'] == 'sashless-free-edge'
+    assert reasons['right'] == 'sashless-free-edge'
+    assert reasons['top'] is None
+    assert reasons['bottom'] is None
+
+    sight_width_mm = sashless_pane['widthMM'] - sashless_pane['sashEdgesMM']['left'] - sashless_pane['sashEdgesMM']['right']
+    sight_height_mm = sashless_pane['heightMM'] - sashless_pane['sashEdgesMM']['top'] - sashless_pane['sashEdgesMM']['bottom']
+    assert sight_width_mm != sight_height_mm  # fixture can discriminate direction
+
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(sashless_pane, panes, None, row, NO_ANSWERS)
+
+    assert result['status'] == 'ready'
+    assert result['method'] == 'sashless'
+    assert result['payload']['span_mm'] == 1050
+    assert result['payload']['span_mm'] == sight_height_mm  # held top/bottom -> span = sight_height
+    assert result['payload']['span_mm'] != sight_width_mm   # not the width axis
+
+
+def test_t11b_sashless_double_hung_real_export():
+    # REAL verified Configurator export (schema v6, batch 63):
+    # tests/fixtures/sashless_double_hung.json. Both panes are
+    # vertical-sliders (double-hung mirror image): free edges top/bottom
+    # (including the meeting-rail edge), held left/right -> span is
+    # measured left-to-right (sight_width_mm).
+    #
+    # NOTE: this test only confirms the real double-hung export gives
+    # span_mm == 1050 - it does NOT prove the held-left/right direction is
+    # being read correctly. For this fixture, the pre-batch-63 formula
+    # (widthMM minus left/right sash) computes the same width-axis
+    # expression as the correct one and ALSO returns 1050, so this test
+    # still passes against the old, pre-batch-63 translation.py (confirmed
+    # by swapping it in). The sight_width_mm != sight_height_mm and
+    # span-must-not-equal-sight_height_mm assertions below narrow things
+    # down but do not close that gap either, for the same reason.
+    # test_t11d_sashless_span_follows_reasons_not_width_axis is the test
+    # that actually guards the held-left/right direction (it fails against
+    # the old code).
+    export = load_fixture('sashless_double_hung.json')
+    panes = export['system']['elevations'][0]['panes']
+
+    row = make_row(ffl_height_mm=0)
+    for pane in panes:
+        assert pane['type'] == 'vertical-slider'
+
+        reasons = pane['unframedEdgeReasons']
+        assert reasons['top'] == 'sashless-free-edge'
+        assert reasons['bottom'] == 'sashless-free-edge'
+        assert reasons['left'] is None
+        assert reasons['right'] is None
+
+        sight_width_mm = pane['widthMM'] - pane['sashEdgesMM']['left'] - pane['sashEdgesMM']['right']
+        sight_height_mm = pane['heightMM'] - pane['sashEdgesMM']['top'] - pane['sashEdgesMM']['bottom']
+        assert sight_width_mm != sight_height_mm  # fixture can discriminate direction
+
+        result = translate_pane(pane, panes, None, row, NO_ANSWERS)
+
+        assert result['status'] == 'ready'
+        assert result['method'] == 'sashless'
+        assert result['payload']['span_mm'] == 1050
+        assert result['payload']['span_mm'] == sight_width_mm  # held left/right -> span = sight_width
+        assert result['payload']['span_mm'] != sight_height_mm  # not the height axis
+
+    engine_result = determine_sashless(1050)
+    mono_tough = next(t for t in engine_result['types'] if t['id'] == 'monolithic_toughened')
+    assert mono_tough['ok'] is True
+    assert mono_tough['min_thickness'] == 6
+    # 1050mm exceeds the 1000mm ceiling for 5mm monolithic toughened -
+    # confirms the span is actually driving the thickness lookup, not just
+    # returning a plausible-looking number.
+
+
+def test_t11c_sashless_horizontal_slider_hand_built():
+    # HAND-BUILT, orientation per R3: horizontal-slider free edges are
+    # left/right, held top/bottom -> span = sight_height_mm.
+    pane = make_pane(
+        type='horizontal-slider', widthMM=1040, heightMM=1050,
+        sash_top=15, sash_bottom=15, sashless=True,
+        unframedEdgeReasons=_edges(left='sashless-free-edge', right='sashless-free-edge'),
+    )
     row = make_row(ffl_height_mm=0)
     result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
     assert result['status'] == 'ready'
     assert result['method'] == 'sashless'
-    assert result['payload']['span_mm'] == 1000
+    assert result['payload']['span_mm'] == 1020  # 1050 - 15 - 15
 
-    engine_result = determine_sashless(result['payload']['span_mm'])
-    mono_tough = next(t for t in engine_result['types'] if t['id'] == 'monolithic_toughened')
-    assert mono_tough['ok'] is True
-    assert mono_tough['min_thickness'] == 5
 
-    lam_tough = next(t for t in engine_result['types'] if t['id'] == 'laminated_toughened')
-    assert lam_tough['ok'] is False
-    # Using pane width 1040 directly (instead of the 1000mm sight-based
-    # span) would have wrongly demanded 6mm minimum for monolithic
-    # toughened - confirms the span derivation, not just the CSV lookup.
+def test_t11d_sashless_span_follows_reasons_not_width_axis():
+    # HAND-BUILT companion for T11b. The real double-hung fixture
+    # (tests/fixtures/sashless_double_hung.json) cannot discriminate old
+    # vs. new code: its held edges are left/right, and the pre-batch-63
+    # formula (`widthMM - sashLeft - sashRight`) ALWAYS computes the width
+    # axis regardless of pane type - so for ANY pane held left/right, old
+    # and new code compute the identical expression and always agree,
+    # whatever the numbers are. Confirmed directly: swapping in master's
+    # translation.py against the real fixture still passed (see this
+    # branch's earlier task report). Only a pane held top/bottom can ever
+    # disagree with the old width-only formula.
+    #
+    # This test proves direction is read from unframedEdgeReasons, not
+    # defaulted to width, a different way: two panes with IDENTICAL
+    # widthMM/heightMM/sashEdgesMM but OPPOSITE free-edge assignments must
+    # produce DIFFERENT spans. The old code, which ignores
+    # unframedEdgeReasons entirely for span, would compute the same
+    # width-based number for both - this test fails against it for the
+    # held-top/bottom pane, the same way T11a/T11c do.
+    common_kwargs = dict(
+        type='vertical-slider', widthMM=1080, heightMM=870,
+        sash_top=15, sash_bottom=15, sash_left=15, sash_right=15,
+        sashless=True,
+    )
+
+    held_left_right = make_pane(
+        unframedEdgeReasons=_edges(top='sashless-free-edge', bottom='sashless-free-edge'),
+        **common_kwargs,
+    )
+    held_top_bottom = make_pane(
+        unframedEdgeReasons=_edges(left='sashless-free-edge', right='sashless-free-edge'),
+        **common_kwargs,
+    )
+
+    row = make_row(ffl_height_mm=0)
+    result_lr = translate_pane(held_left_right, [held_left_right], None, row, NO_ANSWERS)
+    result_tb = translate_pane(held_top_bottom, [held_top_bottom], None, row, NO_ANSWERS)
+
+    assert result_lr['status'] == 'ready' and result_tb['status'] == 'ready'
+    assert result_lr['payload']['span_mm'] == 1050   # held left/right -> sight_width_mm
+    assert result_tb['payload']['span_mm'] == 840    # held top/bottom -> sight_height_mm
+    assert result_lr['payload']['span_mm'] != result_tb['payload']['span_mm']
+
+
+# ---------------------------------------------------------------------------
+# T12 - R1 fail-closed on unknown/malformed edge reasons
+# ---------------------------------------------------------------------------
+
+def test_t12_unknown_reason_sashless_pane_not_assessable():
+    pane = make_pane(
+        type='horizontal-slider', sashless=True,
+        unframedEdgeReasons=_edges(left='sashless-free-edge', right='bogus-reason'),
+    )
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+    assert result['payload'] is None
+
+
+def test_t12_unknown_reason_non_sashless_pane_not_assessable():
+    pane = make_pane(unframedEdgeReasons=_edges(left='bogus-reason'))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+    assert result['payload'] is None
+
+
+def test_t12_missing_edge_key_not_assessable():
+    pane = make_pane(unframedEdgeReasons={'top': None, 'bottom': None, 'left': None})
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+    assert result['payload'] is None
+
+
+def test_t12_wrong_case_reason_not_assessable():
+    pane = make_pane(unframedEdgeReasons=_edges(left='Silicone-Flat'))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+    assert result['payload'] is None
+
+
+def test_t12_empty_string_reason_not_assessable():
+    pane = make_pane(unframedEdgeReasons=_edges(left=''))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+    assert result['payload'] is None
+
+
+# ---------------------------------------------------------------------------
+# T13 - R2 sashless edge pattern: exactly two OPPOSITE free edges
+# ---------------------------------------------------------------------------
+
+def test_t13_sashless_one_free_edge_not_assessable():
+    pane = make_pane(sashless=True, unframedEdgeReasons=_edges(left='sashless-free-edge'))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+
+
+def test_t13_sashless_three_free_edges_not_assessable():
+    pane = make_pane(sashless=True, unframedEdgeReasons=_edges(
+        top='sashless-free-edge', left='sashless-free-edge', right='sashless-free-edge',
+    ))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+
+
+def test_t13_sashless_two_adjacent_free_edges_not_assessable():
+    pane = make_pane(sashless=True, unframedEdgeReasons=_edges(
+        top='sashless-free-edge', left='sashless-free-edge',
+    ))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+
+
+def test_t13_sashless_zero_free_edges_not_assessable():
+    pane = make_pane(sashless=True, unframedEdgeReasons=_edges())
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+
+
+def test_t13_sashless_held_edge_with_other_reason_not_assessable():
+    # left/right free (opposite pair, valid pattern), but the top held edge
+    # carries 'frame-off' instead of None - must not be treated as held.
+    pane = make_pane(sashless=True, unframedEdgeReasons=_edges(
+        left='sashless-free-edge', right='sashless-free-edge', top='frame-off',
+    ))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
+
+
+# ---------------------------------------------------------------------------
+# T14 - R4: 'sashless-free-edge' on a non-sashless pane is inconsistent
+# ---------------------------------------------------------------------------
+
+def test_t14_sashless_free_edge_on_non_sashless_pane_not_assessable():
+    pane = make_pane(sashless=False, unframedEdgeReasons=_edges(left='sashless-free-edge'))
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+    assert result['status'] == 'not_assessable'
 
 
 # ---------------------------------------------------------------------------
