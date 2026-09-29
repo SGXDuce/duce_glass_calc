@@ -402,7 +402,9 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 //       tolerance-value fix only. Re-traced batch 40's three test cases against the new tolerance:
 //       same pass/block outcomes (1mm doesn't change round-number cases like 1000/1400mm, only how
 //       close "close enough" is).
-// 42:   sashless variant for sliding-window and double-hung presets. New SASHLESS_STILE_MM (10)
+// 42:   sashless variant for sliding-window and double-hung presets. New sashless-stile constant
+//       (10mm, since batch 61 split into SASHLESS_HSLIDER_CAPPING_MM/SASHLESS_DH_CAPPING_MM — same
+//       value, see that batch's own comment at the constants' definition)
 //       and SASHLESS_FRAME_TUCKIN_MM (6, sliding-window only — 3mm/edge, a stated not derived
 //       figure, separate constant from FRAME_TUCKIN_MM so a non-sashless preset in the same
 //       session is unaffected) plus a new per-leaf `sashless: true` marker. New "Build sashless
@@ -419,7 +421,8 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 //       either (mirrors the already-open, unconfirmed gap around ordinary double-hung's own
 //       horizontal jamb tuck-in — not solved here for the sashless case or the pre-existing
 //       non-sashless case). Confirmed, not assumed: a sashless preset's "Edit assembly widths"
-//       reopen preserves sashless/zeroed-sash/SASHLESS_STILE_MM automatically, since
+//       reopen preserves sashless/zeroed-sash/SASHLESS_HSLIDER_CAPPING_MM (the sashless-stile
+//       constant, renamed batch 61 — see its own definition comment) automatically, since
 //       buildSlidingWinOverlapTree only ever re-wraps the EXISTING live leaf object references on
 //       resize (never clones/re-stamps them) — the one real fix needed was making the reopen
 //       form's own tuck-in-dependent total-width validation read sashless-ness off those existing
@@ -459,9 +462,10 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 // 45:   sashless fix: bare O panels, plus internal unframed-edge detection (Case 4). Two parts.
 //       (1) buildAssemblyPresetTree: a sashless O (type:'fixed') leaf now gets sashLeftMM =
 //       sashRightMM = 0, matching an ordinary bare fixed pane exactly — batch 42 originally
-//       stamped SASHLESS_STILE_MM on every sashless leaf's left/right regardless of type, wrong
-//       for O specifically (no real stile there). X (horizontal-slider) leaves are unaffected,
-//       still SASHLESS_STILE_MM. Double-hung confirmed unaffected by inspection —
+//       stamped the sashless-stile constant (renamed batch 61 to SASHLESS_HSLIDER_CAPPING_MM) on
+//       every sashless leaf's left/right regardless of type, wrong for O specifically (no real
+//       stile there). X (horizontal-slider) leaves are unaffected, still that same constant (now
+//       SASHLESS_HSLIDER_CAPPING_MM). Double-hung confirmed unaffected by inspection —
 //       buildDoubleHungUnit never builds a type:'fixed' leaf at all.
 //       (2) buildExportElevation gains Case 4, unframedEdges-only (never added to
 //       unframedEdgeCount — a second, independently-documented divergence, distinct from batch
@@ -984,6 +988,50 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 //       unframedEdges/unframedEdgeCount/unframedEdgeReasons, meeting-jamb detection, and
 //       computeCrossElevationLinks all untouched (confirmed by diff). No schemaVersion bump. Full
 //       detail in Configurator_Project_Summary.md §11 item 3s.
+// 60:   lone (non-preset) sliding-leaf tuck-in on export — spans two commits, retroactively
+//       numbered as one batch (commit dad98aa carried no batch number of its own; this entry covers
+//       both it and commit 24f1e45, its own direct correctness follow-up in the same working
+//       session, before either had a changelog entry). dad98aa added computeLoneSlidingLeafCorrections
+//       itself: a lone sliding-window/door leaf built directly via the per-pane type dropdown (no
+//       OX/OXX/OXXO/D/DD/DDD preset, no assemblyPresetRef) was exporting flush/uncorrected on every
+//       axis; new function requiring a leaf to touch all 4 opening edges before applying tuckIn/2
+//       jamb correction (width) and SLIDING_HEIGHT_TUCKIN_MM correction (height). 24f1e45 then
+//       rewrote that whole-leaf "touches all 4 opening edges" gate into a per-edge test — a
+//       manually mullion-split pair of sliding leaves (not a preset) was getting ZERO correction on
+//       any edge, jamb included, once it touched fewer than 4 opening edges. Now each edge is
+//       tested independently, but the rule is ASYMMETRIC BETWEEN AXES: LEFT/RIGHT edges get
+//       tuckIn/2 for EITHER the outer frame OR a real sibling mullion (new findAdjacentSplit
+//       helper, called only with axis 'v': nearest ancestor split of the matching axis,
+//       thicknessMM > 0, not silicone); TOP/BOTTOM edges get tuckIn/2 for the outer frame ONLY —
+//       findAdjacentSplit is never called with axis 'h', so a real horizontal mullion gets NO
+//       top/bottom tuck-in at all, for either slider type (tuckTop/tuckBottom are set solely from
+//       touchesFrameTop/touchesFrameBottom). A flush/zero-thickness split, a silicone joint, or an
+//       edge interior to a further subdivision gets nothing, on either axis. Sashless: width uses
+//       SASHLESS_FRAME_TUCKIN_MM in place of FRAME_TUCKIN_MM; height tuck-in is forced to 0.
+//       Mullion tuck-in (left/right) is tested identically for horizontal-slider and
+//       vertical-slider leaves. Top/bottom (SLIDING_HEIGHT_TUCKIN_MM/2) is likewise NOT gated on
+//       node.type — a vertical-slider leaf whose top or bottom edge touches the outer frame gets
+//       the same top/bottom tuck-in as a horizontal-slider, in both dad98aa and 24f1e45 (this was
+//       never horizontal-slider-only, an earlier draft of this entry said so incorrectly). The
+//       AS 1288 side has confirmed a lone vertical slider does tuck into its head and sill — but
+//       the 20mm-per-end figure applied there is SLIDING_HEIGHT_TUCKIN_MM, the horizontal slider's
+//       own confirmed figure, reused for vertical sliders WITHOUT separate confirmation. Do not
+//       change SLIDING_HEIGHT_TUCKIN_MM until that amount is confirmed for vertical sliders
+//       specifically, and do not add a horizontal-mullion top/bottom tuck-in rule without asking —
+//       both flagged as open items (Configurator_Project_Summary.md §5), not fixed by this batch.
+//       A leaf gets NO entry in the correction map at all when none of its 4 edges qualify for any
+//       correction — e.g. hasFrame:false, or a leaf every one of whose edges is either flush or
+//       interior to a further
+//       subdivision with no frame touch — not only in the "manually split" case. Preset OXXO's
+//       flush middle join and DD/DDD's internal-mullion tuck-in (batch 59) both confirmed to need no
+//       change — untouched, separate assemblyPresetRef-gated pipeline. Self-found bug, fixed before
+//       shipping: findAdjacentSplit's first version had its side/child-index pairing inverted,
+//       silently zeroing every mullion detection — caught by a CDP-driven browser test, not a hand
+//       trace, fixed, full suite re-run clean. Verified via CDP-driven browser tests: single-leaf
+//       regression, real 40mm manual mullion split (horizontal + vertical sliders), flush manual
+//       split, OX/DD preset exports unaffected — all 5 passed. No schemaVersion bump. Full detail
+//       in Configurator_Project_Summary.md §11 item 3u and configurator_export_schema.md's "Lone
+//       and manually split slider tuck-in (batch 60)" section.
 // ===== END BATCH LOG =====
 
 // Batch 9: sash frame width is now stored per-edge — sashTopMM/sashBottomMM/sashLeftMM/
@@ -1448,6 +1496,11 @@ function cloneForSplit(node) {
       bladeLengthMM: node.bladeLengthMM
     };
     if (node.sashless) next.sashless = true;
+    // Batch 63 — sashlessOrientationVersion carried over the same conditional way as sashless
+    // itself: a split leaf's children must keep knowing whether they carry the new (batch 63+)
+    // sashEdgesMM orientation/values or the old (pre-batch-63) ones, so restoreFromRawState's
+    // migration doesn't re-migrate (or wrongly skip) an already-correct leaf after a split.
+    if (node.sashlessOrientationVersion != null) next.sashlessOrientationVersion = node.sashlessOrientationVersion;
     return next;
   }
   return emptyNode();
@@ -4043,7 +4096,16 @@ function renderAssemblyPresetForm(bar, rect) {
       render();
     };
     sashlessLabel.appendChild(sashlessCheckbox);
-    sashlessLabel.appendChild(document.createTextNode('Build sashless (no top/bottom sash, narrow stile)?'));
+    // Batch 61 — label text corrected to describe the PHYSICALLY correct/intended final
+    // orientation (capping top/bottom, free left/right) rather than the old, backwards-sounding
+    // "narrow stile" wording. This describes the INTENT, not the current implementation —
+    // SASHLESS_HSLIDER_CAPPING_MM (buildAssemblyPresetTree) still actually puts the capping on
+    // left/right, the wrong edges, until a future "numbers batch" fixes it (see that constant's own
+    // loud comment). This label/implementation mismatch is deliberate and expected, not a bug to
+    // reconcile here — see configurator_export_schema.md's Known-gap note. sashEdgesMM is
+    // deliberately NOT changed to match this label in this batch (out of scope — no numeric
+    // changes).
+    sashlessLabel.appendChild(document.createTextNode('Build sashless (glass held by capping on top and bottom only; left and right free)?'));
     sashlessRow.appendChild(sashlessLabel);
     bar.appendChild(sashlessRow);
   }
@@ -5528,19 +5590,27 @@ const FRAME_TUCKIN_MM = 40;
 // throughout; only the per-edge sash values (and, for sliding-window, the tuck-in figure used to
 // size the row) differ. Windows only — sliding doors, casement, and awning never offer this.
 //
-// SASHLESS_STILE_MM — the hardcoded left/right stile width a sashless preset stamps, replacing
-// whatever DEFAULT_SASH_MM (or PRESET_SASH_EDGES) that family's normal preset would otherwise
-// stamp. A fixed new default, not derived from anything existing in this file.
-const SASHLESS_STILE_MM = 10;
-// SASHLESS_FRAME_TUCKIN_MM — sliding-window family only. Same "flat per row, not per panel" shape
-// as FRAME_TUCKIN_MM above (2 frame-touching edges × a fixed mm-per-edge figure), but built from
-// 3mm hidden per edge instead of 20mm — i.e. 2 × 3mm = 6mm/row, leaving 7mm of the 10mm stile
-// visible at each jamb. The 3mm/edge figure is a stated value for this batch, not independently
-// derived or confirmed against a real drawing — same honesty standard the original 40mm
-// (20mm/edge) tuck-in got when it was first built. Deliberately a SEPARATE constant from
-// FRAME_TUCKIN_MM, not a branch inside it — a non-sashless preset built in the same session must
-// keep using the real 40mm tuck-in completely unchanged.
-const SASHLESS_FRAME_TUCKIN_MM = 6;
+// Batch 63 — CONFIRMED, PERMANENT product figures (person-confirmed), replacing batch 61's
+// placeholder value and wrong-until-the-numbers-batch orientation. SASHLESS_HSLIDER_CAPPING_MM is
+// now 15mm (was 10, a placeholder) and is applied to sashTopMM/sashBottomMM (TOP and BOTTOM
+// capping), not left/right — the X leaf's real free edges are LEFT and RIGHT (0mm, no material),
+// matching the physically-correct orientation the checkbox label (batch 61) already described. See
+// its own use in buildAssemblyPresetTree below for the actual assignment. SASHLESS_DH_CAPPING_MM
+// stays on left/right (orientation already correct since batch 61) — only its VALUE changes 10→15.
+const SASHLESS_HSLIDER_CAPPING_MM = 15;
+const SASHLESS_DH_CAPPING_MM = 15;
+// SASHLESS_FRAME_TUCKIN_MM — sliding-window family only, jamb (sideways) tuck-in for a sashless
+// row. Batch 63 — person-confirmed permanent figure: sideways tuck-in for a sashless row is 0mm
+// (flush with the frame, no hidden material at the jamb) — was 6mm (a placeholder, 3mm/edge,
+// batch 42/61). Kept as a real, separately-named constant (not deleted) rather than inlining 0 at
+// every call site: every one of its use sites (computeSlidingWinPrefillWidths,
+// computeSlidingWinTotalWidth, computeSlidingAssemblyLeafCorrections, computeLoneSlidingLeafCorrections,
+// and the assembly-widths-prefill block near line 1651) also handles the NON-sashless case in the
+// same expression (`sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM`), so removing the
+// constant would mean rewriting each of those conditionals rather than deleting a single
+// definition — keeping it as a 0-valued constant is the smaller, safer change and preserves the
+// existing "which tuck-in figure applies" branch structure exactly.
+const SASHLESS_FRAME_TUCKIN_MM = 0;
 
 // SLIDING_HEIGHT_TUCKIN_MM — person-confirmed (Duce): a framed, non-sashless sliding-window/door
 // row's panel also tucks in vertically, 20mm at the head + 20mm at the sill = 40mm total. This
@@ -5776,34 +5846,48 @@ function buildSlidingWinOverlapTree(pattern, sectionWidthsMM, leaves) {
 // effectively unreachable for every current sliding preset id (batch 18 extended the overlap
 // treatment to doors too) — kept in place rather than deleted, since it's still the fallback
 // for `id` undefined/non-sliding and it's cheap to keep as a defensive default.
-// Batch 42 — `sashless` (default false) stamps every leaf with SASHLESS_STILE_MM left/right and
-// zero top/bottom (glass edge-to-edge top and bottom — the two genuinely unsupported edges, per
-// AS1288's own definition of this condition) plus a `sashless: true` marker, instead of the
-// normal uniform DEFAULT_SASH_MM on all four edges.
+// Batch 42 — `sashless` (default false) stamps every leaf with the sashless-stile constant
+// (renamed batch 61 to SASHLESS_HSLIDER_CAPPING_MM) left/right and zero top/bottom (glass edge-to-edge top and
+// bottom — believed at the time to be the two genuinely unsupported edges, per AS1288's own
+// definition of this condition — see batch 61's correction to this belief below) plus a
+// `sashless: true` marker, instead of the normal uniform DEFAULT_SASH_MM on all four edges.
 // Batch 45 — corrected: a sashless O ('fixed') leaf must be zero on ALL FOUR edges, matching an
 // ordinary bare fixed pane exactly — it has no sash material at all, left/right included. Batch
-// 42 originally stamped SASHLESS_STILE_MM on every sashless leaf's left/right regardless of type,
-// which was wrong for O specifically (there is no real stile there). SASHLESS_STILE_MM left/right
-// is still correct and unchanged for X ('horizontal-slider') leaves — that's the pane whose glass
-// genuinely stops short of the full width, at a narrow real stile.
+// 42 originally stamped that constant on every sashless leaf's left/right regardless of type,
+// which was wrong for O specifically (there is no real stile there). It is still correct and
+// unchanged for X ('horizontal-slider') leaves — that's the pane whose glass genuinely stops short
+// of the full width, at a narrow real stile.
 // Batch 46 — corrected again: `sashless: true` itself no longer goes on O leaves. Confirmed by the
 // person (physical product, not derived): a sashless O's top, bottom, AND outer jamb edge are all
 // genuinely supported by the frame — only its inner vertical edge (facing an X) is unsupported,
 // and that's already captured export-side by Case 4 (unframedEdges), not by the sashless flag.
-// `sashless: true` means "this pane's horizontal edges are unsupported, route to AS1288 Clause
-// 5.15" — true for X, false for O. O keeps its all-zero sash (batch 45, unchanged) but no longer
-// carries the flag at all; only X leaves do.
+// O keeps its all-zero sash (batch 45, unchanged) but no longer carries the flag at all; only X
+// leaves do.
+// Batch 61 corrected a wrong blanket claim this comment block used to make here ("sashless: true
+// means this pane's horizontal [top/bottom] edges are unsupported, route to AS1288 Clause 5.15") —
+// that was only ever true for vertical-slider (double-hung); for THIS function's own X
+// (horizontal-slider) leaves the real free edges are LEFT and RIGHT, not top/bottom.
+// Batch 63 — CONFIRMED, PERMANENT orientation (person-confirmed figures): the X leaf now puts
+// SASHLESS_HSLIDER_CAPPING_MM (15mm) on sashTopMM/sashBottomMM (real capping material) and 0 on
+// sashLeftMM/sashRightMM (free, no material) — the physically correct orientation, matching the
+// checkbox label (batch 61) and Case 5's unframedEdges left/right flag intent. This is a full
+// swap from batch 61's placeholder left/right placement, not a value-only change.
 function buildAssemblyPresetTree(pattern, sectionWidthsMM, mullionThicknessMM, productClass, id, sashless) {
   const slideDirections = computeDefaultSlideDirections(pattern);
   const leaves = pattern.split('').map((ch, i) => {
     const type = ch === 'O' ? 'fixed' : 'horizontal-slider';
+    // Batch 63 — SASHLESS_HSLIDER_CAPPING_MM (15mm) now on TOP/BOTTOM, 0 on LEFT/RIGHT — the
+    // confirmed, correct orientation (see the function-level comment above and the constant's own
+    // definition comment). sashlessOrientationVersion: 2 stamps every leaf built from this batch
+    // forward so restoreFromRawState can migrate any older (batch 61-or-earlier) saved leaf that
+    // still carries the old 10mm left/right values.
     const leaf = sashless
       ? {
           kind: 'filled', type, productClass,
-          sashTopMM: 0, sashBottomMM: 0,
-          sashLeftMM: type === 'fixed' ? 0 : SASHLESS_STILE_MM,
-          sashRightMM: type === 'fixed' ? 0 : SASHLESS_STILE_MM,
-          ...(type === 'fixed' ? {} : { sashless: true })
+          sashLeftMM: 0, sashRightMM: 0,
+          sashTopMM: type === 'fixed' ? 0 : SASHLESS_HSLIDER_CAPPING_MM,
+          sashBottomMM: type === 'fixed' ? 0 : SASHLESS_HSLIDER_CAPPING_MM,
+          ...(type === 'fixed' ? {} : { sashless: true, sashlessOrientationVersion: 2 })
         }
       : {
           kind: 'filled', type, productClass,
@@ -5929,15 +6013,25 @@ function getDoubleHungOverlapMM(sashless) {
 // (sashBottomMM) and its meeting-rail edge (sashTopMM, touching the top leaf) are both zeroed too
 // — both leaves end up with identical all-zero top/bottom, arrived at via the prompt's own more
 // explicit per-edge reasoning rather than a single "zero both" shortcut.
+// Batch 61 — SASHLESS_DH_CAPPING_MM (renamed from the old shared sashless-stile constant, same
+// value, see its own definition comment) on left/right here is ALREADY PHYSICALLY CORRECT, unlike the
+// horizontal-slider usage above — a sashless double-hung sash's real free edges genuinely are
+// top/bottom (both zeroed here), matching buildExportElevation's new Case 5 exactly
+// ('sashless-free-edge' on top+bottom for a vertical-slider) — no "wrong until numbers batch"
+// caveat needed for this call site.
+// Batch 63 — SASHLESS_DH_CAPPING_MM value changed 10→15 (orientation unchanged, still left/right).
+// sashlessOrientationVersion: 2 stamped here too, same migration marker as the horizontal-slider
+// leaf, so restoreFromRawState can tell a fresh (batch 63+) sashless leaf from an older one that
+// still carries the old 10mm value.
 function buildDoubleHungUnit(productClass, topHeightMM, sashless) {
   const topLeaf = sashless
     ? { kind: 'filled', type: 'vertical-slider', slideDirection: 'down', productClass,
-        sashTopMM: 0, sashBottomMM: 0, sashLeftMM: SASHLESS_STILE_MM, sashRightMM: SASHLESS_STILE_MM, sashless: true }
+        sashTopMM: 0, sashBottomMM: 0, sashLeftMM: SASHLESS_DH_CAPPING_MM, sashRightMM: SASHLESS_DH_CAPPING_MM, sashless: true, sashlessOrientationVersion: 2 }
     : { kind: 'filled', type: 'vertical-slider', slideDirection: 'down', productClass,
         sashTopMM: DEFAULT_SASH_MM, sashBottomMM: DEFAULT_SASH_MM, sashLeftMM: DEFAULT_SASH_MM, sashRightMM: DEFAULT_SASH_MM };
   const bottomLeaf = sashless
     ? { kind: 'filled', type: 'vertical-slider', slideDirection: 'up', productClass,
-        sashTopMM: 0, sashBottomMM: 0, sashLeftMM: SASHLESS_STILE_MM, sashRightMM: SASHLESS_STILE_MM, sashless: true }
+        sashTopMM: 0, sashBottomMM: 0, sashLeftMM: SASHLESS_DH_CAPPING_MM, sashRightMM: SASHLESS_DH_CAPPING_MM, sashless: true, sashlessOrientationVersion: 2 }
     : { kind: 'filled', type: 'vertical-slider', slideDirection: 'up', productClass,
         sashTopMM: DEFAULT_SASH_MM, sashBottomMM: DEFAULT_SASH_MM, sashLeftMM: DEFAULT_SASH_MM, sashRightMM: DEFAULT_SASH_MM };
   return {
@@ -6781,35 +6875,54 @@ function computeCrossElevationLinks() {
   return { ok: true, linksByElevation };
 }
 
-// Plain (non-preset) sliding leaf tuck-in — a single sliding-window/door pane typed directly via
-// the per-pane type dropdown (no OX/OXX/OXXO preset, no assemblyPresetRef anywhere above it) was
-// never covered by computeSlidingAssemblyLeafCorrections/computeSlidingAssemblyVerticalCorrections
-// above — both are gated on collectSlidingAssemblyRanges, which only finds nodes carrying an
-// assemblyPresetRef marker. A lone sliding leaf built this way has no such marker and no entered
-// section widths to fall back on, so it exported flush/uncorrected on every axis. This is a
-// separate, dedicated correction for exactly that case — a single unsplit sliding leaf, not an
-// assembly — and deliberately does NOT reuse collectSlidingAssemblyRanges/
-// computeSlidingAssemblyLeafCorrections/resolveSlidingRealWidths/isPanelWidthsStale: that machinery
-// assumes entered per-section widths and overlap joins between sections, neither of which apply to
-// a lone leaf with nothing dividing it.
+// Plain (non-preset) sliding leaf tuck-in — a sliding-window/door pane typed directly via the
+// per-pane type dropdown (no OX/OXX/OXXO or D/DD/DDD preset, no assemblyPresetRef anywhere above
+// it) was never covered by computeSlidingAssemblyLeafCorrections/
+// computeSlidingAssemblyVerticalCorrections/computeDoubleHungWidthCorrections above — all three are
+// gated on collectSlidingAssemblyRanges/collectDoubleHungAssemblyRanges, which only find nodes
+// carrying an assemblyPresetRef marker. A leaf built this way has no such marker and no entered
+// section widths to fall back on. This is a separate, dedicated correction for exactly that case —
+// deliberately does NOT reuse computeSlidingAssemblyLeafCorrections/resolveSlidingRealWidths/
+// isPanelWidthsStale: that machinery assumes entered per-section widths and overlap joins between
+// sections, neither of which apply here.
 //
-// Scope: a leaf whose node.type is 'horizontal-slider' or 'vertical-slider', with NO
-// assemblyPresetRef anywhere in its ancestor path (checked by testing against the very same ranges
-// collectSlidingAssemblyRanges/collectDoubleHungAssemblyRanges already collect, rather than a new
-// tree walk), AND unsplit — its own rect touches the frame's inner opening on all four sides (left,
-// right, top, bottom), using the same EDGE_TOUCH_EPS_MM tolerance and touch-detection pattern
-// computeSlidingAssemblyLeafCorrections/computeSlidingAssemblyVerticalCorrections already use. A
-// leaf touching fewer than all four sides is a manually-split tree (e.g. two sliding leaves built
-// side by side without the preset UI) — out of scope here; only edges against the outer opening are
-// ever tested, never an interior edge between two such leaves.
+// Rewritten (from the original all-or-nothing "touches all 4 opening edges" gate) to test each of
+// a leaf's 4 edges INDEPENDENTLY, since a manually mullion-split pair of sliding leaves (not built
+// via any preset) is physically no different from a preset row at its own internal joins, and was
+// being missed entirely by the old whole-leaf gate. Per edge:
+//   - touches the outer opening (frame) -> tuckIn/2, same as before.
+//   - touches a REAL sibling mullion (nearest ancestor split of the matching axis, thicknessMM > 0,
+//     not a silicone joint) on this leaf's side of it -> ALSO tuckIn/2, same magnitude as a jamb —
+//     confirmed physically real (a manually-split pair's real mullion is an actual timber member,
+//     same as a jamb) and consistent with what DD/DDD presets already get at their own internal
+//     mullions (batch 59). Mullion tuck-in is LEFT/RIGHT only (mullions are vertical dividers) —
+//     for both horizontal- and vertical-slider leaves.
+//   - touches a flush (thicknessMM === 0 / silicone) split, or the edge is interior to a further
+//     subdivision -> no correction on that edge (matches OXXO's own confirmed-flush middle join —
+//     untouched by this rewrite).
+// Top/bottom tuck-in (SLIDING_HEIGHT_TUCKIN_MM) stays outer-frame-only, horizontal-slider-only,
+// exactly as before — vertical sliders' own up/down slide tuck-in is a separate, still-open item,
+// deliberately left alone here.
 //
-// Width: same tuckIn choice as computeSlidingAssemblyLeafCorrections (FRAME_TUCKIN_MM, halved to
-// SASHLESS_FRAME_TUCKIN_MM when sashless, zero with no outer frame), applied symmetrically since an
-// unsplit leaf touches both jambs at once. Height: same SLIDING_HEIGHT_TUCKIN_MM as
-// computeSlidingAssemblyVerticalCorrections, but unconditionally exempting sashless (person-
-// confirmed there — a sashless row's vertical tuck-in is 0, not a smaller nonzero figure) rather
-// than gating on hasFrame alone. Only a sliding leaf itself is ever in scope here — a lone `fixed`
-// pane isn't a sliding pane at all, so it's untouched, same as before this fix.
+// findAdjacentSplit walks DOWN from the marked root along a leaf's own path (not up from the leaf)
+// so the DEEPEST qualifying ancestor split wins — the nearest physical join to the leaf itself,
+// exactly as required (an outer split several levels above a further subdivision must never win
+// over the leaf's own immediate neighbour).
+function findAdjacentSplit(root, path, axis, side) {
+  // side: 'start' (leaf is on the low/left/top side of the split, so the split is on the leaf's
+  // high/right/bottom edge) or 'end' (leaf is on the high side, split is on the leaf's low edge).
+  let node = root;
+  let found = null;
+  for (const i of path) {
+    if (node.kind === 'split' && node.axis === axis) {
+      if ((side === 'start' && i === 1) || (side === 'end' && i === 0)) found = node;
+    }
+    node = node.children ? node.children[i] : null;
+    if (!node) break;
+  }
+  return found;
+}
+
 function computeLoneSlidingLeafCorrections(leaves, ev, openingW, openingH) {
   const assemblyRanges = [];
   collectSlidingAssemblyRanges(ev.root, [], assemblyRanges);
@@ -6820,20 +6933,37 @@ function computeLoneSlidingLeafCorrections(leaves, ev, openingW, openingH) {
     if (node.type !== 'horizontal-slider' && node.type !== 'vertical-slider') return;
     if (assemblyRanges.some(r => pathStartsWith(l.path, r.path))) return; // covered by the preset pipeline
 
-    const touchesLeft = Math.abs(l.x - 0) < EDGE_TOUCH_EPS_MM;
-    const touchesRight = Math.abs(l.x + l.w - openingW) < EDGE_TOUCH_EPS_MM;
-    const touchesTop = Math.abs(l.y - 0) < EDGE_TOUCH_EPS_MM;
-    const touchesBottom = Math.abs(l.y + l.h - openingH) < EDGE_TOUCH_EPS_MM;
-    if (!(touchesLeft && touchesRight && touchesTop && touchesBottom)) return; // a split leaf — out of scope
-
     const sashless = node.sashless === true;
     const tuckInW = ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
     const tuckInH = (ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0;
+
+    const touchesFrameLeft = Math.abs(l.x - 0) < EDGE_TOUCH_EPS_MM;
+    const touchesFrameRight = Math.abs(l.x + l.w - openingW) < EDGE_TOUCH_EPS_MM;
+    const touchesFrameTop = Math.abs(l.y - 0) < EDGE_TOUCH_EPS_MM;
+    const touchesFrameBottom = Math.abs(l.y + l.h - openingH) < EDGE_TOUCH_EPS_MM;
+
+    const isRealMullion = (n) => !!n && n.thicknessMM > 0 && !n.isSiliconeJoint;
+    // 'end' side: leaf is the low/left/top child (index 0) of the adjacent split, so the split
+    // sits on the leaf's high/right/bottom edge. 'start' side: leaf is the high child (index 1),
+    // split sits on the leaf's low/left/top edge.
+    const leftMullion = touchesFrameLeft ? null : findAdjacentSplit(ev.root, l.path, 'v', 'start');
+    const rightMullion = touchesFrameRight ? null : findAdjacentSplit(ev.root, l.path, 'v', 'end');
+
+    let tuckLeft = 0, tuckRight = 0, tuckTop = 0, tuckBottom = 0;
+    if (touchesFrameLeft) tuckLeft = tuckInW / 2;
+    else if (isRealMullion(leftMullion)) tuckLeft = tuckInW / 2;
+    if (touchesFrameRight) tuckRight = tuckInW / 2;
+    else if (isRealMullion(rightMullion)) tuckRight = tuckInW / 2;
+    if (touchesFrameTop) tuckTop = tuckInH / 2;
+    if (touchesFrameBottom) tuckBottom = tuckInH / 2;
+
+    if (tuckLeft === 0 && tuckRight === 0 && tuckTop === 0 && tuckBottom === 0) return;
+
     corrections.set(l, {
-      x: l.x - tuckInW / 2,
-      w: l.w + tuckInW,
-      y: l.y - tuckInH / 2,
-      h: l.h + tuckInH
+      x: l.x - tuckLeft,
+      w: l.w + tuckLeft + tuckRight,
+      y: l.y - tuckTop,
+      h: l.h + tuckTop + tuckBottom
     });
   });
   return corrections;
@@ -6934,6 +7064,20 @@ function buildExportElevation(ev, index, linkedPaneIds) {
       if (!ev.meetingEdges.jambL && Math.abs(l.x) < EDGE_TOUCH_EPS_MM) unframedEdgeCount++;
       if (!ev.meetingEdges.jambR && Math.abs(l.x + l.w - openingW) < EDGE_TOUCH_EPS_MM) unframedEdgeCount++;
     }
+    // Batch 61 — unframedEdgeCount is deliberately left untouched by the new sashless Case 5
+    // (further below, on unframedEdges/unframedEdgeReasons only). This is a further, additional
+    // divergence between unframedEdgeCount and unframedEdges, on top of the two that already
+    // existed before this batch (Case 4, added batch 45, never summed into unframedEdgeCount; and
+    // the old sashless top/bottom EXCEPTION, batch 44/46, which SUPPRESSED a flag unframedEdgeCount
+    // never had to suppress since it never set one for sashless top/bottom in the first place —
+    // that exception is REMOVED as of this batch, replaced by Case 5). Case 5 is a third kind of
+    // divergence, distinct in shape from both prior ones: it's a brand-new ADDITIVE flag (not a
+    // suppression like the old exception, and not a same-shape-different-count situation like
+    // Case 4) that unframedEdgeCount's own three-source sum (sash*Locked / meeting-jamb touch /
+    // fixed-leaf-on-hasFrame:false) has no equivalent source for at all — unframedEdgeCount was
+    // never updated for Case 4 either, so this is consistent with its existing, documented
+    // staleness, not a new kind of oversight. See configurator_export_schema.md's unframedEdgeCount
+    // field note for the doc-side statement of this.
 
     // Batch 44 (schema v4) — unframedEdges: {top,bottom,left,right}, the same three sources as
     // unframedEdgeCount above, mapped per-edge instead of summed. Case 2 (sash*Locked) and Case 1
@@ -6980,23 +7124,86 @@ function buildExportElevation(ev, index, linkedPaneIds) {
       if (!ev.meetingEdges.jambL && Math.abs(l.x) < EDGE_TOUCH_EPS_MM) setUnframedEdge('left', 'frame-off');
       if (!ev.meetingEdges.jambR && Math.abs(l.x + l.w - openingW) < EDGE_TOUCH_EPS_MM) setUnframedEdge('right', 'frame-off');
     }
-    // Sashless exception — applied only to unframedEdges, never to unframedEdgeCount above. A
-    // sashless pane's rail-free top/bottom edges are represented solely by sashless:true; forcing
-    // them false here (left/right untouched) means unframedEdges's true-count can legitimately
-    // differ from unframedEdgeCount. This is a deliberate, documented inconsistency, not a bug —
-    // see configurator_export_schema.md.
-    // Batch 46 — no code change here, only a scope correction: since node.sashless is no longer
-    // ever set on an O ('fixed') leaf (see buildAssemblyPresetTree's batch-46 comment), this
-    // exception now only ever fires for X leaves in practice. A sashless O's own top/bottom follow
-    // the ordinary, unexceptional Case 1/3 rules — false with the frame on (nothing sets them),
-    // true via Case 3 when hasFrame:false (genuinely no jamb and no sash on that outer edge).
-    // Batch 55 — same exception applied to unframedEdgeReasons, forced null alongside false, per
-    // the invariant that the two fields never disagree.
+    // Batch 61 — Case 5 (schema v6): sashless free-edge flag, 'sashless-free-edge'. Replaces the
+    // pre-batch-61 "sashless exception" that used to live here (it forced unframedEdges.top/bottom
+    // to false/null for any node.sashless===true leaf — the OLD mechanism, documented in
+    // configurator_export_schema.md as "Sashless top/bottom exception (batch 44), scope corrected
+    // batch 46"). That old mechanism SUPPRESSED a flag; this one POSITIVELY SETS one, on the
+    // opposite pair of edges for a horizontal-slider, and is a genuinely new, additive Case, not a
+    // reworded version of the old exception.
+    //
+    // DELIBERATE, PHYSICALLY-BACKWARDS ORIENTATION FOR horizontal-slider — READ BEFORE "FIXING"
+    // THIS. A sashless X's actual sashEdgesMM (buildAssemblyPresetTree, ~line 5848) puts ZERO
+    // material top/bottom and a real SASHLESS_HSLIDER_CAPPING_MM (10mm) stile on LEFT/RIGHT — i.e.
+    // the pane's true free/unsupported edges are top/bottom, and left/right actually carry real
+    // material. This Case is intentionally coded the OPPOSITE way: left+right are flagged
+    // 'sashless-free-edge' for a horizontal-slider, NOT top+bottom. This is not a bug and not
+    // something to "correct" back to top/bottom — it deliberately matches sashEdgesMM's own
+    // currently-wrong left/right orientation for a sashless horizontal slider, so that
+    // unframedEdges and sashEdgesMM agree with EACH OTHER even though both are physically backwards
+    // versus the real product (glass held by capping top/bottom only, per Task 5's new checkbox
+    // label). Fixing the orientation — on both sashEdgesMM AND this Case together — is explicitly
+    // deferred to a future "numbers batch" (see configurator_export_schema.md's sashless field
+    // note and its new Known-gap section). Until that batch ships: DO NOT CONSUME v6 SASHLESS
+    // HORIZONTAL PANES FOR REAL NUMBERS.
+    //
+    // vertical-slider (double-hung top/bottom sash) is the opposite situation: its real
+    // sashEdgesMM already puts zero material top/bottom and real SASHLESS_DH_CAPPING_MM (10mm) on
+    // left/right (buildDoubleHungUnit, ~line 5976) — i.e. double-hung's real free edges genuinely
+    // ARE top/bottom. So flagging top+bottom 'sashless-free-edge' for a vertical-slider is the
+    // PHYSICALLY CORRECT orientation, matching sashEdgesMM exactly — no inconsistency for
+    // double-hung, unlike horizontal-slider.
+    //
+    // Collision-trace (worked through per Case, not assumed — see configurator_export_schema.md's
+    // "Case 2/Case 4 mutual exclusivity" section, extended here for this new Case 5):
+    //
+    // Case 4 (next-to-sashless) — cannot collide, structurally. Case 4's own gate (further below)
+    // is `node.type === 'fixed'`; this Case's own gate is `node.sashless === true`, and sashless is
+    // never true on a `fixed` leaf (buildAssemblyPresetTree's batch-46 comment: sashless:true is
+    // only ever stamped on an X or a double-hung sash, never on O). No leaf can satisfy both gates
+    // at once, so this Case and Case 4 can never both try to set an edge on the SAME leaf.
+    //
+    // Case 2 (silicone-flat) — cannot collide, structurally, for horizontal-slider OR
+    // vertical-slider. confirmUnframedJoint's own comment (~line 5003, "an unframed joint is only
+    // ever valid between fixed-glass window panes") and its enforced check (node.type/productClass
+    // must be fixed/window on both sides) mean sashTopLocked/sashBottomLocked/sashLeftLocked/
+    // sashRightLocked can never be set on a horizontal-slider or vertical-slider leaf at all — only
+    // on `fixed`. This Case only ever fires on a leaf with node.sashless===true, which is only ever
+    // an X or a double-hung sash (never fixed, per the Case-4 argument above) — so a leaf this Case
+    // touches can never have a sash*Locked flag in the first place.
+    //
+    // Case 1 (angled-joint) — cannot collide on horizontal-slider's left/right: this Case's gate
+    // for horizontal-slider is `node.type === 'horizontal-slider'`, and leafAllowedAgainstMeetingEdge
+    // (~line 4867, "node.kind === 'empty' || (... node.type === 'fixed' ...)") only ever allows a
+    // `fixed`/`window` leaf against a meeting-tagged jamb — a horizontal-slider can never touch one,
+    // so Case 1 can never fire on a sashless X's left or right at all. NOT structurally excluded
+    // for vertical-slider's top/bottom, however: leafAllowedAgainstMeetingEdge's restriction is
+    // enforced by the split/edit-blocking UI (the meeting-edge-touching gate on makeTypeButton,
+    // confirmSplit, etc.), not by buildExportElevation itself, and Case 1's own top/bottom triggers
+    // (`ev.meetingEdges.head`/`.sill`) are UI-reachable only via MEETING_EDGE_UI_JAMBS = ['jambL',
+    // 'jambR'] (~line 4873) — head/sill meeting tags have no UI path to ever become 'meeting' in
+    // this batch, so Case 1 cannot currently fire on top/bottom for ANY leaf, sashless or not. This
+    // is a UI-completeness argument, not a data-shape impossibility the way Case 2/Case 4 are — if
+    // a future batch adds head/sill meeting-edge UI, this exclusion would need re-checking.
+    //
+    // Case 3 (frame-off) — cannot collide: gated on `isFixed` (`node.type === 'fixed'`), same
+    // exclusion as Case 4 above — sashless is never true on a fixed leaf.
+    //
+    // Net: for horizontal-slider, all four prior Cases are structurally excluded from this Case's
+    // left/right — proven, not just unobserved. For vertical-slider, Cases 2/3/4 are structurally
+    // excluded from top/bottom; Case 1 is excluded only by the current UI's lack of a head/sill
+    // meeting-edge control, not by a data-shape proof — flagged as the one open seam, worth
+    // re-deriving if head/sill meeting edges ever get a UI. setUnframedEdge's own throw guard stays
+    // in place as the backstop regardless. Verified via the batch-61 headless regression suite
+    // (configurator_export_schema.md) that it does not fire in any real session driven this batch.
     if (node.sashless === true) {
-      unframedEdges.top = false;
-      unframedEdges.bottom = false;
-      unframedEdgeReasons.top = null;
-      unframedEdgeReasons.bottom = null;
+      if (node.type === 'horizontal-slider') {
+        setUnframedEdge('left', 'sashless-free-edge');
+        setUnframedEdge('right', 'sashless-free-edge');
+      } else if (node.type === 'vertical-slider') {
+        setUnframedEdge('top', 'sashless-free-edge');
+        setUnframedEdge('bottom', 'sashless-free-edge');
+      }
     }
 
     // Batch 45 — Case 4 (unframedEdges-only, NOT added to unframedEdgeCount — a second,
@@ -7201,9 +7408,40 @@ function stripSashlessFromFixedLeaves(node) {
   stripSashlessFromFixedLeaves(node.children[0]);
   stripSashlessFromFixedLeaves(node.children[1]);
 }
+// Batch 63 — data migration on load, not a schema/version-gated change (no RAW_STATE_SCHEMA_VERSION
+// bump — rawState's own shape is unchanged, only stale numeric values on old sashless leaves are
+// rewritten). Any sashless leaf WITHOUT sashlessOrientationVersion:2 was built before batch 63 and
+// still carries the OLD sashEdgesMM values baked in (horizontal-slider: 0 top/bottom, 10 left/
+// right; vertical-slider: 10 left/right, 0 top/bottom — value only, orientation already correct for
+// vertical-slider). Rewrite to the new confirmed values for its real type, then stamp the marker so
+// a subsequent load never re-migrates it. Same recursive kind/children walk as
+// stripSashlessFromFixedLeaves just above.
+function migrateSashlessOrientation(node) {
+  if (node.kind === 'filled') {
+    if (node.sashless === true && node.sashlessOrientationVersion !== 2) {
+      if (node.type === 'horizontal-slider') {
+        node.sashTopMM = SASHLESS_HSLIDER_CAPPING_MM;
+        node.sashBottomMM = SASHLESS_HSLIDER_CAPPING_MM;
+        node.sashLeftMM = 0;
+        node.sashRightMM = 0;
+      } else if (node.type === 'vertical-slider') {
+        node.sashLeftMM = SASHLESS_DH_CAPPING_MM;
+        node.sashRightMM = SASHLESS_DH_CAPPING_MM;
+        node.sashTopMM = 0;
+        node.sashBottomMM = 0;
+      }
+      node.sashlessOrientationVersion = 2;
+    }
+    return;
+  }
+  if (node.kind === 'empty') return;
+  migrateSashlessOrientation(node.children[0]);
+  migrateSashlessOrientation(node.children[1]);
+}
 function restoreFromRawState(state) {
   elevations = state.elevations;
   elevations.forEach(ev => stripSashlessFromFixedLeaves(ev.root));
+  elevations.forEach(ev => migrateSashlessOrientation(ev.root));
   activeElevationIndex = state.activeElevationIndex;
   angledJoinAngleDeg = state.angledJoinAngleDeg;
   angledJoinType = state.angledJoinType;
@@ -7235,13 +7473,191 @@ function restoreFromRawState(state) {
 // reason as batches 39/43/44 — an additive shape change to `system`'s own pane list, not to
 // rawState.
 //
+// Batch 61 — schemaVersion 6: no new field (unlike every prior bump) — unframedEdges/
+// unframedEdgeReasons can now report a new Case 5 ('sashless-free-edge') for a sashless pane's
+// left/right (horizontal-slider) or top/bottom (vertical-slider), and the old sashless top/bottom
+// EXCEPTION that used to suppress unframedEdges.top/.bottom for a sashless leaf is removed — so an
+// existing consumer reading unframedEdges/unframedEdgeReasons against a sashless pane would see
+// DIFFERENT values under the same shape, not just new values in new fields the way every prior
+// bump was purely additive. Bumped despite the shape itself being unchanged, because the MEANING
+// of an existing field's value changed for sashless panes — same "additive vs meaning change"
+// distinction that justified every prior bump, just on the "meaning changed" side of it instead of
+// "field added". See configurator_export_schema.md's own new Known-gap section: DO NOT CONSUME V6
+// SASHLESS HORIZONTAL PANES FOR REAL NUMBERS UNTIL THE NUMBERS BATCH — sashEdgesMM still disagrees
+// with unframedEdges for a sashless horizontal-slider (left/right carry real 10mm material in
+// sashEdgesMM, yet are now flagged unframed in unframedEdges) — a known, accepted inconsistency for
+// this batch only, not fixed here (out of scope — this batch changes no numeric field anywhere).
+//
 // Returns { ok: true, data } normally, or { ok: false, error } if computeCrossElevationLinks()
 // finds a count mismatch on the two elevations' meeting jambs — per the batch prompt's own "block
 // export on a count mismatch... before any export is built, in both standalone and embed mode"
 // instruction, this check runs FIRST, before touching buildExportElevation/serializeRawState at
 // all, so a mismatch produces genuinely no export (not a partial or malformed one) — both call
 // sites (downloadExportFile below and the embed 'done' handler) must check `ok` themselves.
+// Batch 62 introduced this as a TEMPORARY pre-export gate, pending a decision on (a) a sashless
+// pane whose own rectangle has been subdivided by a bar/transom, and (b) a sashless pane on a
+// frame-off elevation. Batch 63 CONFIRMS both as PERMANENT product rules, not pending decisions: a
+// sashless slider (either family) cannot be built on a frame-off elevation, and cannot be
+// subdivided by a bar/transom/mullion — person-confirmed alongside this batch's real sashEdgesMM
+// capping figures. Neither case is a schema change — no field added, no schemaVersion bump, no
+// rawState shape change. This is a gate in front of export, not a change to export's own output
+// shape; every existing export-building function (buildExportElevation, computeCrossElevationLinks,
+// the tuck-in correction maps, etc.) is untouched. Per batch 63's own scope, this remains the ONLY
+// enforcement point — no defensive/structural UI code was added elsewhere to prevent building a
+// subdivided or frame-off sashless slider; the UI still allows building these shapes, only export
+// is gated.
+//
+// Deliberately reuses the SAME {ok, error} return-path pattern computeCrossElevationLinks already
+// uses (see buildExportData below), NOT the batch-56 buildExportDataOrBlockedError anti-pattern
+// (a message-substring catch around an uncaught throw) — this is a real, structural pre-check with
+// its own dedicated boolean result, not a throw somewhere deep in the call graph being caught after
+// the fact.
+//
+// Runs over EVERY elevation in `elevations`, not just the active one — getNode()/activeElevation()
+// only ever read the currently-active elevation via module-level state, so a second, explicit
+// per-elevation walk (via nodeAt(root, path) below, taking an explicit root rather than reading
+// activeElevation()) is required to check an elevation the person isn't currently looking at.
+//
+// nodeAt — same child-index-array path walk as getNode() above, but taking an explicit root
+// instead of reading activeElevation().root via closure, so it works on ANY elevation's tree, not
+// only the active one.
+function nodeAt(root, path) {
+  let node = root;
+  for (const i of path) node = node.children[i];
+  return node;
+}
+
+// Case (b), FRAME-OFF: an elevation with hasFrame===false containing any leaf with
+// node.sashless===true. Simple whole-tree walk — no preset-marker awareness needed, since the
+// question is just "does a sashless leaf exist anywhere on this frame-off elevation," and
+// findAnySashlessLeaf (batch 54) already does exactly that walk generically.
+//
+// Case (a), SUBDIVIDED: detected structurally, using each matched preset's OWN expected leaf
+// positions — NOT a generic "split node with sashless panes on both sides" heuristic, which would
+// wrongly fire on an OXX preset's own internal overlap join or an OXXO preset's own internal flush
+// join (both normal, valid, and already exercised by every prior sashless batch back to batch 45).
+// For each sliding assembly (collectSlidingAssemblyRanges) and each of its sections' expected
+// paths (computeSlidingWinSectionPaths(ref.pattern), one per pattern letter, each prefixed by the
+// marker's own path), and for each double-hung assembly (collectDoubleHungAssemblyRanges) and each
+// unit's two expected child leaf positions (collectDoubleHungUnitPaths finds the path TO the
+// sashSplit node itself — a double-hung "unit" IS that sashSplit node, whose own two children
+// [0]/[1] are the top/bottom sash leaves, confirmed directly against buildDoubleHungUnit's real
+// shape rather than assumed) — resolve the real current node at that expected leaf position via
+// nodeAt(). A leaf position is a SUBDIVIDED-sashless problem iff ALL of:
+//   - the resolved node is NOT kind:'filled' and NOT kind:'empty' (something split it further)
+//   - the resolved node has NO assemblyPresetRef of its own (a brand-new preset built inside this
+//     section stamps its own marker — deliberately excluded, that's a legitimate nested preset,
+//     not a division of the sashless pane itself)
+//   - findAnySashlessLeaf(node) is true (a sashless leaf survives somewhere under the division —
+//     cloneForSplit, batch 54, carries `sashless` onto a split leaf's children, so this correctly
+//     finds it even several splits deep)
+// This is deliberately narrow: it only ever looks INSIDE a preset's own expected section/unit
+// positions. A transom/mullion between two whole assemblies, between an assembly and an ordinary
+// pane, or between two ordinary panes, sits in the tree ABOVE the marker (or beside it) — never AT
+// one of these expected leaf positions — so none of those shapes are ever visited by this walk at
+// all, let alone flagged.
+//
+// Orphan sashless leaves — a sashless leaf that isn't at any preset marker's own expected leaf
+// position at all (which should not happen, since sashless is only ever stamped by
+// buildAssemblyPresetTree/buildDoubleHungUnit, both marker-building paths) — are COUNTED, not
+// blocked on, via a whole-tree findAnySashlessLeaf count minus the count found at expected
+// positions; reported for investigation, not treated as an export-blocking condition.
+function checkSashlessExportable() {
+  const problems = []; // { elevationName, kind: 'subdivided'|'frame-off' }
+  let totalSashlessLeaves = 0;
+  let sashlessLeavesAtExpectedPositions = 0;
+
+  elevations.forEach(ev => {
+    const root = ev.root;
+
+    // Whole-elevation sashless leaf count, for the orphan check below.
+    totalSashlessLeaves += countSashlessLeaves(root);
+
+    // Case (b) — frame-off.
+    if (ev.hasFrame === false && findAnySashlessLeaf(root)) {
+      problems.push({ elevationName: ev.name, kind: 'frame-off' });
+    }
+
+    // Case (a) — subdivided sashless section/unit, sliding assemblies.
+    const slidingRanges = [];
+    collectSlidingAssemblyRanges(root, [], slidingRanges);
+    slidingRanges.forEach(({ path: markerPath, ref }) => {
+      const sectionPaths = computeSlidingWinSectionPaths(ref.pattern);
+      sectionPaths.forEach(sectionPath => {
+        const fullPath = markerPath.concat(sectionPath);
+        const node = nodeAt(root, fullPath);
+        sashlessLeavesAtExpectedPositions += countSashlessLeaves(node);
+        if (isSubdividedSashlessProblem(node)) {
+          problems.push({ elevationName: ev.name, kind: 'subdivided' });
+        }
+      });
+    });
+
+    // Case (a) — subdivided sashless unit, double-hung assemblies.
+    const dhRanges = [];
+    collectDoubleHungAssemblyRanges(root, [], dhRanges);
+    dhRanges.forEach(({ path: markerPath, node: markerNode }) => {
+      const unitPaths = [];
+      collectDoubleHungUnitPaths(markerNode, [], unitPaths);
+      unitPaths.forEach(unitPath => {
+        [0, 1].forEach(childIdx => {
+          const fullPath = markerPath.concat(unitPath).concat([childIdx]);
+          const node = nodeAt(root, fullPath);
+          sashlessLeavesAtExpectedPositions += countSashlessLeaves(node);
+          if (isSubdividedSashlessProblem(node)) {
+            problems.push({ elevationName: ev.name, kind: 'subdivided' });
+          }
+        });
+      });
+    });
+  });
+
+  // Orphan count — reported via console only (see the batch 62 project-summary/schema entries);
+  // not part of the {ok, error} result, since orphans are counted, never blocked on.
+  const orphanSashlessLeafCount = totalSashlessLeaves - sashlessLeavesAtExpectedPositions;
+  if (orphanSashlessLeafCount !== 0) {
+    console.warn('checkSashlessExportable: ' + orphanSashlessLeafCount + ' orphan sashless leaf(es) found outside every preset marker\'s expected positions.');
+  }
+
+  if (problems.length === 0) return { ok: true };
+
+  // ONE message covering every problem across every elevation, not one popup per problem — same
+  // "collect everything, report once" shape as the batch-40 cross-elevation mismatch message.
+  const seen = new Set();
+  const lines = [];
+  problems.forEach(p => {
+    const key = p.elevationName + '|' + p.kind;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (p.kind === 'subdivided') {
+      lines.push('Export blocked: ' + p.elevationName + ' has a sashless slider divided by a bar. A sashless slider cannot be subdivided — remove the division or build without sashless.');
+    } else {
+      lines.push('Export blocked: ' + p.elevationName + ' has a sashless pane but its frame is off. A sashless slider cannot be built without a frame — turn the frame back on or build without sashless.');
+    }
+  });
+  return { ok: false, error: lines.join(' ') };
+}
+
+// A resolved leaf-position node is a "subdivided sashless" problem iff it's been split further
+// (not filled/empty), carries no assemblyPresetRef of its own (excludes a deliberately nested new
+// preset), and a sashless leaf survives somewhere underneath it.
+function isSubdividedSashlessProblem(node) {
+  if (node.kind === 'filled' || node.kind === 'empty') return false;
+  if (node.assemblyPresetRef) return false;
+  return findAnySashlessLeaf(node);
+}
+
+// Generic recursive count of sashless leaves under a node — same traversal shape as
+// findAnySashlessLeaf, but counting rather than short-circuiting, for the orphan-leaf report.
+function countSashlessLeaves(node) {
+  if (node.kind === 'filled') return node.sashless === true ? 1 : 0;
+  if (node.kind === 'empty') return 0;
+  return countSashlessLeaves(node.children[0]) + countSashlessLeaves(node.children[1]);
+}
+
 function buildExportData() {
+  const sashlessCheck = checkSashlessExportable();
+  if (!sashlessCheck.ok) return { ok: false, error: sashlessCheck.error };
   const links = computeCrossElevationLinks();
   if (!links.ok) return { ok: false, error: links.error };
   const exportElevations = elevations.map((ev, i) => buildExportElevation(ev, i, links.linksByElevation[i]));
@@ -7249,7 +7665,7 @@ function buildExportData() {
   return {
     ok: true,
     data: {
-      schemaVersion: 5,
+      schemaVersion: 6,
       system: {
         elevationCount: elevations.length,
         totalFrameLengthMM,
@@ -7442,7 +7858,10 @@ if (isEmbedded) {
   // Batch 39 — schemaVersion bumped to 2, matching system's own new shape (must match, per the
   // doc's own statement of what this field means). Batch 43 — bumped again to 3 for the new
   // per-pane sashless field, same precedent. Batch 55 — bumped to 5 for unframedEdgeReasons.
-  postToParent({ type: 'ready', schemaVersion: 5 });
+  // Batch 61 — bumped to 6: no new field, but unframedEdges/unframedEdgeReasons' own MEANING
+  // changed for a sashless pane (new Case 5, old sashless exception removed) — see
+  // buildExportData's own batch-61 comment for the full "meaning changed, not just added" argument.
+  postToParent({ type: 'ready', schemaVersion: 6 });
 }
 </script>
 </body>
