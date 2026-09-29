@@ -1,13 +1,29 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.33 (Schedule translation layer — `engine/schedule/translation.py` — built and merged to master, not yet wired to the engine, schedule page, or any route; 38/38 own tests, 131/131 full regression. Human impact bathroom-trail `is not None` guard closed at the source, engine fix with no logic change, tests 25/26 added.)
-### Last Updated: 28 September 2026
+### Version: V1.34 (Sashless span orientation corrected for Configurator batch 63 / schema v6 — `engine/schedule/translation.py` — span now read per pane from `unframedEdgeReasons`, fail-closed on unknown reasons; 52/52 own tests, 145/145 full regression.)
+### Last Updated: 29 September 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.34 — 29 September 2026 — Sashless span orientation corrected for Configurator batch 63 / schema v6
+
+**Commit hash:** not recorded — Sahil to fill in.
+
+**`engine/schedule/translation.py`'s sashless span derivation corrected.** The Configurator's sashless orientation was fixed upstream at commit `c86374a` (batch 63, schema v6): a sashless horizontal slider holds the glass top/bottom (free left/right); a sashless double-hung (vertical slider) is the mirror, holding left/right (free top/bottom, including the meeting-rail edge). The translation layer's old sashless branch still assumed the pre-batch-63 orientation — span = `widthMM` minus both stile widths, with a hand-picked 20mm stile figure — which was backwards for a double-hung. Span is now derived per pane from `unframedEdgeReasons`'s new `'sashless-free-edge'` value: the sight dimension measured between the two held edges, whichever pair that is. The stile-width subtraction and the 20mm assumption are removed entirely.
+
+**Fail-closed rule added (R1).** Every pane's four edge reasons are checked against the known set (`null`, `angled-joint`, `silicone-flat`, `frame-off`, `next-to-sashless`, `sashless-free-edge`) before any framing or span logic runs, for every pane, sashless or not. A missing, non-string, empty, wrong-case, or otherwise unrecognised reason returns not-assessable — never treated as held.
+
+**Sashless edge-pattern rule added (R2).** A sashless pane must have exactly two opposite `sashless-free-edge` edges (left+right, or top+bottom); the remaining two edges must both carry reason `null`. Any other pattern — 0, 1, 3, or 4 free edges, two adjacent free edges, or a held edge with a non-null reason — is not-assessable. `'sashless-free-edge'` on a non-sashless pane is also not-assessable (R4, an inconsistent export).
+
+**Two real Configurator exports added as test fixtures** (`tests/fixtures/sashless_ox_window.json`, `tests/fixtures/sashless_double_hung.json`, both schema v6 batch 63, both hand-verified span 1050mm). The old hand-built 20mm-stile sashless test was rewritten, not just re-numbered — it tested the wrong orientation outright. `tests/test_schedule_translation.py`: 52 passed (up from 38). Full regression: 145 passed (up from 131), none of the previous 131 failing.
+
+**Not changed:** `translate_pane()`/`translate_system()` have no access to the export's `schemaVersion` at the point sashless panes are handled, and none was added. A sashless pane from a pre-v6 export would silently carry the old (now-known-wrong) orientation and produce a wrong span — flagged, not fixed, pending Sahil's decision on how to handle it (see open items below).
+
+**Outstanding as of this entry:** commit hash to be filled in once Sahil commits. Wiring the translation layer into the engine/schedule page/routes is still not started (unchanged from v1.33). Whether/how to detect and reject a pre-v6 sashless export is undecided.
 
 ### v1.33 — 28 September 2026 — Schedule translation layer built and merged (unwired); human impact bathroom-trail guard fix
 

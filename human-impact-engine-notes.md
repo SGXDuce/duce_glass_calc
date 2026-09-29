@@ -41,7 +41,7 @@ aliases: [safety glass determination, Section 5 engine, human impact check, Grad
 
 ## Sashless (Clause 5.15)
 
-- Two horizontal edges unframed; span = distance between the supported edges (side channels), confirmed by Sahil as the correct reading of Clause 1.4.51 for this purpose
+- Span = distance between the two held edges (where the glass is actually supported), confirmed by Sahil as the correct reading of Clause 1.4.51 for this purpose. Which edges are held depends on the slider type: a horizontal slider holds top/bottom (free left/right); a double-hung/vertical slider is the mirror, holding left/right (free top/bottom, including the meeting-rail edge). Read per pane from the Configurator export's `unframedEdgeReasons`, never assumed from a constant orientation — see `Window_Schedule_Progress_Handover.md` section 15.
 - Fixed combinations only, each type independent: toughened 5mm to 1000mm span, toughened 6mm to 1200mm span, laminated 6mm to 750mm span — beyond a type's own highest listed span, that type is out of scope entirely (not extrapolated to a thicker option)
 - Span sets a minimum thickness per type family; wind load can raise it further but never lower it (thicker-is-fine, same as everywhere else in the tool)
 - Annealed and heat-strengthened are never available under 5.15 (Grade A required)
