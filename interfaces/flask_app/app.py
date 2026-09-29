@@ -13,6 +13,7 @@ from engine.silicone_bite import run_bite_calculation
 from engine.combined import run_pathway3_calculation, run_pathway4_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
 from engine.human_impact import determine_fixed, determine_louvre, determine_sashless
+from engine.schedule.translation import translate_system
 
 # ---------------------------------------------------------------------------
 # VERSION / EXPIRY (single source of truth - launcher.py imports EXPIRY_DATE
@@ -44,6 +45,15 @@ PATHWAY_4_ENABLED = False
 # all (index.html wraps it in {% if system_check_enabled %}) and the
 # /system-check route is unreachable (404). Single flag flip to enable.
 SYSTEM_CHECK_ENABLED = False
+
+# Single source of truth for the Configurator export schema version System
+# check expects. schedule.html hand-types its own copy of this same number
+# (CONFIGURATOR_SCHEMA_VERSION = 6 in that template's <script>) - that is
+# pre-existing and out of scope here, but System check must not repeat that
+# pattern: this constant is passed into the template/JS rather than typed a
+# second time. Bump this the same day the Configurator's own schemaVersion
+# (see configurator.html) is bumped and schedule.html is updated to match.
+CONFIGURATOR_SCHEMA_VERSION = 6
 
 # ---------------------------------------------------------------------------
 # FLASK APP SETUP
@@ -119,13 +129,166 @@ def schedule():
 @app.route('/system-check')
 def system_check():
     """
-    Serves the System check placeholder page. Only reachable when
+    Serves the System check page shell. Only reachable when
     SYSTEM_CHECK_ENABLED is True - otherwise 404s, matching the mode-select
     tile being hidden entirely from the landing page (index.html).
+
+    configurator_schema_version is passed in rather than hand-typed in the
+    template/JS, so there is exactly one place (CONFIGURATOR_SCHEMA_VERSION
+    above) that says what export version this mode expects.
     """
     if not SYSTEM_CHECK_ENABLED:
         abort(404)
-    return render_template('system_check.html', app_version=APP_VERSION)
+    return render_template(
+        'system_check.html',
+        app_version=APP_VERSION,
+        configurator_schema_version=CONFIGURATOR_SCHEMA_VERSION,
+    )
+
+
+# ---------------------------------------------------------------------------
+# SYSTEM CHECK - GEOMETRY-ONLY SHELL
+#
+# This route does the minimum needed to turn a Configurator export into a
+# pane table: a schema-version guard, then translate_system(). It does NOT
+# run any wind or human-impact calculation - that is later work, on top of
+# this shell. See Window_Schedule_Progress_Handover.md, "System check mode"
+# section, and §15's "MUST DO at wiring time" note this route implements.
+# ---------------------------------------------------------------------------
+
+@app.route('/system-check/translate', methods=['POST'])
+def system_check_translate():
+    """
+    JSON API: takes one Configurator export (as sent by the 'done' message)
+    plus the system's row fields, and returns a flat pane list with geometry
+    facts only - no glass thickness, no wind, no human-impact verdict.
+
+    Request JSON shape:
+      {
+        "schemaVersion": <the Configurator export's own schemaVersion, see
+                          CONFIGURATOR_SCHEMA_VERSION above for what this
+                          route currently expects>,
+        "system": { ...export['system'] as produced by the Configurator... },
+        "row": { "ffl_height_mm": number, "building_use": str,
+                  "is_bathroom": bool, "high_risk": bool }
+      }
+
+    Response JSON: { "panes": [ {pane_id, elevation_index, status, method,
+    sight_width_mm, sight_height_mm, sightline_mm, framing, warnings}, ... ] }
+    """
+    try:
+        data = request.get_json()
+        if not isinstance(data, dict):
+            return jsonify({'success': False, 'error': 'Request body must be a JSON object.'})
+
+        system = data.get('system')
+        if not isinstance(system, dict):
+            return jsonify({'success': False, 'error': 'Missing "system" (the export\'s system object).'})
+
+        row = data.get('row') or {}
+
+        # Schema-version guard, BEFORE translate_system() runs. A pre-v6
+        # export used a different (wrong, since-corrected) sashless edge
+        # orientation - see Window_Schedule_Progress_Handover.md §15 "MUST
+        # DO at wiring time". A pre-v6 sashless pane's span would silently
+        # come out wrong if we translated it normally, so instead every
+        # sashless pane in an old export is marked not_assessable with a
+        # clear reason, and we never guess which orientation it used.
+        raw_version = data.get('schemaVersion')
+        is_current_schema = isinstance(raw_version, int) and not isinstance(raw_version, bool) \
+            and raw_version >= CONFIGURATOR_SCHEMA_VERSION
+
+        results = translate_system(system, row, {})
+
+        if not is_current_schema:
+            for result in results:
+                pane = _find_pane(system, result['elevation_index'], result['pane_id'])
+                if pane is not None and pane.get('sashless'):
+                    result['status'] = 'not_assessable'
+                    result['method'] = None
+                    result['payload'] = None
+                    result['reasons'] = list(result.get('reasons') or []) + [
+                        f"Export schema version {raw_version!r} is older than the "
+                        f"expected {CONFIGURATOR_SCHEMA_VERSION} (or missing/not a "
+                        "whole number). Sashless panes from an older export used a "
+                        "different edge convention, so this pane's span cannot be "
+                        "trusted and is not assessed."
+                    ]
+
+        panes = [_pane_table_row(result, system, row) for result in results]
+        return jsonify({'success': True, 'panes': panes})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def _find_pane(system, elevation_index, pane_id):
+    """Looks up the raw export pane dict for a translate_system() result,
+    needed here only to check its 'sashless' flag for the schema-version
+    guard above (translate_system()'s own results don't carry that flag)."""
+    try:
+        elevation = system['elevations'][elevation_index]
+    except (KeyError, IndexError, TypeError):
+        return None
+    for pane in elevation.get('panes', []):
+        if pane.get('id') == pane_id:
+            return pane
+    return None
+
+
+def _pane_table_row(result, system, schedule_row):
+    """
+    Flattens one translate_pane()/translate_system() result plus its raw
+    export pane into the geometry-only row the System check table shows.
+    No glass check has been run yet, so there is deliberately no
+    pass/fail/thickness field here - see the fixed banner text on the page.
+
+    schedule_row is the same row dict passed into translate_system() (the
+    one-off ffl_height_mm/building_use/is_bathroom/high_risk values for this
+    session's one system) - needed here only to recompute sightline_mm for
+    a sashless pane (see below).
+    """
+    pane = _find_pane(system, result['elevation_index'], result['pane_id']) or {}
+    payload = result.get('payload') or {}
+
+    table_row = {
+        'pane_id': result['pane_id'],
+        'elevation_index': result['elevation_index'],
+        'status': result['status'],
+        'method': result['method'],
+        'sight_width_mm': payload.get('sight_width_mm'),
+        'sight_height_mm': payload.get('sight_height_mm'),
+        'sightline_mm': payload.get('sightline_mm'),
+        'framing': payload.get('framing'),
+        'warnings': result.get('warnings') or [],
+        'reasons': result.get('reasons') or [],
+    }
+
+    # A sashless pane's payload only carries span_mm (see translate_pane()),
+    # not sight_width_mm/sight_height_mm/sightline_mm/framing - fill in what
+    # we can straight from the raw pane so the table still shows geometry
+    # facts for a sashless row instead of blanks.
+    if result['method'] == 'sashless':
+        sash = pane.get('sashEdgesMM') or {}
+        width_mm = pane.get('widthMM')
+        height_mm = pane.get('heightMM')
+        if width_mm is not None and sash:
+            table_row['sight_width_mm'] = width_mm - sash.get('left', 0) - sash.get('right', 0)
+        if height_mm is not None and sash:
+            table_row['sight_height_mm'] = height_mm - sash.get('top', 0) - sash.get('bottom', 0)
+        table_row['framing'] = 'sashless'
+
+        # Same sightline_mm formula translate_pane() uses internally (row's
+        # FFL height + the pane's own yMM + its bottom sash edge) - not
+        # exported in a sashless payload since determine_sashless() itself
+        # never needs it, but the table still wants to show it.
+        ffl = schedule_row.get('ffl_height_mm')
+        y_mm = pane.get('yMM')
+        bottom_sash = sash.get('bottom')
+        if ffl is not None and y_mm is not None and bottom_sash is not None:
+            table_row['sightline_mm'] = ffl + y_mm + bottom_sash
+
+    return table_row
 
 
 @app.route('/human_impact')
