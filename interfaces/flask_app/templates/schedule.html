@@ -70,7 +70,7 @@ const state = {
     openRowId: null,   // which row's modal is currently open
 };
 
-const CONFIGURATOR_SCHEMA_VERSION = 5;
+const CONFIGURATOR_SCHEMA_VERSION = 6;
 let configuratorReadyHandler = null; // the message listener bound to the currently-open modal
 
 function addRow() {
@@ -195,7 +195,7 @@ function escapeHtml(s) {
 // CONFIGURATOR MODAL / postMessage HANDSHAKE
 //
 // Protocol (configurator -> parent -> configurator -> parent):
-//   1. 'ready'  {type:'ready', schemaVersion:5}
+//   1. 'ready'  {type:'ready', schemaVersion:6}
 //   2. 'load'   {type:'load', state: null | <stored rawState>}   (sent by us)
 //   3. 'done'   {type:'done', export:{schemaVersion, system, rawState}}
 //
