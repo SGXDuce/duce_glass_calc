@@ -37,7 +37,9 @@
     <div class="schedule-row-fields">
         <div class="schedule-field">
             <label for="system-check-ffl-height">Height of lowest part of the system above the surface people stand on (mm)</label>
-            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal" oninput="onFflHeightChanged()">
+            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal"
+                   oninput="onFflHeightInput()" onkeydown="onFflHeightKeydown(event)">
+            <button type="button" id="system-check-update-table-btn" class="schedule-edit-geometry-btn" onclick="renderSystem()">Update table</button>
         </div>
     </div>
 
@@ -201,32 +203,43 @@ function getFflHeightMM() {
     return n;
 }
 
-// Debounce delay (ms) for the height field: wait until typing stops before
-// calling the server, rather than firing one request per keystroke.
-const FFL_HEIGHT_DEBOUNCE_MS = 400;
-let fflHeightDebounceTimer = null;
-
 // Incremented on every translate call this page makes; each call captures
 // its own value and only applies its response if it is still the latest
 // one when the response arrives, so a stale response from an earlier
-// keystroke can never overwrite a newer request's result (out-of-order
+// request can never overwrite a newer request's result (out-of-order
 // network responses).
 let translateRequestSeq = 0;
 
-// Called whenever the floor-height field changes. If a system has already
-// been built, re-runs the translate call (or re-shows the "fill this in"
-// message) so the table stays in sync with the field, matching the "if the
-// value is changed after Done" requirement. Debounced: waits for typing to
-// stop before calling the server.
-function onFflHeightChanged() {
-    if (!state.export) return;
-    if (fflHeightDebounceTimer) {
-        clearTimeout(fflHeightDebounceTimer);
+// DECIDED BY SAHIL: the page must not call /system-check/translate until the
+// user enters the height and presses Enter, or clicks "Update table" - no
+// call on every keystroke, debounced or not.
+//
+// Called on every keystroke in the floor-height field. Never calls the
+// server itself. If the pane table is currently shown, clears it and shows
+// a neutral prompt telling the user their change hasn't been applied yet -
+// the value only takes effect via renderSystem() (Enter or the button).
+// Also increments translateRequestSeq so a request already in flight (from
+// a previous Enter/button press) is treated as stale and cannot paint the
+// table out from under this now-unapplied field value.
+function onFflHeightInput() {
+    translateRequestSeq += 1;
+    const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
+    const fflMessageEl = document.getElementById('system-check-ffl-message');
+    if (tableWrapEl.innerHTML !== '') {
+        tableWrapEl.innerHTML = '';
+        fflMessageEl.textContent = 'Height changed. Press Enter or click Update table to refresh the pane table.';
+        fflMessageEl.classList.add('show');
     }
-    fflHeightDebounceTimer = setTimeout(() => {
-        fflHeightDebounceTimer = null;
+}
+
+// Enter inside the height field triggers the same explicit refresh as the
+// "Update table" button - deliberately a keydown handler, not a <form>
+// submit (this page has no form to submit).
+function onFflHeightKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
         renderSystem();
-    }, FFL_HEIGHT_DEBOUNCE_MS);
+    }
 }
 
 function renderSystem() {

@@ -162,6 +162,83 @@ def test_render_system_increments_seq_before_first_early_return():
 
 
 # ---------------------------------------------------------------------------
+# Explicit-trigger height field (replaces the debounce) - source-level tests
+# only. This is JavaScript running in a browser, which the Flask test client
+# cannot execute, so none of these run onFflHeightInput()/onFflHeightKeydown()/
+# renderSystem() or prove runtime behaviour - they only check that the served
+# page's source contains the expected strings/handlers.
+# ---------------------------------------------------------------------------
+
+def test_update_table_button_present():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Update table' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_height_field_has_enter_keydown_handler():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'onkeydown="onFflHeightKeydown(event)"' in html
+        assert "event.key === 'Enter'" in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_debounce_constant_removed():
+    # The debounce this task replaces must be gone entirely, not just unused.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'FFL_HEIGHT_DEBOUNCE_MS' not in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_height_changed_prompt_text_present():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Height changed. Press Enter or click Update table' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_input_handler_increments_seq():
+    # String check confined to onFflHeightInput()'s own body: the increment
+    # must be inside that function, not merely present somewhere on the page
+    # (renderSystem() already has its own, separate increment).
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        fn_start = html.index('function onFflHeightInput()')
+        fn_end = html.index('\n}', fn_start)
+        fn_body = html[fn_start:fn_end]
+        assert 'translateRequestSeq += 1' in fn_body
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+# ---------------------------------------------------------------------------
 # /system-check/translate - schema-version guard using real fixtures
 # ---------------------------------------------------------------------------
 
