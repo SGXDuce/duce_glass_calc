@@ -24,27 +24,40 @@ entries are applied there at the end of this project.
   yet identified (to be filled in by Sahil). Tag: not applicable.
 - **Deleted** `ASSEMBLY_PRESET_CATALOG_SIZES`, `findClosestCatalogSize` and
   the "Closest standard size" info line. Tag: AS1288-only, do not carry
-  back.
+  back. Commit `d7aecdb`.
   REPORTED BY CLAUDE CODE: effect on the export: none expected, the catalog
   never reached the export.
+- **Deleted** the door panel style feature: `DOOR_PANEL_CATALOG`, its seven
+  helper functions, `computeDoorPanelLayout`, the icon/picker functions, the
+  render-loop drawing branch, the toolbar entry point, and
+  `canHaveDoorPanelStyle`. Tag: AS1288-only, do not carry back. Commits
+  `b347831` (entry points and drawing) and this commit (catalogue and
+  helpers).
+  REPORTED BY CLAUDE CODE: the catalogue had 33 keys, including D5L and
+  D64H; D21 does not exist. The earlier "31" figure in the read-only survey
+  was wrong: its grep only matched digit-only names. Full key list: D1, D6,
+  D22, D2, D3, D4, D5L, D5, D7, D8, D9, D10, D11, D12, D13, D14, D15, D16,
+  D17, D18, D19, D20, D23, D24, D25, D32, D63V, D64H, '65H', '65V', '66V',
+  '66H', '67H'.
+  REPORTED BY CLAUDE CODE: effect on the export: none expected, these
+  fields are not exported.
+  INFERRED BY CLAUDE (not tested): a saved system that contains these
+  fields will load and ignore them, because restoreFromRawState assigns
+  state without checking fields.
 
 ## Planned changes (not yet made)
 
-1. Delete `DOOR_PANEL_CATALOG`, its helper functions, the picker, the render
-   branch, and the toolbar entry. The commit that makes this change must
-   paste the full list of catalog keys read from the code. Status: PROPOSED,
-   not built. Tag: AS1288-only, do not carry back.
-2. Delete `PRESET_SASH_EDGES` (the NGR-sourced casement and awning sash
+1. Delete `PRESET_SASH_EDGES` (the NGR-sourced casement and awning sash
    shape) so casement and awning presets start at `DEFAULT_SASH_MM` (40) on
    every stile and rail. Status: PROPOSED, not built. Tag: AS1288-only, do
    not carry back.
-3. Make the frame tuck-in editable per frame side (head, sill, left jamb,
+2. Make the frame tuck-in editable per frame side (head, sill, left jamb,
    right jamb). The starting value rule is to be settled before this is
-   built — see "Open before change 3" below. Status: PROPOSED, not built.
+   built — see "Open before change 2" below. Status: PROPOSED, not built.
    Tag: carry back.
-4. Add an editable side table of user inputs, values only, inside the
+3. Add an editable side table of user inputs, values only, inside the
    Configurator. Status: PROPOSED, not built. Tag: carry back.
-5. Strip Duce/NGR wording from comments in configurator.html. Status:
+4. Strip Duce/NGR wording from comments in configurator.html. Status:
    PROPOSED, not built. Tag: AS1288-only, do not carry back.
 
 ## Decisions
@@ -56,7 +69,7 @@ entries are applied there at the end of this project.
 - DECIDED BY SAHIL: the 60mm sliding overlap is kept as is; making it
   editable is an open item.
 
-## Open before change 3
+## Open before change 2
 
 Open, not decided:
 
@@ -66,3 +79,9 @@ Open, not decided:
   sashless tuck-in constants fit a per-frame-side design.
 - (c) The unconfirmed `hasFrame` gating of the tuck-in.
 - (d) Whether a typed tuck-in is locked against later sash width changes.
+- (e) Because each leaf in a preset assembly can have a different width on
+  each stile and rail, the tuck-in must belong to each leaf edge that
+  touches the frame, not to each frame side. The flat 40mm per row (20 at
+  each end) would need to become a separate left and right value. Raised by
+  Sahil, 30 September 2026; the design impact is INFERRED BY CLAUDE, not
+  yet checked in code.
