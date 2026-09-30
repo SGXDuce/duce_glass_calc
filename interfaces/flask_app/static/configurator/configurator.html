@@ -3971,16 +3971,11 @@ function renderAssemblyPresetForm(bar, rect) {
         labelEl.textContent = preset.pattern;
         btn.appendChild(labelEl);
         btn.onclick = () => {
-          // Batch 15: preset.id is now carried through (previously discarded) — the catalog is
-          // keyed by id, not pattern, since e.g. 'OX' (sliding doors) and 'OX-win' (sliding
-          // windows) share the same pattern string but have distinct catalog size data.
+          // preset.id is carried through alongside pattern — e.g. 'OX' (sliding doors) and
+          // 'OX-win' (sliding windows) share the same pattern string but are distinct ids, which
+          // isSlidingOverlapId (and other id-keyed lookups) rely on to tell them apart.
           ev.pendingSplit.chosenPreset = { pattern: preset.pattern, id: preset.id, productClass: category.productClass, family: category.family };
           ev.pendingSplit.widths = null;
-          // Batch 15: clear any catalog match left over from a previously chosen preset — the
-          // pre-fill logic below only sets this when a fresh match is actually found, so a
-          // preset with no catalog entry at all would otherwise leave the previous preset's
-          // stale "Closest standard size" line showing.
-          ev.pendingSplit.matchedCatalogSize = null;
           // Batch 22: casement genuinely supports true butt-joint construction (confirmed — no
           // reference drawing shows a mullion at all), so a fresh casement selection needs an
           // explicit include/exclude-mullion choice before the width form renders. Stated
@@ -3990,11 +3985,10 @@ function renderAssemblyPresetForm(bar, rect) {
           // has a real mullion/transom (confirmed, no toggle) — this field is simply irrelevant
           // and unused for every other family.
           if (category.family === 'casement') ev.pendingSplit.includeMullion = false;
-          // Batch 42 — sashless defaults unchecked on fresh selection, same "explicit reset so a
-          // previous preset's leftover choice can't silently carry over" reasoning as
-          // matchedCatalogSize above. Only meaningful for sliding-window (see the checkbox's own
-          // gate in the form below); harmless to set unconditionally here since every other
-          // family simply never reads it.
+          // Batch 42 — sashless defaults unchecked on fresh selection, an explicit reset so a
+          // previous preset's leftover choice can't silently carry over. Only meaningful for
+          // sliding-window (see the checkbox's own gate in the form below); harmless to set
+          // unconditionally here since every other family simply never reads it.
           ev.pendingSplit.sashless = false;
           render();
         };
@@ -4121,39 +4115,21 @@ function renderAssemblyPresetForm(bar, rect) {
     ev.pendingSplit.mullionThickness = current.mullionThickness;
   }
 
-  // Batch 15: catalog-informed default section widths — creation only, never editAssembly
-  // (reopening an existing assembly must keep pre-filling from live current widths exactly as
-  // batch 12 built it). Same "only the first time this form renders for this preset" guard as
-  // the editing pre-fill above, so it doesn't fight the person's own typing on every re-render.
-  // findClosestCatalogSize returns null when this preset id has no catalog entry at all — in
-  // that case pendingSplit.matchedCatalogSize stays unset and the widths inputs are left at
-  // whatever this batch's predecessor already left them (blank), matching the required fallback.
+  // Default section widths — creation only, never editAssembly (reopening an existing assembly
+  // must keep pre-filling from live current widths exactly as batch 12 built it). Same "only the
+  // first time this form renders for this preset" guard as the editing pre-fill above, so it
+  // doesn't fight the person's own typing on every re-render.
   if (!isEditing && ev.pendingSplit.widths == null && ev.pendingSplit.chosenPreset.id != null) {
-    const match = findClosestCatalogSize(ev.pendingSplit.chosenPreset.id, rect.h, rect.w);
     // Batch 20: a sliding-overlap id's prefill must solve against the REAL selected region width
-    // (rect.w) — not the matched catalog entry's own stated total, and not a hardcoded 600/660
-    // fallback when no catalog entry exists. The catalog total and the region's actual width are
-    // two different things (that's exactly why the exact-match validation used to block
-    // confirmation afterward — the validation was always correct, this prefill was feeding it
-    // the wrong number). `match`/`matchedCatalogSize` is still computed and stored for its own
-    // "closest standard size" info-line display (batch 15) — just no longer used to DRIVE the
-    // prefilled widths for a sliding-overlap id.
+    // (rect.w), not a hardcoded 600/660 fallback.
     if (isSlidingOverlapId(id, pattern)) {
       ev.pendingSplit.widths = computeSlidingWinPrefillWidths(pattern, rect.w, ev.hasFrame, ev.pendingSplit.sashless);
-      if (match) ev.pendingSplit.matchedCatalogSize = match;
     } else if (family === 'casement' || family === 'awning') {
       // Batch 22: same "solve against real available space" principle as the batch-20 sliding
-      // fix — the old equal-split-of-catalog-total prefill ignored the region's real width
-      // entirely. match/matchedCatalogSize is still computed and stored below for its own info
-      // line (deliberately left wired, per this batch's own instruction not to remove or
-      // repurpose catalog data) but no longer drives the prefilled widths for these two families.
+      // fix — split the region's real width evenly among sections.
       const mullionForPrefill = includeMullion ? getMullionPrefillMM() : 0;
       const mullionCount = includeMullion ? sectionCount - 1 : 0;
       ev.pendingSplit.widths = computeAssemblyPrefillWidths(sectionCount, rect.w, mullionForPrefill, mullionCount);
-      if (match) ev.pendingSplit.matchedCatalogSize = match;
-    } else if (match) {
-      ev.pendingSplit.widths = new Array(sectionCount).fill(match.widthMM / sectionCount);
-      ev.pendingSplit.matchedCatalogSize = match;
     }
   }
 
@@ -4187,22 +4163,9 @@ function renderAssemblyPresetForm(bar, rect) {
     const backBtn = document.createElement('button');
     backBtn.className = 'secondary';
     backBtn.textContent = '← Choose a different preset';
-    // Batch 15: clear the catalog match too, for the same reason as the picker's own click
-    // handler — otherwise a stale info line from the previously chosen preset could persist.
-    backBtn.onclick = () => { ev.pendingSplit.chosenPreset = null; ev.pendingSplit.widths = null; ev.pendingSplit.matchedCatalogSize = null; render(); };
+    backBtn.onclick = () => { ev.pendingSplit.chosenPreset = null; ev.pendingSplit.widths = null; render(); };
     backRow.appendChild(backBtn);
     bar.appendChild(backRow);
-  }
-
-  // Batch 15: only shown when a catalog match was actually found (creation mode, this preset id
-  // has catalog data) — absent entirely otherwise, per spec ("don't show the line at all" when
-  // there's no catalog entry or this is an edit).
-  if (!isEditing && ev.pendingSplit.matchedCatalogSize) {
-    const catalogInfo = document.createElement('div');
-    catalogInfo.style.cssText = 'color:var(--text-dim);font-size:12px;margin-top:4px;';
-    catalogInfo.textContent = 'Closest standard size: ' + ev.pendingSplit.matchedCatalogSize.heightMM +
-      ' × ' + ev.pendingSplit.matchedCatalogSize.widthMM + 'mm';
-    bar.appendChild(catalogInfo);
   }
 
   // Show one width input per section plus the shared mullion thickness input — unchanged from
@@ -5118,52 +5081,6 @@ const ASSEMBLY_PRESET_CATEGORIES = [
   }
 ];
 
-// Batch 15 — catalog-informed default section widths, sourced from Duce's real NGR price list
-// (current as at 01/10/2025). Transcribed programmatically from the source document, not
-// hand-typed, to avoid transcription error. Keyed by PRESET ID, not pattern — 'OX' (sliding
-// doors) and 'OX-win' (sliding windows) share the same pattern string but have distinct catalog
-// data, so the id (already unique per preset button) is the correct key here. Every sizesMM
-// entry is [heightMM, widthMM] for the assembly's WHOLE total, not per-section — sections are
-// equal-width by Duce's own convention (confirmed: DD's totals are exactly 2x D's own widths).
-// No entry exists for CCCCpair, AA, AAA, AAAA, or a window-family OXO — deliberately absent,
-// not an oversight; the lookup below degrades gracefully when a pattern's id isn't a key here.
-const ASSEMBLY_PRESET_CATALOG_SIZES = {
-  'C': { sectionCount: 1, sizesMM: [[600,600], [900,600], [900,900], [1200,600], [1200,900], [1500,600], [1500,900]] },
-  'CCset': { sectionCount: 2, sizesMM: [[900,1200], [900,1800], [1200,1200], [1200,1800], [1500,1200], [1500,1800]] },
-  'CCpair': { sectionCount: 2, sizesMM: [[900,1200], [900,1800], [1200,1200], [1200,1800], [1500,1200], [1500,1800]] },
-  'A': { sectionCount: 1, sizesMM: [[900,1200], [900,1500], [900,1800], [900,2100], [1200,1200], [1200,1500], [1200,1800], [1200,2100], [1500,1200], [1500,1500], [1500,1800]] },
-  'D': { sectionCount: 1, sizesMM: [[600,600], [900,600], [900,900], [1200,600], [1200,900], [1200,1200], [1500,600], [1500,900], [1500,1200], [1800,600], [1800,900], [1800,1200], [2100,600], [2100,900], [2100,1200], [2400,600], [2400,900]] },
-  'DD': { sectionCount: 2, sizesMM: [[900,1200], [900,1800], [900,2400], [900,2700], [900,3600], [1200,1200], [1200,1800], [1200,2400], [1200,2700], [1200,3600], [1500,1200], [1500,1800], [1500,2400], [1500,2700], [1500,3600], [1800,1200], [1800,1800], [1800,2400], [1800,2700], [1800,3600], [2100,1200], [2100,1800], [2100,2400], [2100,2700], [2100,3600], [2400,1200], [2400,1800], [2400,2700]] },
-  'OX-win': { sectionCount: 2, sizesMM: [[600,1200], [600,1800], [600,2400], [600,3000], [900,1200], [900,1800], [900,2400], [900,3000], [1200,1200], [1200,1800], [1200,2400], [1200,3000], [1500,1200], [1500,1800], [1500,2400], [1500,3000]] },
-  'OXX-win': { sectionCount: 3, sizesMM: [[900,2700], [900,3600], [900,4500], [1200,2700], [1200,3600], [1200,4500], [1500,2700], [1500,3600], [1500,4500]] },
-  'OXXO-win': { sectionCount: 4, sizesMM: [[600,2400], [600,3600], [600,4800], [600,6000], [900,2400], [900,3600], [900,4800], [900,6000], [1200,2400], [1200,3600], [1200,4800], [1200,6000], [1500,2400], [1500,3600], [1500,4800], [1500,6000]] },
-  'OXXX-win': { sectionCount: 4, sizesMM: [[900,3600], [900,4800], [900,6000], [1200,3600], [1200,4800], [1200,6000], [1500,3600], [1500,4800], [1500,6000]] },
-  'OX': { sectionCount: 2, sizesMM: [[2100,1800], [2100,2400], [2100,3000], [2100,3600], [2400,1800], [2400,2400], [2400,3000], [2400,3600]] },
-  'OXO': { sectionCount: 3, sizesMM: [[2100,2700], [2100,3600], [2100,4500], [2100,5400], [2400,2700], [2400,3600], [2400,4500], [2400,5400]] },
-  'OXX': { sectionCount: 3, sizesMM: [[2100,2700], [2100,3600], [2100,4500], [2100,5400], [2400,2700], [2400,3600], [2400,4500], [2400,5400]] },
-  'OXXO': { sectionCount: 4, sizesMM: [[2100,2400], [2100,3600], [2100,4800], [2100,6000], [2400,2400], [2400,3600], [2400,4800], [2400,6000]] },
-  'OXXX': { sectionCount: 4, sizesMM: [[2100,2700], [2100,3600], [2100,4800], [2100,5400], [2100,6000], [2400,2700], [2400,3600], [2400,4800], [2400,5400], [2400,6000]] },
-  'OXXXX': { sectionCount: 5, sizesMM: [[2100,3000], [2100,3600], [2100,4800], [2100,5400], [2100,6000], [2400,3000], [2400,3600], [2400,4800], [2400,5400], [2400,6000]] },
-  'OXXXXX': { sectionCount: 6, sizesMM: [[2100,3600], [2100,4800], [2100,5400], [2100,6000], [2400,3600], [2400,4800], [2400,5400], [2400,6000]] },
-};
-
-// Batch 15: finds the catalog entry closest to the region's actual [heightMM, widthMM] by
-// simple summed absolute difference (|actualH-catH| + |actualW-catW|) — nearest by combined
-// distance, not by height or width alone. Returns null when this preset id has no catalog
-// entry at all (CCCCpair, AA, AAA, AAAA, a window OXO, ...) — callers must treat null as "skip
-// the catalog default entirely, fall back to whatever this batch's predecessor already did",
-// not as an error.
-function findClosestCatalogSize(id, actualHeightMM, actualWidthMM) {
-  const entry = ASSEMBLY_PRESET_CATALOG_SIZES[id];
-  if (!entry) return null;
-  let best = null, bestDist = Infinity;
-  entry.sizesMM.forEach(([h, w]) => {
-    const dist = Math.abs(actualHeightMM - h) + Math.abs(actualWidthMM - w);
-    if (dist < bestDist) { bestDist = dist; best = [h, w]; }
-  });
-  return best ? { heightMM: best[0], widthMM: best[1], sectionCount: entry.sectionCount } : null;
-}
-
 // Batch 13: how many sections a preset has, dispatched by family. The sliding family's section
 // count is still just the O/X pattern's own length (unchanged); casement/awning ids encode
 // their count by name rather than by literal character-per-section, since 'CCpair' isn't a
@@ -5631,15 +5548,10 @@ const SLIDING_HEIGHT_TUCKIN_MM = 40;
 const DOUBLE_HUNG_JAMB_TUCKIN_MM = 40;
 
 // Batch 22 — casement/awning sash width prefill, solved against the real selected region width
-// (rect.w), same principle as the sliding prefill fix (batch 20): a catalog total is a different
-// number from the region actually being divided, so equally splitting a catalog total (the old
-// behaviour) frequently didn't match the real available space, which the existing exact-match
-// validation then correctly blocked on. mullionCount is 0 for casement with includeMullion:false
-// (a true butt-joint, no member between sashes at all — confirmed, §7.1) or sectionCount-1
-// otherwise (awning always, casement with includeMullion:true). Catalog data
-// (findClosestCatalogSize/ASSEMBLY_PRESET_CATALOG_SIZES) is deliberately left untouched and
-// unused by this — whether it plays any future role here (even just an informational line) is
-// undecided, not guessed at in this batch.
+// (rect.w): splits the available space evenly among sections, after subtracting the mullions.
+// mullionCount is 0 for casement with includeMullion:false (a true butt-joint, no member between
+// sashes at all — confirmed, §7.1) or sectionCount-1 otherwise (awning always, casement with
+// includeMullion:true).
 function computeAssemblyPrefillWidths(sectionCount, availableWidthMM, mullionWidthMM, mullionCount) {
   const sashWidth = (availableWidthMM - mullionCount * mullionWidthMM) / sectionCount;
   return new Array(sectionCount).fill(sashWidth);
