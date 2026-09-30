@@ -22,6 +22,8 @@
 
 <div class="version-footer">{{ app_version }}</div>
 
+<a class="back-to-selection-btn" href="{{ url_for('index') }}" style="display:inline-block; text-decoration:none;">&larr; Back to start</a>
+
 <div class="schedule-page">
     <div class="schedule-intro">
         <div class="schedule-title">System check</div>
@@ -39,7 +41,7 @@
         </div>
     </div>
 
-    <div id="system-check-ffl-message" class="configurator-modal-error"></div>
+    <div id="system-check-ffl-message" class="system-check-ffl-prompt"></div>
 
     <div id="system-check-status" class="schedule-geometry-status">No geometry set yet.</div>
 
@@ -199,14 +201,32 @@ function getFflHeightMM() {
     return n;
 }
 
+// Debounce delay (ms) for the height field: wait until typing stops before
+// calling the server, rather than firing one request per keystroke.
+const FFL_HEIGHT_DEBOUNCE_MS = 400;
+let fflHeightDebounceTimer = null;
+
+// Incremented on every translate call this page makes; each call captures
+// its own value and only applies its response if it is still the latest
+// one when the response arrives, so a stale response from an earlier
+// keystroke can never overwrite a newer request's result (out-of-order
+// network responses).
+let translateRequestSeq = 0;
+
 // Called whenever the floor-height field changes. If a system has already
 // been built, re-runs the translate call (or re-shows the "fill this in"
 // message) so the table stays in sync with the field, matching the "if the
-// value is changed after Done" requirement.
+// value is changed after Done" requirement. Debounced: waits for typing to
+// stop before calling the server.
 function onFflHeightChanged() {
-    if (state.export) {
-        renderSystem();
+    if (!state.export) return;
+    if (fflHeightDebounceTimer) {
+        clearTimeout(fflHeightDebounceTimer);
     }
+    fflHeightDebounceTimer = setTimeout(() => {
+        fflHeightDebounceTimer = null;
+        renderSystem();
+    }, FFL_HEIGHT_DEBOUNCE_MS);
 }
 
 function renderSystem() {
@@ -246,6 +266,11 @@ function renderSystem() {
     fflMessageEl.classList.remove('show');
     fflMessageEl.textContent = '';
 
+    // Each call gets its own sequence number; only the response matching
+    // the CURRENT (latest) sequence number is ever rendered.
+    translateRequestSeq += 1;
+    const thisRequestSeq = translateRequestSeq;
+
     // Server call: translate the export into geometry facts only. No glass
     // check happens here or on the server for this route - see app.py's
     // /system-check/translate docstring.
@@ -260,6 +285,7 @@ function renderSystem() {
     })
         .then(response => response.json())
         .then(data => {
+            if (thisRequestSeq !== translateRequestSeq) return; // stale, ignore
             if (!data.success) {
                 tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(data.error || 'Translation failed.')}</div>`;
                 return;
@@ -267,6 +293,7 @@ function renderSystem() {
             tableWrapEl.innerHTML = buildPaneTableHTML(data.panes);
         })
         .catch(err => {
+            if (thisRequestSeq !== translateRequestSeq) return; // stale, ignore
             tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(String(err))}</div>`;
         });
 }
@@ -288,7 +315,7 @@ function buildPaneTableHTML(panes) {
                     <tr>
                         <th>Pane</th>
                         <th>Elevation</th>
-                        <th>Sight size (W x H mm)</th>
+                        <th>Daylight size (W x H mm)</th>
                         <th>Lowest sightline (mm)</th>
                         <th>Span (mm)</th>
                         <th>Framing</th>
@@ -307,6 +334,15 @@ function buildPaneTableHTML(panes) {
 
 function mmCell(value) {
     return value == null ? '—' : String(value);
+}
+
+// Display-only wording for the Framing column - the route/engine value
+// itself ('fully', 'partly', 'sashless', or null) is never changed, only
+// how it is shown here.
+function framingDisplay(value) {
+    if (value === 'fully') return 'fully framed';
+    if (value === 'partly') return 'partly framed';
+    return value ?? '—';
 }
 
 function paneRowHTML(p) {
@@ -333,7 +369,7 @@ function paneRowHTML(p) {
             <td>${sightSize}</td>
             <td>${sightlineCell}</td>
             <td>${spanCell}</td>
-            <td>${escapeHtml(p.framing ?? '—')}</td>
+            <td>${escapeHtml(framingDisplay(p.framing))}</td>
             <td>${escapeHtml(p.method ?? '—')}</td>
             <td>${escapeHtml(p.status)}</td>
             <td>${notesCell}</td>

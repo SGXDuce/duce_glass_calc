@@ -94,6 +94,37 @@ def test_flag_restored_to_false():
     assert app_module.SYSTEM_CHECK_ENABLED is False
 
 
+def test_back_to_start_link_present():
+    # Cosmetic addition: a plain "Back to start" link to "/" - the old
+    # placeholder page had one and it was lost when the shell replaced it.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Back to start' in html
+        assert 'href="/"' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_daylight_size_header_not_sight_size():
+    # Cosmetic wording update: the pane table's column header must now read
+    # "Daylight size", not "Sight size". Internal field names (sight_width_mm
+    # etc.) are unaffected and not checked here.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Daylight size (W x H mm)' in html
+        assert 'Sight size' not in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
 # ---------------------------------------------------------------------------
 # /system-check/translate - schema-version guard using real fixtures
 # ---------------------------------------------------------------------------
