@@ -315,3 +315,16 @@ Decided during the build of `engine/schedule/translation.py` (§14). Recorded he
 - **(f) Sahil to confirm or change the proposed high-risk question rule.**
 - **(g) The existing single-glass human impact page still applies Clause 5.24 at any height; whether to align it with the 2000mm cutoff is undecided.**
 - **(h) Sahil to confirm the 2000mm boundary is inclusive (exactly 2000mm applies).**
+- **(i) The daylight size for a fixed pane with no sash has not been checked** (added 30 September 2026, see below).
+- **(j) The 20mm tuck-in of glass into a sash edge remains unconfirmed for some cases** — see section 11 above (added 30 September 2026).
+- **(k) Whether wind AREA should use daylight size or true glass size is undecided** (added 30 September 2026).
+
+---
+
+## System check mode — page shell built (30 September 2026)
+
+**Built, on branch `system-check-shell`, not yet merged.** Two commits: `f69bb1a` (page shell — Configurator embed, `CONFIGURATOR_SCHEMA_VERSION` constant, `/system-check/translate` route, geometry-only pane table, fixed "no glass check has been run" banner) and `65f7f2a` (three follow-up fixes — a required floor-height field gating the server call, an exact rather than "at least" schema-version match, and a "Span (mm)" column fed from the translator's own `span_mm` instead of a hand-rolled recompute). Full detail, including what was VERIFIED BY SAHIL vs REPORTED BY CLAUDE CODE, is in `AS1288_Full_Project_Summary.md`'s v1.39 changelog entry — not repeated here in full. `SYSTEM_CHECK_ENABLED` remains `False` by default; `schedule.html`, `engine/`, and every CSV are untouched.
+
+**DECIDED BY SAHIL (30 September 2026): span redefined as "Daylight size", and required for every pane.** Span for System check is measured on daylight size, between the supported edges: four edges supported → span is the shorter daylight dimension; two or three edges supported → span is the daylight length measured between the supported edges. "Daylight size" is the fixed UI term for this (internal field names are unchanged). Span must appear for every pane, not sashless panes only. **NOT YET BUILT** — the shell's pane table today only populates the Span column for a sashless pane. Sahil's worked case: daylight size 1640 x 1940, span 1640.
+
+**Two lists recorded, not built — see the v1.39 changelog entry in `AS1288_Full_Project_Summary.md` for the full numbered list.** COSMETIC (action after this round of testing): mode tile wording; a back button on the System check page (a "Back to start" link was lost when the placeholder page was replaced); stale "Wind Loads Only — Internal Use" header text; Configurator intro text implying nothing is wired to the engine; the height-field prompt's error styling; "fully framed" wording and framing-value mapping; renaming the "Method" column and adding a "Type" column; renaming "Sight size" to "Daylight size" in the UI; debouncing the height field so it doesn't call the server on every keystroke. PRE-RELEASE (public-launch requirement): removing the Duce-only door panel style options from the Configurator as used in this tool, which needs a Configurator-project change plus re-vendoring, and a read-only check first of whether door panel style affects the export at all (proposed by Claude, not yet done).
