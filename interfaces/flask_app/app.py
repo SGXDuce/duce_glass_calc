@@ -213,6 +213,8 @@ def system_check_translate():
                     result['status'] = 'not_assessable'
                     result['method'] = None
                     result['payload'] = None
+                    result['span_mm'] = None
+                    result['span_basis'] = None
                     result['reasons'] = list(result.get('reasons') or []) + [
                         f"Export schema version {raw_version!r} does not match the "
                         f"expected {CONFIGURATOR_SCHEMA_VERSION} (or missing/not a "
@@ -264,8 +266,8 @@ def _pane_table_row(result, system, schedule_row):
         'sight_width_mm': payload.get('sight_width_mm'),
         'sight_height_mm': payload.get('sight_height_mm'),
         'sightline_mm': payload.get('sightline_mm'),
-        'span_mm': result.get('span_mm'),
-        'span_basis': result.get('span_basis'),
+        'span_mm': result.get('span_mm') if result['status'] == 'ready' else None,
+        'span_basis': result.get('span_basis') if result['status'] == 'ready' else None,
         'framing': payload.get('framing'),
         'warnings': result.get('warnings') or [],
         'reasons': result.get('reasons') or [],
@@ -283,6 +285,10 @@ def _pane_table_row(result, system, schedule_row):
     # system_check.html's paneRowHTML()). span_mm/span_basis are the
     # exception - they come from the top-level result for every method,
     # sashless included, so the Span column is never blank on a ready row.
+    # Gated on status == 'ready' here as defence in depth: the schema-
+    # version guard above already clears span_mm/span_basis on the result
+    # dict itself for a sashless pane it demotes to not_assessable, but a
+    # non-'ready' result should never carry a span regardless of why.
     if result['method'] == 'sashless':
         table_row['framing'] = 'sashless'
 
