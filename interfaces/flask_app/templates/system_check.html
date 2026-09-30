@@ -272,9 +272,10 @@ function renderSystem() {
 }
 
 // Table columns are geometry facts only - pane identifier, elevation,
-// sight width x height, lowest sightline, span (sashless panes only),
-// framing, method, status and warnings. No pass/fail wording, no
-// thickness, no glass type - the fixed banner above already says why.
+// sight width x height, lowest sightline, span (every ready pane, with
+// its basis sentence underneath), framing, method, status and warnings.
+// No pass/fail wording, no thickness, no glass type - the fixed banner
+// above already says why.
 function buildPaneTableHTML(panes) {
     if (!panes.length) {
         return '<div class="schedule-geometry-status">No panes in this system.</div>';
@@ -312,13 +313,17 @@ function paneRowHTML(p) {
     // A sashless pane's payload only ever carries span_mm - no
     // sight_width_mm/sight_height_mm/sightline_mm (see app.py's
     // _pane_table_row()) - so those cells show a dash for a sashless row
-    // rather than a recomputed value.
+    // rather than a recomputed value. span_mm/span_basis, however, are
+    // populated for every ready pane (sashless included), from the
+    // translate_pane() result's top level - see app.py's _pane_table_row().
     const isSashless = p.method === 'sashless';
     const sightSize = (isSashless || p.sight_width_mm == null || p.sight_height_mm == null)
         ? '—'
         : `${p.sight_width_mm} x ${p.sight_height_mm}`;
     const sightlineCell = isSashless ? '—' : mmCell(p.sightline_mm);
-    const spanCell = mmCell(p.span_mm);
+    const spanCell = p.span_mm == null
+        ? '—'
+        : `${p.span_mm}${p.span_basis ? `<div class="span-basis">${escapeHtml(p.span_basis)}</div>` : ''}`;
     const notes = (p.warnings || []).concat(p.reasons || []);
     const notesCell = notes.length ? notes.map(escapeHtml).join('<br>') : '—';
     return `

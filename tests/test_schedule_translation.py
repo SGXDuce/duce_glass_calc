@@ -935,3 +935,236 @@ def test_translate_system_keys_by_elevation_and_pane_id():
     # Both panes share id 'F' across elevations but are translated
     # independently without collision.
     assert results[0]['pane_id'] == results[1]['pane_id'] == 'F'
+
+
+# ---------------------------------------------------------------------------
+# T15 - span_mm / span_basis at the top level of translate_pane()'s result
+#
+# DECIDED (Sahil): span is measured on daylight size, between the supported
+# edges. Four edges supported = the shorter daylight dimension. Three
+# supported edges = the daylight length between the one opposite pair of
+# supported edges. Two supported edges (the opposite pair) = the daylight
+# length between them. Two adjacent unsupported edges, or three or more
+# unsupported edges, stay not_assessable (span None). Sashless panes keep
+# the existing held-edge rule.
+#
+# All fixed/louvre expected values below are derived from the same pane's
+# own sight_width_mm/sight_height_mm (reusing test_t2's 1080 x 1380 fixed
+# pane and test_t10's louvre pane), never invented numbers.
+# ---------------------------------------------------------------------------
+
+def test_t15a_span_fully_framed_shorter_dimension():
+    # Same pane as test_t2_fixed_window: sight_width_mm 1080, sight_height_mm
+    # 1380 -> span is the shorter, 1080.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380)
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['status'] == 'ready'
+    sight_width_mm = result['payload']['sight_width_mm']
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == min(sight_width_mm, sight_height_mm) == 1080
+    assert result['span_basis'] is not None
+    assert 'span_mm' not in result['payload']
+    assert 'span_basis' not in result['payload']
+
+
+def test_t15b_span_one_edge_unsupported_left():
+    # left unsupported -> the intact opposite pair is top/bottom -> span is
+    # the height (sight_height_mm).
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(left='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+
+
+def test_t15b2_span_one_edge_unsupported_right():
+    # right unsupported -> same axis as left -> span is still the height.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+
+
+def test_t15b3_span_one_edge_unsupported_top():
+    # top unsupported -> the intact opposite pair is left/right -> span is
+    # the width (sight_width_mm).
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+
+
+def test_t15b4_span_one_edge_unsupported_bottom():
+    # bottom unsupported -> same axis as top -> span is still the width.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(bottom='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+
+
+def test_t15c_span_left_and_right_unsupported():
+    # left+right unsupported (the opposite pair) -> held pair is top/bottom
+    # -> span is the height.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(left='silicone-flat', right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+
+
+def test_t15d_span_top_and_bottom_unsupported():
+    # top+bottom unsupported (the opposite pair) -> held pair is left/right
+    # -> span is the width.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat', bottom='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['payload']['framing'] == 'partly'
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+
+
+def test_t15e_span_adjacent_pair_unsupported_none():
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat', right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['status'] == 'not_assessable'
+    assert result['span_mm'] is None
+    assert result['span_basis'] is None
+
+
+def test_t15f_span_three_edges_unsupported_none():
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat', left='silicone-flat', right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['status'] == 'not_assessable'
+    assert result['span_mm'] is None
+    assert result['span_basis'] is None
+
+
+def test_t15g_span_louvre_pane():
+    # Same pane as test_t10_louvre_pane: 1000 x 1000, fully framed.
+    pane = make_pane(type='louvre', bladeWidthMM=150, bladeLengthMM=900)
+    row = make_row(ffl_height_mm=0, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['status'] == 'ready'
+    assert result['method'] == 'louvre'
+    sight_width_mm = result['payload']['sight_width_mm']
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == min(sight_width_mm, sight_height_mm) == 1000
+    assert result['span_basis'] is not None
+
+
+def test_t15h_span_sashless_matches_payload_span_mm_ox_window():
+    # REAL export, same fixture/pane as test_t11a: payload span_mm 1050.
+    # The decided rule keeps the existing sashless (held-edge) formula -
+    # span_mm at the top level must equal the payload's own span_mm.
+    export = load_fixture('sashless_ox_window.json')
+    panes = export['system']['elevations'][0]['panes']
+    sashless_pane = next(p for p in panes if p['sashless'])
+    row = make_row(ffl_height_mm=0)
+    result = translate_pane(sashless_pane, panes, None, row, NO_ANSWERS)
+
+    assert result['status'] == 'ready'
+    assert result['method'] == 'sashless'
+    assert result['span_mm'] == result['payload']['span_mm'] == 1050
+    assert result['span_basis'] is not None
+    assert '1050' in result['span_basis']
+
+
+def test_t15i_span_sashless_matches_payload_span_mm_double_hung():
+    # REAL export, same fixture/panes as test_t11b: payload span_mm 1050
+    # for both panes.
+    export = load_fixture('sashless_double_hung.json')
+    panes = export['system']['elevations'][0]['panes']
+    row = make_row(ffl_height_mm=0)
+
+    for pane in panes:
+        result = translate_pane(pane, panes, None, row, NO_ANSWERS)
+        assert result['status'] == 'ready'
+        assert result['method'] == 'sashless'
+        assert result['span_mm'] == result['payload']['span_mm'] == 1050
+        assert result['span_basis'] is not None
+
+
+def test_t15j_ctx_unchanged_for_fixed_pane():
+    # Proves the ctx dict passed to determine_fixed() is byte-identical to
+    # master's pre-span-change output - built from the SAME test_t2 pane/row
+    # (xMM=60, yMM=60, widthMM=1080, heightMM=1380, ffl_height_mm=300,
+    # residential), with the expected dict captured by running this exact
+    # scenario against master before this branch's changes (span_mm/
+    # span_basis were not added to it; every other key/value is unchanged).
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380)
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    expected_ctx = {
+        'opening_type': 'window', 'is_side_panel': False, 'is_louvre': False,
+        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'framing': 'fully', 'exposed_edges': None,
+        'sight_width_mm': 1080, 'sight_height_mm': 1380,
+        'panel_area_m2': 1.4904, 'panel_width_mm': 1080, 'sightline_mm': 360,
+        'opaque_or_patterned': False, 'rail_present': False,
+        'rail_upper_edge_mm': None, 'rail_lower_edge_mm': None,
+        'level_difference_mm': None,
+    }
+    assert result['payload'] == expected_ctx
+
+
+def test_t15k_ctx_unchanged_for_louvre_pane():
+    # Same proof for the louvre ctx, built from the SAME test_t10 pane/row
+    # (bladeWidthMM=150, bladeLengthMM=900, 1000x1000, ffl_height_mm=0,
+    # residential), expected dict captured against master before this
+    # branch's changes.
+    pane = make_pane(type='louvre', bladeWidthMM=150, bladeLengthMM=900)
+    row = make_row(ffl_height_mm=0, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    expected_ctx = {
+        'opening_type': 'window', 'is_side_panel': False, 'is_louvre': True,
+        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'framing': 'fully', 'exposed_edges': None,
+        'sight_width_mm': 1000, 'sight_height_mm': 1000,
+        'panel_area_m2': 1.0, 'panel_width_mm': 1000, 'sightline_mm': 0,
+        'opaque_or_patterned': False, 'rail_present': False,
+        'rail_upper_edge_mm': None, 'rail_lower_edge_mm': None,
+        'level_difference_mm': None,
+        'blade_width_mm': 150, 'blade_length_mm': 900,
+    }
+    assert result['payload'] == expected_ctx
