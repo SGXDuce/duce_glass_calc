@@ -230,6 +230,14 @@ function onFflHeightChanged() {
 }
 
 function renderSystem() {
+    // Incremented once per call, before any early exit, so an in-flight
+    // request from an earlier call (e.g. the height field was cleared, or
+    // the export was reset, while a translate request was still pending)
+    // is treated as stale the moment this newer call starts - not only
+    // when this call itself goes on to send its own request below.
+    translateRequestSeq += 1;
+    const thisRequestSeq = translateRequestSeq;
+
     const statusEl = document.getElementById('system-check-status');
     const bannerEl = document.getElementById('system-check-no-check-banner');
     const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
@@ -266,10 +274,8 @@ function renderSystem() {
     fflMessageEl.classList.remove('show');
     fflMessageEl.textContent = '';
 
-    // Each call gets its own sequence number; only the response matching
-    // the CURRENT (latest) sequence number is ever rendered.
-    translateRequestSeq += 1;
-    const thisRequestSeq = translateRequestSeq;
+    // thisRequestSeq was captured at the top of this call - only the
+    // response matching the CURRENT (latest) sequence number is rendered.
 
     // Server call: translate the export into geometry facts only. No glass
     // check happens here or on the server for this route - see app.py's

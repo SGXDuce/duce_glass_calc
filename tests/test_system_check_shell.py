@@ -125,6 +125,42 @@ def test_daylight_size_header_not_sight_size():
         app_module.SYSTEM_CHECK_ENABLED = False
 
 
+def test_render_system_increments_seq_before_first_early_return():
+    # Source-level regression test only - this is JavaScript running in a
+    # browser, which the Flask test client cannot execute, so this does NOT
+    # run renderSystem() or prove its runtime behaviour. It only guards the
+    # ORDERING of two lines in the served page's source: the
+    # `translateRequestSeq += 1` increment inside renderSystem() must appear
+    # BEFORE that function's first early `return` (the `if (!state.export)`
+    # block), so that call is counted as stale-invalidating even when it
+    # exits early with no state.export, or later with an empty/invalid
+    # height field, rather than only when it goes on to send a fetch
+    # request. This is the ordering the bugfix depends on: without it, an
+    # in-flight request from an earlier renderSystem() call can still match
+    # the "current" sequence number by the time its response arrives, and
+    # render the pane table over a prompt the user is now looking at.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        render_system_start = html.index('function renderSystem()')
+        increment_pos = html.index('translateRequestSeq += 1', render_system_start)
+        first_early_return_pos = html.index(
+            'if (!state.export) {', render_system_start
+        )
+        assert increment_pos < first_early_return_pos, (
+            'translateRequestSeq must be incremented before renderSystem()\'s '
+            'first early return (if (!state.export)), not only later in the '
+            'function - otherwise an in-flight request from an earlier call '
+            'is not invalidated by a call that exits early.'
+        )
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
 # ---------------------------------------------------------------------------
 # /system-check/translate - schema-version guard using real fixtures
 # ---------------------------------------------------------------------------
