@@ -32,6 +32,15 @@
         Build a system
     </button>
 
+    <div class="schedule-row-fields">
+        <div class="schedule-field">
+            <label for="system-check-ffl-height">Height of lowest part of the system above the surface people stand on (mm)</label>
+            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal" oninput="onFflHeightChanged()">
+        </div>
+    </div>
+
+    <div id="system-check-ffl-message" class="configurator-modal-error"></div>
+
     <div id="system-check-status" class="schedule-geometry-status">No geometry set yet.</div>
 
     <!--
@@ -178,16 +187,41 @@ function showConfiguratorModalError(message) {
     errorBox.classList.add('show');
 }
 
+// Reads the floor-height field and validates it: required, no default,
+// non-negative number only. Returns the parsed number, or null if the
+// field is empty/invalid - the caller decides what to show for null.
+function getFflHeightMM() {
+    const input = document.getElementById('system-check-ffl-height');
+    const raw = input.value;
+    if (raw === '' || raw == null) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+}
+
+// Called whenever the floor-height field changes. If a system has already
+// been built, re-runs the translate call (or re-shows the "fill this in"
+// message) so the table stays in sync with the field, matching the "if the
+// value is changed after Done" requirement.
+function onFflHeightChanged() {
+    if (state.export) {
+        renderSystem();
+    }
+}
+
 function renderSystem() {
     const statusEl = document.getElementById('system-check-status');
     const bannerEl = document.getElementById('system-check-no-check-banner');
     const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
+    const fflMessageEl = document.getElementById('system-check-ffl-message');
 
     if (!state.export) {
         statusEl.textContent = 'No geometry set yet.';
         statusEl.classList.remove('set');
         bannerEl.style.display = 'none';
         tableWrapEl.innerHTML = '';
+        fflMessageEl.classList.remove('show');
+        fflMessageEl.textContent = '';
         return;
     }
 
@@ -196,6 +230,21 @@ function renderSystem() {
     statusEl.textContent = `${sys.elevations.length} elevation(s), ${paneCount} pane(s).`;
     statusEl.classList.add('set');
     bannerEl.style.display = 'block';
+
+    // The floor-height field is required and must be a valid non-negative
+    // number before the translate call is made at all - a plain message is
+    // shown in its place instead of calling the server with a missing/bad
+    // value (which would otherwise silently mark every pane not_assessable,
+    // see translate_pane()'s ffl_height_mm handling in the engine).
+    const fflHeightMM = getFflHeightMM();
+    if (fflHeightMM === null) {
+        fflMessageEl.textContent = 'Enter the height of the lowest part of the system above the surface people stand on (mm) to see the pane table.';
+        fflMessageEl.classList.add('show');
+        tableWrapEl.innerHTML = '';
+        return;
+    }
+    fflMessageEl.classList.remove('show');
+    fflMessageEl.textContent = '';
 
     // Server call: translate the export into geometry facts only. No glass
     // check happens here or on the server for this route - see app.py's
@@ -206,7 +255,7 @@ function renderSystem() {
         body: JSON.stringify({
             schemaVersion: state.export.schemaVersion,
             system: sys,
-            row: {}, // no row fields collected yet in this shell step
+            row: { ffl_height_mm: fflHeightMM },
         }),
     })
         .then(response => response.json())
@@ -223,9 +272,9 @@ function renderSystem() {
 }
 
 // Table columns are geometry facts only - pane identifier, elevation,
-// sight width x height, lowest sightline, framing, method, status and
-// warnings. No pass/fail wording, no thickness, no glass type - the fixed
-// banner above already says why.
+// sight width x height, lowest sightline, span (sashless panes only),
+// framing, method, status and warnings. No pass/fail wording, no
+// thickness, no glass type - the fixed banner above already says why.
 function buildPaneTableHTML(panes) {
     if (!panes.length) {
         return '<div class="schedule-geometry-status">No panes in this system.</div>';
@@ -240,6 +289,7 @@ function buildPaneTableHTML(panes) {
                         <th>Elevation</th>
                         <th>Sight size (W x H mm)</th>
                         <th>Lowest sightline (mm)</th>
+                        <th>Span (mm)</th>
                         <th>Framing</th>
                         <th>Method</th>
                         <th>Status</th>
@@ -259,9 +309,16 @@ function mmCell(value) {
 }
 
 function paneRowHTML(p) {
-    const sightSize = (p.sight_width_mm == null || p.sight_height_mm == null)
+    // A sashless pane's payload only ever carries span_mm - no
+    // sight_width_mm/sight_height_mm/sightline_mm (see app.py's
+    // _pane_table_row()) - so those cells show a dash for a sashless row
+    // rather than a recomputed value.
+    const isSashless = p.method === 'sashless';
+    const sightSize = (isSashless || p.sight_width_mm == null || p.sight_height_mm == null)
         ? '—'
         : `${p.sight_width_mm} x ${p.sight_height_mm}`;
+    const sightlineCell = isSashless ? '—' : mmCell(p.sightline_mm);
+    const spanCell = mmCell(p.span_mm);
     const notes = (p.warnings || []).concat(p.reasons || []);
     const notesCell = notes.length ? notes.map(escapeHtml).join('<br>') : '—';
     return `
@@ -269,7 +326,8 @@ function paneRowHTML(p) {
             <td>${escapeHtml(p.pane_id)}</td>
             <td>${p.elevation_index}</td>
             <td>${sightSize}</td>
-            <td>${mmCell(p.sightline_mm)}</td>
+            <td>${sightlineCell}</td>
+            <td>${spanCell}</td>
             <td>${escapeHtml(p.framing ?? '—')}</td>
             <td>${escapeHtml(p.method ?? '—')}</td>
             <td>${escapeHtml(p.status)}</td>

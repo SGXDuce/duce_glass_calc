@@ -185,8 +185,15 @@ def test_non_integer_schema_version_treated_as_below_6():
 def test_schema_v6_ox_window_translated_as_before():
     # At the current schema version, the sashless pane must translate
     # normally - matching the already-validated result in
-    # tests/test_schedule_translation.py (test_t11a): span/sight_height_mm
-    # 1050mm, held top/bottom (horizontal-slider).
+    # tests/test_schedule_translation.py (test_t11a): span_mm 1050mm, held
+    # top/bottom (horizontal-slider).
+    #
+    # UPDATED this task: sight_height_mm/sight_width_mm/sightline_mm are no
+    # longer backfilled for a sashless row (that recompute used a
+    # width/height-based formula that did not know which edges were held -
+    # see app.py's _pane_table_row() and _sashless_span_mm()'s own
+    # docstring in engine/schedule/translation.py) - span_mm (from the
+    # translator's own payload) is the geometry fact asserted here instead.
     export = load_fixture('sashless_ox_window.json')
     client = get_client()
     response = client.post('/system-check/translate', json={
@@ -203,13 +210,17 @@ def test_schema_v6_ox_window_translated_as_before():
     row = next(p for p in data['panes'] if p['pane_id'] == sashless_pane['id'])
     assert row['status'] == 'ready'
     assert row['method'] == 'sashless'
-    assert row['sight_height_mm'] == 1050
+    assert row['span_mm'] == 1050
+    assert row['sight_height_mm'] is None
 
 
 def test_schema_v6_double_hung_translated_as_before():
     # Matches the validated result in test_schedule_translation.py
-    # (test_t11b): span/sight_width_mm 1050mm, held left/right
-    # (vertical-slider pair).
+    # (test_t11b): span_mm 1050mm, held left/right (vertical-slider pair).
+    #
+    # UPDATED this task: see test_schema_v6_ox_window_translated_as_before
+    # above - sight_width_mm is no longer backfilled for a sashless row,
+    # span_mm is asserted instead.
     export = load_fixture('sashless_double_hung.json')
     client = get_client()
     response = client.post('/system-check/translate', json={
@@ -224,4 +235,192 @@ def test_schema_v6_double_hung_translated_as_before():
         row = next(p for p in data['panes'] if p['pane_id'] == pane['id'])
         assert row['status'] == 'ready'
         assert row['method'] == 'sashless'
-        assert row['sight_width_mm'] == 1050
+        assert row['span_mm'] == 1050
+        assert row['sight_width_mm'] is None
+
+
+# ---------------------------------------------------------------------------
+# Floor-height (ffl_height_mm) field, exact schema match, span_mm column -
+# the three fixes this task adds. The page's own "must not call translate
+# until the field is filled" behaviour is client-side JS and is not directly
+# testable from here (see the last test in this section and STEP D's report
+# for what that leaves unverified) - what IS tested here is the route's own
+# behaviour when the field is missing, which the reproduction step (STEP A)
+# showed marks every pane not_assessable with blank geometry.
+# ---------------------------------------------------------------------------
+
+def test_translate_with_empty_row_marks_every_pane_not_assessable_blank_geometry():
+    # This is exactly what the page used to send before the floor-height
+    # field existed (row: {}), reproduced here so the route's behaviour with
+    # no ffl_height_mm stays pinned: every pane (sashless or not) comes back
+    # not_assessable with blank sight/sightline geometry, because
+    # translate_pane() cannot compute sightline_mm without ffl_height_mm
+    # (engine/schedule/translation.py's _sightline_mm() returns None, which
+    # translate_pane() treats as not_assessable for every pane, not just
+    # sashless ones).
+    #
+    # What this test does NOT and CANNOT verify: that the page itself
+    # refuses to call this route until the field is filled and valid. That
+    # gating (getFflHeightMM()/renderSystem() in system_check.html) runs in
+    # browser JS with no server round-trip when the field is empty, so it
+    # is outside what a Flask test-client request can observe - see STEP D.
+    export = load_fixture('sashless_ox_window.json')
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': export['schemaVersion'],
+        'system': export['system'],
+        'row': {},  # no ffl_height_mm - the page must never send this now
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    for pane in export['system']['elevations'][0]['panes']:
+        row = next(p for p in data['panes'] if p['pane_id'] == pane['id'])
+        assert row['status'] == 'not_assessable'
+        assert row['sight_width_mm'] is None
+        assert row['sight_height_mm'] is None
+        assert row['sightline_mm'] is None
+
+
+def test_schema_v7_newer_than_current_marks_sashless_pane_not_assessable():
+    # Exact-match requirement: a NEWER schema version (not just older) must
+    # also be treated as non-current. Before this fix the guard used
+    # `raw_version >= CONFIGURATOR_SCHEMA_VERSION`, which would have wrongly
+    # accepted 7 as current.
+    export = load_fixture('sashless_ox_window.json')
+    newer_export = copy.deepcopy(export)
+    newer_export['schemaVersion'] = 7
+
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': newer_export['schemaVersion'],
+        'system': newer_export['system'],
+        'row': _row(),
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+    sashless_pane_id = next(
+        p['id'] for p in export['system']['elevations'][0]['panes'] if p['sashless']
+    )
+    row = next(p for p in data['panes'] if p['pane_id'] == sashless_pane_id)
+    assert row['status'] == 'not_assessable'
+    assert 'does not match' in ' '.join(row['reasons']).lower()
+
+
+def test_schema_v6_span_mm_matches_test_schedule_translation_ox_window():
+    # span_mm in the row must equal the translator's own span_mm - the value
+    # already validated in tests/test_schedule_translation.py::test_t11a
+    # (1050mm, held top/bottom). Not re-derived here; just checked that the
+    # route's response carries the same number the engine test already
+    # locks in.
+    export = load_fixture('sashless_ox_window.json')
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': export['schemaVersion'],
+        'system': export['system'],
+        'row': _row(),
+    })
+    data = response.get_json()
+    assert data['success'] is True
+
+    sashless_pane_id = next(
+        p['id'] for p in export['system']['elevations'][0]['panes'] if p['sashless']
+    )
+    row = next(p for p in data['panes'] if p['pane_id'] == sashless_pane_id)
+    assert row['span_mm'] == 1050
+
+
+def test_schema_v6_span_mm_matches_test_schedule_translation_double_hung():
+    # Matches tests/test_schedule_translation.py::test_t11b (1050mm, held
+    # left/right) for both panes in this fixture.
+    export = load_fixture('sashless_double_hung.json')
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': export['schemaVersion'],
+        'system': export['system'],
+        'row': _row(),
+    })
+    data = response.get_json()
+    assert data['success'] is True
+
+    for pane in export['system']['elevations'][0]['panes']:
+        row = next(p for p in data['panes'] if p['pane_id'] == pane['id'])
+        assert row['span_mm'] == 1050
+
+
+def test_sashless_rows_have_none_sight_and_sightline_fields():
+    # For sashless panes, the shell must not recompute sight_width_mm/
+    # sight_height_mm/sightline_mm from sashEdgesMM/yMM (that formula did
+    # not know which edges were held and could disagree with the
+    # translator's own span_mm) - these three fields must come back None
+    # for a sashless row, straight from translate_pane()'s own payload
+    # (which never sets them for a sashless pane), not backfilled.
+    export = load_fixture('sashless_ox_window.json')
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': export['schemaVersion'],
+        'system': export['system'],
+        'row': _row(),
+    })
+    data = response.get_json()
+    assert data['success'] is True
+
+    sashless_pane_id = next(
+        p['id'] for p in export['system']['elevations'][0]['panes'] if p['sashless']
+    )
+    row = next(p for p in data['panes'] if p['pane_id'] == sashless_pane_id)
+    assert row['status'] == 'ready'
+    assert row['method'] == 'sashless'
+    assert row['sight_width_mm'] is None
+    assert row['sight_height_mm'] is None
+    assert row['sightline_mm'] is None
+    assert row['span_mm'] == 1050
+
+
+def test_non_sashless_pane_sightline_80mm_hand_built_lone_slider_door():
+    # HAND-BUILT pane, wrapped into a minimal system object for this route -
+    # NOT a real Configurator export. Values are claimed from a real export
+    # per tests/test_schedule_translation.py::test_t1_lone_horizontal_slider_door
+    # (its own docstring/comment there calls it a "REAL verified export
+    # value", handover section 14): a door, horizontal-slider,
+    # xMM=60, yMM=40, widthMM=1680, heightMM=2020, all four sash edges 40mm.
+    # With ffl_height_mm=0, that test asserts sightline_mm == 80 (0 + yMM 40
+    # + bottom sash edge 40). This test re-uses the exact same numbers,
+    # wrapped in a one-elevation/one-pane system dict, to confirm this
+    # route's non-sashless path (which does NOT recompute anything - it
+    # takes payload['sightline_mm'] straight from translate_pane()) returns
+    # that same 80mm through the HTTP layer.
+    pane = {
+        'id': 'F',
+        'productClass': 'door',
+        'type': 'horizontal-slider',
+        'xMM': 60, 'yMM': 40,
+        'widthMM': 1680, 'heightMM': 2020,
+        'bladeWidthMM': None, 'bladeLengthMM': None,
+        'sashEdgesMM': {'top': 40, 'bottom': 40, 'left': 40, 'right': 40},
+        'unframedEdgeReasons': {'top': None, 'bottom': None, 'left': None, 'right': None},
+        'sashless': False,
+    }
+    system = {
+        'angledJoinAngleDeg': None,
+        'elevations': [
+            {'panes': [pane]},
+        ],
+    }
+
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': app_module.CONFIGURATOR_SCHEMA_VERSION,
+        'system': system,
+        'row': {'ffl_height_mm': 0, 'building_use': 'residential',
+                 'is_bathroom': False, 'high_risk': False},
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+    row = next(p for p in data['panes'] if p['pane_id'] == 'F')
+    assert row['status'] == 'ready'
+    assert row['sightline_mm'] == 80

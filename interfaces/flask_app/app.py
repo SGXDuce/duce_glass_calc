@@ -174,7 +174,10 @@ def system_check_translate():
       }
 
     Response JSON: { "panes": [ {pane_id, elevation_index, status, method,
-    sight_width_mm, sight_height_mm, sightline_mm, framing, warnings}, ... ] }
+    sight_width_mm, sight_height_mm, sightline_mm, span_mm, framing,
+    warnings}, ... ] } - span_mm is only ever populated for a sashless pane
+    (translate_pane()'s own span_mm, not recomputed here); every other
+    method leaves it None.
     """
     try:
         data = request.get_json()
@@ -187,16 +190,18 @@ def system_check_translate():
 
         row = data.get('row') or {}
 
-        # Schema-version guard, BEFORE translate_system() runs. A pre-v6
-        # export used a different (wrong, since-corrected) sashless edge
-        # orientation - see Window_Schedule_Progress_Handover.md §15 "MUST
-        # DO at wiring time". A pre-v6 sashless pane's span would silently
-        # come out wrong if we translated it normally, so instead every
-        # sashless pane in an old export is marked not_assessable with a
-        # clear reason, and we never guess which orientation it used.
+        # Schema-version guard, BEFORE translate_system() runs. A non-current
+        # export (older OR newer, missing, or not a whole number) is not
+        # trusted for sashless panes specifically - a pre-v6 export used a
+        # different (wrong, since-corrected) sashless edge orientation, see
+        # Window_Schedule_Progress_Handover.md §15 "MUST DO at wiring time",
+        # and a newer export's schema is simply not one this route has been
+        # validated against yet. Every sashless pane in a non-matching
+        # export is marked not_assessable with a clear reason rather than
+        # guessing which convention it used.
         raw_version = data.get('schemaVersion')
         is_current_schema = isinstance(raw_version, int) and not isinstance(raw_version, bool) \
-            and raw_version >= CONFIGURATOR_SCHEMA_VERSION
+            and raw_version == CONFIGURATOR_SCHEMA_VERSION
 
         results = translate_system(system, row, {})
 
@@ -208,11 +213,10 @@ def system_check_translate():
                     result['method'] = None
                     result['payload'] = None
                     result['reasons'] = list(result.get('reasons') or []) + [
-                        f"Export schema version {raw_version!r} is older than the "
+                        f"Export schema version {raw_version!r} does not match the "
                         f"expected {CONFIGURATOR_SCHEMA_VERSION} (or missing/not a "
-                        "whole number). Sashless panes from an older export used a "
-                        "different edge convention, so this pane's span cannot be "
-                        "trusted and is not assessed."
+                        "whole number). Sashless panes from a non-matching export "
+                        "cannot be trusted and are not assessed."
                     ]
 
         panes = [_pane_table_row(result, system, row) for result in results]
@@ -245,10 +249,10 @@ def _pane_table_row(result, system, schedule_row):
 
     schedule_row is the same row dict passed into translate_system() (the
     one-off ffl_height_mm/building_use/is_bathroom/high_risk values for this
-    session's one system) - needed here only to recompute sightline_mm for
-    a sashless pane (see below).
+    session's one system) - unused here now (kept as a parameter for the
+    caller's convenience/future use) since a sashless row no longer
+    recomputes anything from it; see the sashless branch below.
     """
-    pane = _find_pane(system, result['elevation_index'], result['pane_id']) or {}
     payload = result.get('payload') or {}
 
     table_row = {
@@ -259,34 +263,24 @@ def _pane_table_row(result, system, schedule_row):
         'sight_width_mm': payload.get('sight_width_mm'),
         'sight_height_mm': payload.get('sight_height_mm'),
         'sightline_mm': payload.get('sightline_mm'),
+        'span_mm': payload.get('span_mm'),
         'framing': payload.get('framing'),
         'warnings': result.get('warnings') or [],
         'reasons': result.get('reasons') or [],
     }
 
-    # A sashless pane's payload only carries span_mm (see translate_pane()),
-    # not sight_width_mm/sight_height_mm/sightline_mm/framing - fill in what
-    # we can straight from the raw pane so the table still shows geometry
-    # facts for a sashless row instead of blanks.
+    # A sashless pane's payload only ever carries span_mm (see
+    # translate_pane()) - no sight_width_mm/sight_height_mm/sightline_mm/
+    # framing. Those are intentionally left None/blank here rather than
+    # recomputed from the raw pane's sashEdgesMM/yMM: that recompute used a
+    # width/height-based formula that does not know which edges are held
+    # (see translate.py's _sashless_span_mm() docstring - span is measured
+    # between the two HELD edges, which can be either axis), so it could
+    # silently disagree with the translator's own span_mm. The table shows
+    # a dash for these cells on a sashless row instead (see
+    # system_check.html's paneRowHTML()).
     if result['method'] == 'sashless':
-        sash = pane.get('sashEdgesMM') or {}
-        width_mm = pane.get('widthMM')
-        height_mm = pane.get('heightMM')
-        if width_mm is not None and sash:
-            table_row['sight_width_mm'] = width_mm - sash.get('left', 0) - sash.get('right', 0)
-        if height_mm is not None and sash:
-            table_row['sight_height_mm'] = height_mm - sash.get('top', 0) - sash.get('bottom', 0)
         table_row['framing'] = 'sashless'
-
-        # Same sightline_mm formula translate_pane() uses internally (row's
-        # FFL height + the pane's own yMM + its bottom sash edge) - not
-        # exported in a sashless payload since determine_sashless() itself
-        # never needs it, but the table still wants to show it.
-        ffl = schedule_row.get('ffl_height_mm')
-        y_mm = pane.get('yMM')
-        bottom_sash = sash.get('bottom')
-        if ffl is not None and y_mm is not None and bottom_sash is not None:
-            table_row['sightline_mm'] = ffl + y_mm + bottom_sash
 
     return table_row
 
