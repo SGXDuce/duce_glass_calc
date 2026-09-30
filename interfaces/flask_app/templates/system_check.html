@@ -14,7 +14,7 @@
 <div class="app-header">
     <div class="header-text">
         <div class="header-title">System check</div>
-        <div class="header-sub">Wind Loads Only — Internal Use</div>
+        <div class="header-sub">Geometry Shell — Internal Use</div>
     </div>
     <img src="{{ url_for('static', filename='duce_logo.png') }}"
          class="header-logo" alt="Duce Timber Windows and Doors">
@@ -25,10 +25,325 @@
 <div class="schedule-page">
     <div class="schedule-intro">
         <div class="schedule-title">System check</div>
-        <div class="schedule-sub">System check mode is under construction.</div>
+        <div class="schedule-sub">One system per visit — nothing is saved. Build the system's geometry in the configurator, then review its panes below.</div>
     </div>
-    <a href="/">Back to start</a>
+
+    <button id="system-check-build-btn" class="schedule-add-row-btn" onclick="openConfiguratorModal()">
+        Build a system
+    </button>
+
+    <div class="schedule-row-fields">
+        <div class="schedule-field">
+            <label for="system-check-ffl-height">Height of lowest part of the system above the surface people stand on (mm)</label>
+            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal" oninput="onFflHeightChanged()">
+        </div>
+    </div>
+
+    <div id="system-check-ffl-message" class="configurator-modal-error"></div>
+
+    <div id="system-check-status" class="schedule-geometry-status">No geometry set yet.</div>
+
+    <!--
+        Fixed notice, always shown once a system has been built. No result
+        (pass/fail, thickness, glass type) exists yet at this step - this
+        page is the geometry shell only. Wording is exact per spec: do not
+        edit without re-checking the build task's wording requirement.
+    -->
+    <div id="system-check-no-check-banner" class="system-check-no-check-banner" style="display:none;">
+        No glass check has been run. Inputs are collected in the next step.
+    </div>
+
+    <div id="system-check-pane-table-wrap"></div>
 </div>
+
+<!-- ========== CONFIGURATOR MODAL ========== -->
+<div id="configurator-modal-overlay" class="report-modal-overlay configurator-modal">
+    <div class="report-modal">
+        <div class="report-modal-header">
+            <div class="report-modal-header-title">
+                <i class="ti ti-frame"></i>
+                <span>Build a system</span>
+            </div>
+            <button class="report-modal-close" onclick="closeConfiguratorModal()" aria-label="Close">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+        <div id="configurator-modal-error" class="configurator-modal-error"></div>
+        <div class="report-modal-body">
+            <iframe id="configurator-iframe" title="Configurator"></iframe>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// SYSTEM CHECK — page shell (Step 2)
+//
+// Scope: geometry only. No wind calculation, no human impact call, no glass
+// thickness result of any kind lives on this page. This mirrors schedule.html's
+// configurator embed and postMessage handshake exactly (same handshake order,
+// same origin checks, same "cancel belongs to the parent" rule) but drops
+// schedule.html's row list, since this mode holds exactly one system per
+// page visit with no persistence and no row id.
+//
+// CONFIGURATOR_SCHEMA_VERSION comes from the server (interfaces/flask_app/
+// app.py's CONFIGURATOR_SCHEMA_VERSION constant), passed through Jinja, so
+// this is the only place in this page's JS that number appears - never
+// hand-typed here.
+// ---------------------------------------------------------------------------
+
+const CONFIGURATOR_SCHEMA_VERSION = {{ configurator_schema_version }};
+
+const state = {
+    export: null,   // full {schemaVersion, system, rawState} from the configurator's 'done', or null
+};
+
+let configuratorReadyHandler = null; // the message listener bound to the currently-open modal
+
+function openConfiguratorModal() {
+    const overlay = document.getElementById('configurator-modal-overlay');
+    const iframe = document.getElementById('configurator-iframe');
+    const errorBox = document.getElementById('configurator-modal-error');
+    errorBox.classList.remove('show');
+    errorBox.textContent = '';
+
+    // Remove any previous listener before attaching a new one, and reload
+    // the iframe fresh each time so every open gets its own real 'ready'
+    // handshake rather than reusing a stale configurator session.
+    if (configuratorReadyHandler) {
+        window.removeEventListener('message', configuratorReadyHandler);
+        configuratorReadyHandler = null;
+    }
+
+    configuratorReadyHandler = function (event) {
+        // Same origin check as schedule.html: only accept a message from
+        // this exact page's own origin, and only from the iframe we opened
+        // (never window.parent, never some other frame).
+        if (event.origin !== window.location.origin) return;
+        if (event.source !== iframe.contentWindow) return;
+        const msg = event.data;
+        if (!msg || typeof msg !== 'object') return;
+
+        if (msg.type === 'ready') {
+            if (msg.schemaVersion !== CONFIGURATOR_SCHEMA_VERSION) {
+                // Version mismatch: show the red banner and do NOT send
+                // saved state - same behaviour as schedule.html. System
+                // check never has saved state to send anyway (one system
+                // per visit, no persistence), so this always sends null,
+                // but we still stop here and never treat the export that
+                // might follow as trustworthy.
+                showConfiguratorModalError(
+                    `Configurator schema mismatch: expected schemaVersion ${CONFIGURATOR_SCHEMA_VERSION}, ` +
+                    `got ${JSON.stringify(msg.schemaVersion)}. Not proceeding - please contact support.`
+                );
+                return;
+            }
+            // No persistence in this mode, so there is never saved raw
+            // state to hand back - always a fresh system.
+            iframe.contentWindow.postMessage(
+                { type: 'load', state: null },
+                window.location.origin
+            );
+            return;
+        }
+
+        if (msg.type === 'done') {
+            if (msg.export) {
+                state.export = msg.export;
+            }
+            closeConfiguratorModal();
+            renderSystem();
+            return;
+        }
+        // Any other message type is not part of the agreed protocol - ignored.
+    };
+
+    window.addEventListener('message', configuratorReadyHandler);
+
+    overlay.classList.add('open');
+    // Setting src (rather than reusing a previously-loaded iframe) forces a
+    // fresh document load, so the configurator's own module-load-time
+    // 'ready' send always fires for this open.
+    iframe.src = '/configurator';
+}
+
+function closeConfiguratorModal() {
+    // Cancel belongs to the page (this button), not the Configurator - the
+    // Configurator sends no cancel message and has no close control of its
+    // own when embedded.
+    const overlay = document.getElementById('configurator-modal-overlay');
+    const iframe = document.getElementById('configurator-iframe');
+    overlay.classList.remove('open');
+    iframe.src = 'about:blank';
+    if (configuratorReadyHandler) {
+        window.removeEventListener('message', configuratorReadyHandler);
+        configuratorReadyHandler = null;
+    }
+}
+
+function showConfiguratorModalError(message) {
+    const errorBox = document.getElementById('configurator-modal-error');
+    errorBox.textContent = message;
+    errorBox.classList.add('show');
+}
+
+// Reads the floor-height field and validates it: required, no default,
+// non-negative number only. Returns the parsed number, or null if the
+// field is empty/invalid - the caller decides what to show for null.
+function getFflHeightMM() {
+    const input = document.getElementById('system-check-ffl-height');
+    const raw = input.value;
+    if (raw === '' || raw == null) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+}
+
+// Called whenever the floor-height field changes. If a system has already
+// been built, re-runs the translate call (or re-shows the "fill this in"
+// message) so the table stays in sync with the field, matching the "if the
+// value is changed after Done" requirement.
+function onFflHeightChanged() {
+    if (state.export) {
+        renderSystem();
+    }
+}
+
+function renderSystem() {
+    const statusEl = document.getElementById('system-check-status');
+    const bannerEl = document.getElementById('system-check-no-check-banner');
+    const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
+    const fflMessageEl = document.getElementById('system-check-ffl-message');
+
+    if (!state.export) {
+        statusEl.textContent = 'No geometry set yet.';
+        statusEl.classList.remove('set');
+        bannerEl.style.display = 'none';
+        tableWrapEl.innerHTML = '';
+        fflMessageEl.classList.remove('show');
+        fflMessageEl.textContent = '';
+        return;
+    }
+
+    const sys = state.export.system;
+    const paneCount = sys.elevations.reduce((n, e) => n + e.panes.length, 0);
+    statusEl.textContent = `${sys.elevations.length} elevation(s), ${paneCount} pane(s).`;
+    statusEl.classList.add('set');
+    bannerEl.style.display = 'block';
+
+    // The floor-height field is required and must be a valid non-negative
+    // number before the translate call is made at all - a plain message is
+    // shown in its place instead of calling the server with a missing/bad
+    // value (which would otherwise silently mark every pane not_assessable,
+    // see translate_pane()'s ffl_height_mm handling in the engine).
+    const fflHeightMM = getFflHeightMM();
+    if (fflHeightMM === null) {
+        fflMessageEl.textContent = 'Enter the height of the lowest part of the system above the surface people stand on (mm) to see the pane table.';
+        fflMessageEl.classList.add('show');
+        tableWrapEl.innerHTML = '';
+        return;
+    }
+    fflMessageEl.classList.remove('show');
+    fflMessageEl.textContent = '';
+
+    // Server call: translate the export into geometry facts only. No glass
+    // check happens here or on the server for this route - see app.py's
+    // /system-check/translate docstring.
+    fetch('/system-check/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            schemaVersion: state.export.schemaVersion,
+            system: sys,
+            row: { ffl_height_mm: fflHeightMM },
+        }),
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(data.error || 'Translation failed.')}</div>`;
+                return;
+            }
+            tableWrapEl.innerHTML = buildPaneTableHTML(data.panes);
+        })
+        .catch(err => {
+            tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(String(err))}</div>`;
+        });
+}
+
+// Table columns are geometry facts only - pane identifier, elevation,
+// sight width x height, lowest sightline, span (sashless panes only),
+// framing, method, status and warnings. No pass/fail wording, no
+// thickness, no glass type - the fixed banner above already says why.
+function buildPaneTableHTML(panes) {
+    if (!panes.length) {
+        return '<div class="schedule-geometry-status">No panes in this system.</div>';
+    }
+    const rows = panes.map(paneRowHTML).join('');
+    return `
+        <div class="schedule-pane-table-wrap">
+            <table class="schedule-pane-table">
+                <thead>
+                    <tr>
+                        <th>Pane</th>
+                        <th>Elevation</th>
+                        <th>Sight size (W x H mm)</th>
+                        <th>Lowest sightline (mm)</th>
+                        <th>Span (mm)</th>
+                        <th>Framing</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Warnings</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function mmCell(value) {
+    return value == null ? '—' : String(value);
+}
+
+function paneRowHTML(p) {
+    // A sashless pane's payload only ever carries span_mm - no
+    // sight_width_mm/sight_height_mm/sightline_mm (see app.py's
+    // _pane_table_row()) - so those cells show a dash for a sashless row
+    // rather than a recomputed value.
+    const isSashless = p.method === 'sashless';
+    const sightSize = (isSashless || p.sight_width_mm == null || p.sight_height_mm == null)
+        ? '—'
+        : `${p.sight_width_mm} x ${p.sight_height_mm}`;
+    const sightlineCell = isSashless ? '—' : mmCell(p.sightline_mm);
+    const spanCell = mmCell(p.span_mm);
+    const notes = (p.warnings || []).concat(p.reasons || []);
+    const notesCell = notes.length ? notes.map(escapeHtml).join('<br>') : '—';
+    return `
+        <tr>
+            <td>${escapeHtml(p.pane_id)}</td>
+            <td>${p.elevation_index}</td>
+            <td>${sightSize}</td>
+            <td>${sightlineCell}</td>
+            <td>${spanCell}</td>
+            <td>${escapeHtml(p.framing ?? '—')}</td>
+            <td>${escapeHtml(p.method ?? '—')}</td>
+            <td>${escapeHtml(p.status)}</td>
+            <td>${notesCell}</td>
+        </tr>
+    `;
+}
+
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+}
+
+renderSystem();
+</script>
 
 </body>
 </html>

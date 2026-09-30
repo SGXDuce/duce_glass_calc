@@ -58,12 +58,16 @@ def test_flag_on_shows_mode_select():
 
 
 def test_flag_on_system_check_page_loads():
+    # The placeholder "under construction" text was replaced by the real
+    # page shell (System check step 2) - see tests/test_system_check_shell.py
+    # for the shell's own content assertions. This test now only confirms
+    # the route still loads at 200 when the flag is on, which is what it
+    # was always really guarding.
     app_module.SYSTEM_CHECK_ENABLED = True
     try:
         client = get_client()
         response = client.get('/system-check')
         assert response.status_code == 200
-        assert b'under construction' in response.data
     finally:
         app_module.SYSTEM_CHECK_ENABLED = False
 
