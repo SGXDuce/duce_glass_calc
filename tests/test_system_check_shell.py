@@ -424,3 +424,47 @@ def test_non_sashless_pane_sightline_80mm_hand_built_lone_slider_door():
     row = next(p for p in data['panes'] if p['pane_id'] == 'F')
     assert row['status'] == 'ready'
     assert row['sightline_mm'] == 80
+
+
+def test_non_sashless_ready_pane_has_span_mm_and_span_basis():
+    # Span (mm) must be populated for every ready pane, not just sashless
+    # ones (this task's change) - same hand-built pane/values as
+    # test_non_sashless_pane_sightline_80mm_hand_built_lone_slider_door
+    # above (a REAL verified export value, handover section 14): fully
+    # framed (all sashEdgesMM 40, no unframedEdgeReasons), sight_width_mm
+    # 1680 - 40 - 40 = 1600, sight_height_mm 2020 - 40 - 40 = 1940 -> span
+    # is the shorter, 1600.
+    pane = {
+        'id': 'F',
+        'productClass': 'door',
+        'type': 'horizontal-slider',
+        'xMM': 60, 'yMM': 40,
+        'widthMM': 1680, 'heightMM': 2020,
+        'bladeWidthMM': None, 'bladeLengthMM': None,
+        'sashEdgesMM': {'top': 40, 'bottom': 40, 'left': 40, 'right': 40},
+        'unframedEdgeReasons': {'top': None, 'bottom': None, 'left': None, 'right': None},
+        'sashless': False,
+    }
+    system = {
+        'angledJoinAngleDeg': None,
+        'elevations': [
+            {'panes': [pane]},
+        ],
+    }
+
+    client = get_client()
+    response = client.post('/system-check/translate', json={
+        'schemaVersion': app_module.CONFIGURATOR_SCHEMA_VERSION,
+        'system': system,
+        'row': {'ffl_height_mm': 0, 'building_use': 'residential',
+                 'is_bathroom': False, 'high_risk': False},
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+    row = next(p for p in data['panes'] if p['pane_id'] == 'F')
+    assert row['status'] == 'ready'
+    assert row['method'] == 'fixed'
+    assert row['span_mm'] == 1600
+    assert row['span_basis'] is not None

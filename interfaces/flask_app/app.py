@@ -174,10 +174,11 @@ def system_check_translate():
       }
 
     Response JSON: { "panes": [ {pane_id, elevation_index, status, method,
-    sight_width_mm, sight_height_mm, sightline_mm, span_mm, framing,
-    warnings}, ... ] } - span_mm is only ever populated for a sashless pane
-    (translate_pane()'s own span_mm, not recomputed here); every other
-    method leaves it None.
+    sight_width_mm, sight_height_mm, sightline_mm, span_mm, span_basis,
+    framing, warnings}, ... ] } - span_mm/span_basis come straight from
+    translate_pane()'s own top-level result (not recomputed here) and are
+    populated for every 'ready' pane (fixed, louvre, and sashless alike);
+    None for a not_assessable/needs_answer pane.
     """
     try:
         data = request.get_json()
@@ -263,7 +264,8 @@ def _pane_table_row(result, system, schedule_row):
         'sight_width_mm': payload.get('sight_width_mm'),
         'sight_height_mm': payload.get('sight_height_mm'),
         'sightline_mm': payload.get('sightline_mm'),
-        'span_mm': payload.get('span_mm'),
+        'span_mm': result.get('span_mm'),
+        'span_basis': result.get('span_basis'),
         'framing': payload.get('framing'),
         'warnings': result.get('warnings') or [],
         'reasons': result.get('reasons') or [],
@@ -278,7 +280,9 @@ def _pane_table_row(result, system, schedule_row):
     # between the two HELD edges, which can be either axis), so it could
     # silently disagree with the translator's own span_mm. The table shows
     # a dash for these cells on a sashless row instead (see
-    # system_check.html's paneRowHTML()).
+    # system_check.html's paneRowHTML()). span_mm/span_basis are the
+    # exception - they come from the top-level result for every method,
+    # sashless included, so the Span column is never blank on a ready row.
     if result['method'] == 'sashless':
         table_row['framing'] = 'sashless'
 

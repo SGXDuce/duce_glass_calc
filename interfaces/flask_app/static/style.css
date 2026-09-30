@@ -1120,6 +1120,13 @@ body {
 
 .schedule-pane-table tr:nth-child(even) td { background: #242424; }
 
+.span-basis {
+    white-space: normal;
+    color: #888;
+    font-size: 9.5px;
+    margin-top: 2px;
+}
+
 .schedule-system-meta {
     color: #888;
     font-size: 11px;

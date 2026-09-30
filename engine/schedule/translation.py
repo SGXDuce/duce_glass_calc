@@ -286,11 +286,19 @@ def _is_side_panel(pane, elevation_panes, door_panes, sightline_mm, warnings):
 
 def _framing(pane, angle_deg, answers):
     """
-    FIELD DERIVATION item 7. Returns (framing, missing, exposed_edges).
+    FIELD DERIVATION item 7. Returns (framing, missing, exposed_edges,
+    not_held_edges).
     framing is 'fully', 'partly', or 'not_assessable'. 'unframed' is never
     produced here - a genuinely all-round-unframed (3+ edge) pane falls
     into not_assessable instead, since this translation layer has no case
     for it (see Window_Schedule_Progress_Handover.md section 10).
+
+    not_held_edges is a frozenset of the edge names this function found
+    unsupported (before the count/pattern classification below), for
+    callers that need to know WHICH edges (e.g. span derivation) - it does
+    not change what framing/missing/exposed_edges classify. None whenever
+    the other return values already short-circuit (not_assessable/
+    needs_answer with no edge set determined).
     """
     reasons = pane['unframedEdgeReasons']
     missing = []
@@ -304,7 +312,7 @@ def _framing(pane, angle_deg, answers):
             continue
         if reason == 'angled-joint':
             if angle_deg is None:
-                return 'not_assessable', missing, None
+                return 'not_assessable', missing, None, None
             if angle_deg == 90:
                 continue  # held
             not_held.append(edge)
@@ -312,7 +320,7 @@ def _framing(pane, angle_deg, answers):
             # R4: this reason only makes sense on a sashless pane. Reaching
             # here means a non-sashless pane carries it - an inconsistent
             # export, not something to guess through.
-            return 'not_assessable', missing, None
+            return 'not_assessable', missing, None, None
         elif reason in ('silicone-flat', 'next-to-sashless', 'frame-off'):
             not_held.append(edge)
             if reason == 'frame-off':
@@ -324,29 +332,85 @@ def _framing(pane, angle_deg, answers):
                     frame_off_exposed_yes = True
 
     if missing:
-        return 'needs_answer', missing, None
+        return 'needs_answer', missing, None, None
 
     exposed_edges = None
     if frame_off_present:
         exposed_edges = 'y' if frame_off_exposed_yes else 'n'
 
+    not_held_edges = frozenset(not_held)
     count = len(not_held)
     if count == 0:
-        return 'fully', missing, exposed_edges
+        return 'fully', missing, exposed_edges, not_held_edges
     if count == 1:
-        return 'partly', missing, exposed_edges
+        return 'partly', missing, exposed_edges, not_held_edges
     if count == 2:
         opposite_pairs = ({'top', 'bottom'}, {'left', 'right'})
         if set(not_held) in opposite_pairs:
-            return 'partly', missing, exposed_edges
-        return 'not_assessable', missing, exposed_edges
-    return 'not_assessable', missing, exposed_edges
+            return 'partly', missing, exposed_edges, not_held_edges
+        return 'not_assessable', missing, exposed_edges, not_held_edges
+    return 'not_assessable', missing, exposed_edges, not_held_edges
+
+
+def _fixed_or_louvre_span(not_held_edges, sight_width_mm, sight_height_mm):
+    """
+    DECISION (Sahil): span is measured on daylight size, between the
+    supported edges.
+      - All four edges supported: span is the shorter daylight dimension.
+      - Three supported edges (one unsupported): span is the daylight
+        length between the one opposite pair of supported edges - i.e.
+        the dimension across the axis the unsupported edge is NOT on.
+      - Two supported edges (the opposite pair, the other pair
+        unsupported): span is the daylight length between them.
+      - Two adjacent unsupported edges, or three or more unsupported
+        edges: not assessable here (span None) - same as today's framing
+        classification, which _framing() already sends to
+        'not_assessable' before this is ever called for that case.
+
+    not_held_edges: frozenset of unsupported edge names, from _framing().
+    Returns (span_mm, span_basis) - span_basis is one plain sentence.
+    """
+    count = len(not_held_edges)
+    if count == 0:
+        span_mm = min(sight_width_mm, sight_height_mm)
+        return span_mm, (
+            f'shorter of {sight_width_mm} x {sight_height_mm} '
+            '(all four edges supported)'
+        )
+
+    # count == 1 (three supported) or count == 2 (the opposite pair
+    # unsupported, the only count-2 case _framing() ever classifies as
+    # 'partly') - both cases span the axis NOT touched by not_held_edges.
+    if not_held_edges & {'left', 'right'} and not (not_held_edges & {'top', 'bottom'}):
+        # left and/or right unsupported, top/bottom both supported ->
+        # span is measured between top and bottom.
+        held_desc = 'top and bottom edges supported' if count == 2 \
+            else 'top and bottom edges supported, one side edge unsupported'
+        return sight_height_mm, f'height ({held_desc})'
+
+    if not_held_edges & {'top', 'bottom'} and not (not_held_edges & {'left', 'right'}):
+        # top and/or bottom unsupported, left/right both supported ->
+        # span is measured between left and right.
+        held_desc = 'left and right edges supported' if count == 2 \
+            else 'left and right edges supported, one edge unsupported'
+        return sight_width_mm, f'width ({held_desc})'
+
+    # Should be unreachable given _framing()'s own classification (any
+    # other pattern is 'not_assessable' before this helper is called).
+    return None, None
 
 
 def translate_pane(pane, elevation_panes, angle_deg, row, answers):
     """
     Translates one pane into a schedule-translation result:
-      {pane_id, status, method, payload, reasons, warnings, missing}
+      {pane_id, status, method, payload, reasons, warnings, missing,
+       span_mm, span_basis}
+
+    span_mm/span_basis are top-level (not inside payload/ctx - the ctx
+    dict passed into determine_fixed/determine_louvre must stay exactly
+    as it was before span was added here). span_basis is one plain
+    sentence describing which daylight dimension span_mm is and why. Both
+    are None whenever status isn't 'ready' (not_assessable/needs_answer).
 
     pane: one Configurator export pane dict.
     elevation_panes: every pane in the SAME elevation as `pane` (including
@@ -371,7 +435,7 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
         return {
             'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
             'payload': None, 'reasons': reasons, 'warnings': warnings,
-            'missing': missing,
+            'missing': missing, 'span_mm': None, 'span_basis': None,
         }
 
     sightline_mm = _sightline_mm(pane, row)
@@ -380,7 +444,7 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
         return {
             'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
             'payload': None, 'reasons': reasons, 'warnings': warnings,
-            'missing': missing,
+            'missing': missing, 'span_mm': None, 'span_basis': None,
         }
 
     warnings.extend(_slider_warnings(pane, elevation_panes, sightline_mm))
@@ -397,12 +461,14 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
             return {
                 'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
                 'payload': None, 'reasons': reasons, 'warnings': warnings,
-                'missing': missing,
+                'missing': missing, 'span_mm': None, 'span_basis': None,
             }
         return {
             'pane_id': pane['id'], 'status': 'ready', 'method': 'sashless',
             'payload': {'span_mm': span_mm}, 'reasons': reasons,
             'warnings': warnings, 'missing': missing,
+            'span_mm': span_mm,
+            'span_basis': f'{span_mm}mm between the two held edges (sashless)',
         }
 
     door_panes = [p for p in elevation_panes if _is_door_pane(p, elevation_panes)]
@@ -414,18 +480,18 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
         opening_type = 'window'
         is_side_panel = _is_side_panel(pane, elevation_panes, door_panes, sightline_mm, warnings)
 
-    framing, framing_missing, exposed_edges = _framing(pane, angle_deg, answers)
+    framing, framing_missing, exposed_edges, not_held_edges = _framing(pane, angle_deg, answers)
     if framing == 'needs_answer':
         return {
             'pane_id': pane['id'], 'status': 'needs_answer', 'method': None,
             'payload': None, 'reasons': reasons, 'warnings': warnings,
-            'missing': framing_missing,
+            'missing': framing_missing, 'span_mm': None, 'span_basis': None,
         }
     if framing == 'not_assessable':
         return {
             'pane_id': pane['id'], 'status': 'not_assessable', 'method': None,
             'payload': None, 'reasons': reasons, 'warnings': warnings,
-            'missing': missing,
+            'missing': missing, 'span_mm': None, 'span_basis': None,
         }
 
     is_louvre = pane.get('type') == 'louvre'
@@ -460,10 +526,15 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
 
     method = 'louvre' if is_louvre else 'fixed'
 
+    span_mm, span_basis = _fixed_or_louvre_span(
+        not_held_edges, sight_width_mm, sight_height_mm
+    )
+
     return {
         'pane_id': pane['id'], 'status': 'ready', 'method': method,
         'payload': ctx, 'reasons': reasons, 'warnings': warnings,
         'missing': missing,
+        'span_mm': span_mm, 'span_basis': span_basis,
     }
 
 
