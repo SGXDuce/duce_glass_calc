@@ -383,16 +383,24 @@ def _fixed_or_louvre_span(not_held_edges, sight_width_mm, sight_height_mm):
     # 'partly') - both cases span the axis NOT touched by not_held_edges.
     if not_held_edges & {'left', 'right'} and not (not_held_edges & {'top', 'bottom'}):
         # left and/or right unsupported, top/bottom both supported ->
-        # span is measured between top and bottom.
-        held_desc = 'top and bottom edges supported' if count == 2 \
-            else 'top and bottom edges supported, one side edge unsupported'
+        # span is measured between top and bottom. Names the specific
+        # unsupported edge(s) rather than a generic "one edge unsupported".
+        if count == 2:
+            held_desc = 'top and bottom edges supported; left and right edges unsupported'
+        else:
+            unsupported_edge = next(iter(not_held_edges))
+            held_desc = f'top and bottom edges supported, {unsupported_edge} edge unsupported'
         return sight_height_mm, f'height ({held_desc})'
 
     if not_held_edges & {'top', 'bottom'} and not (not_held_edges & {'left', 'right'}):
         # top and/or bottom unsupported, left/right both supported ->
-        # span is measured between left and right.
-        held_desc = 'left and right edges supported' if count == 2 \
-            else 'left and right edges supported, one edge unsupported'
+        # span is measured between left and right. Names the specific
+        # unsupported edge(s) rather than a generic "one edge unsupported".
+        if count == 2:
+            held_desc = 'left and right edges supported; top and bottom edges unsupported'
+        else:
+            unsupported_edge = next(iter(not_held_edges))
+            held_desc = f'left and right edges supported, {unsupported_edge} edge unsupported'
         return sight_width_mm, f'width ({held_desc})'
 
     # Should be unreachable given _framing()'s own classification (any

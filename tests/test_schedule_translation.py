@@ -1024,6 +1024,102 @@ def test_t15b4_span_one_edge_unsupported_bottom():
     assert result['span_mm'] == sight_width_mm == 1080
 
 
+def test_t15b_span_basis_names_the_unsupported_edge_left():
+    # Same pane/data as test_t15b_span_one_edge_unsupported_left - span_mm
+    # unchanged, span_basis must name the specific unsupported edge rather
+    # than a generic "one edge unsupported".
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(left='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+    assert result['span_basis'] == 'height (top and bottom edges supported, left edge unsupported)'
+
+
+def test_t15b3_span_basis_names_the_unsupported_edge_top():
+    # Same pane/data as test_t15b3_span_one_edge_unsupported_top.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+    assert result['span_basis'] == 'width (left and right edges supported, top edge unsupported)'
+
+
+def test_t15b2_span_basis_names_the_unsupported_edge_right():
+    # Same pane/data as test_t15b2_span_one_edge_unsupported_right - span_mm
+    # unchanged, span_basis must name the specific unsupported edge.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+    assert result['span_basis'] == 'height (top and bottom edges supported, right edge unsupported)'
+
+
+def test_t15b4_span_basis_names_the_unsupported_edge_bottom():
+    # Same pane/data as test_t15b4_span_one_edge_unsupported_bottom - span_mm
+    # unchanged, span_basis must name the specific unsupported edge.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(bottom='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+    assert result['span_basis'] == 'width (left and right edges supported, bottom edge unsupported)'
+
+
+def test_t15c_span_basis_names_both_unsupported_edges():
+    # Same pane/data as test_t15c_span_left_and_right_unsupported - the
+    # opposite-pair case names both unsupported edges.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(left='silicone-flat', right='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_height_mm = result['payload']['sight_height_mm']
+    assert result['span_mm'] == sight_height_mm == 1380
+    assert result['span_basis'] == 'height (top and bottom edges supported; left and right edges unsupported)'
+
+
+def test_t15d_span_basis_names_both_unsupported_edges():
+    # Same pane/data as test_t15d_span_top_and_bottom_unsupported.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380,
+                      unframedEdgeReasons=_edges(top='silicone-flat', bottom='silicone-flat'))
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    sight_width_mm = result['payload']['sight_width_mm']
+    assert result['span_mm'] == sight_width_mm == 1080
+    assert result['span_basis'] == 'width (left and right edges supported; top and bottom edges unsupported)'
+
+
+def test_t15_span_basis_all_four_supported_unchanged():
+    # The all-four-supported sentence must stay exactly as it was (task
+    # explicitly says this sentence does not change) - same pane/data as
+    # test_t15a_span_fully_framed_shorter_dimension.
+    pane = make_pane(productClass='window', type='fixed',
+                      xMM=60, yMM=60, widthMM=1080, heightMM=1380)
+    row = make_row(ffl_height_mm=300, building_use='residential')
+    result = translate_pane(pane, [pane], None, row, NO_ANSWERS)
+
+    assert result['span_mm'] == 1080
+    assert result['span_basis'] == 'shorter of 1080 x 1380 (all four edges supported)'
+
+
 def test_t15c_span_left_and_right_unsupported():
     # left+right unsupported (the opposite pair) -> held pair is top/bottom
     # -> span is the height.

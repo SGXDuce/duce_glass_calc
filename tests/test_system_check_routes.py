@@ -74,3 +74,18 @@ def test_flag_on_system_check_page_loads():
 
 def test_flag_restored_to_false():
     assert app_module.SYSTEM_CHECK_ENABLED is False
+
+
+def test_flag_on_shows_new_tile_description():
+    # Cosmetic wording update: the "Build a system" tile's description text
+    # must be exactly the spec'd sentence. The tile label itself ("Build a
+    # system") is covered by test_flag_on_shows_mode_select above and is
+    # unchanged here.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Draw a multi-light combination of windows and doors and check every pane' in response.data
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False

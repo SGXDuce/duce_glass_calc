@@ -22,6 +22,8 @@
 
 <div class="version-footer">{{ app_version }}</div>
 
+<a class="back-to-selection-btn" href="{{ url_for('index') }}" style="display:inline-block; text-decoration:none;">&larr; Back to start</a>
+
 <div class="schedule-page">
     <div class="schedule-intro">
         <div class="schedule-title">System check</div>
@@ -35,11 +37,13 @@
     <div class="schedule-row-fields">
         <div class="schedule-field">
             <label for="system-check-ffl-height">Height of lowest part of the system above the surface people stand on (mm)</label>
-            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal" oninput="onFflHeightChanged()">
+            <input type="number" id="system-check-ffl-height" min="0" step="any" inputmode="decimal"
+                   oninput="onFflHeightInput()" onkeydown="onFflHeightKeydown(event)">
+            <button type="button" id="system-check-update-table-btn" class="schedule-edit-geometry-btn" onclick="renderSystem()">Update table</button>
         </div>
     </div>
 
-    <div id="system-check-ffl-message" class="configurator-modal-error"></div>
+    <div id="system-check-ffl-message" class="system-check-ffl-prompt"></div>
 
     <div id="system-check-status" class="schedule-geometry-status">No geometry set yet.</div>
 
@@ -199,17 +203,54 @@ function getFflHeightMM() {
     return n;
 }
 
-// Called whenever the floor-height field changes. If a system has already
-// been built, re-runs the translate call (or re-shows the "fill this in"
-// message) so the table stays in sync with the field, matching the "if the
-// value is changed after Done" requirement.
-function onFflHeightChanged() {
-    if (state.export) {
+// Incremented on every translate call this page makes; each call captures
+// its own value and only applies its response if it is still the latest
+// one when the response arrives, so a stale response from an earlier
+// request can never overwrite a newer request's result (out-of-order
+// network responses).
+let translateRequestSeq = 0;
+
+// DECIDED BY SAHIL: the page must not call /system-check/translate until the
+// user enters the height and presses Enter, or clicks "Update table" - no
+// call on every keystroke, debounced or not.
+//
+// Called on every keystroke in the floor-height field. Never calls the
+// server itself. If the pane table is currently shown, clears it and shows
+// a neutral prompt telling the user their change hasn't been applied yet -
+// the value only takes effect via renderSystem() (Enter or the button).
+// Also increments translateRequestSeq so a request already in flight (from
+// a previous Enter/button press) is treated as stale and cannot paint the
+// table out from under this now-unapplied field value.
+function onFflHeightInput() {
+    translateRequestSeq += 1;
+    const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
+    const fflMessageEl = document.getElementById('system-check-ffl-message');
+    if (tableWrapEl.innerHTML !== '') {
+        tableWrapEl.innerHTML = '';
+        fflMessageEl.textContent = 'Height changed. Press Enter or click Update table to refresh the pane table.';
+        fflMessageEl.classList.add('show');
+    }
+}
+
+// Enter inside the height field triggers the same explicit refresh as the
+// "Update table" button - deliberately a keydown handler, not a <form>
+// submit (this page has no form to submit).
+function onFflHeightKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
         renderSystem();
     }
 }
 
 function renderSystem() {
+    // Incremented once per call, before any early exit, so an in-flight
+    // request from an earlier call (e.g. the height field was cleared, or
+    // the export was reset, while a translate request was still pending)
+    // is treated as stale the moment this newer call starts - not only
+    // when this call itself goes on to send its own request below.
+    translateRequestSeq += 1;
+    const thisRequestSeq = translateRequestSeq;
+
     const statusEl = document.getElementById('system-check-status');
     const bannerEl = document.getElementById('system-check-no-check-banner');
     const tableWrapEl = document.getElementById('system-check-pane-table-wrap');
@@ -246,6 +287,9 @@ function renderSystem() {
     fflMessageEl.classList.remove('show');
     fflMessageEl.textContent = '';
 
+    // thisRequestSeq was captured at the top of this call - only the
+    // response matching the CURRENT (latest) sequence number is rendered.
+
     // Server call: translate the export into geometry facts only. No glass
     // check happens here or on the server for this route - see app.py's
     // /system-check/translate docstring.
@@ -260,6 +304,7 @@ function renderSystem() {
     })
         .then(response => response.json())
         .then(data => {
+            if (thisRequestSeq !== translateRequestSeq) return; // stale, ignore
             if (!data.success) {
                 tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(data.error || 'Translation failed.')}</div>`;
                 return;
@@ -267,6 +312,7 @@ function renderSystem() {
             tableWrapEl.innerHTML = buildPaneTableHTML(data.panes);
         })
         .catch(err => {
+            if (thisRequestSeq !== translateRequestSeq) return; // stale, ignore
             tableWrapEl.innerHTML = `<div class="configurator-modal-error show">${escapeHtml(String(err))}</div>`;
         });
 }
@@ -288,7 +334,7 @@ function buildPaneTableHTML(panes) {
                     <tr>
                         <th>Pane</th>
                         <th>Elevation</th>
-                        <th>Sight size (W x H mm)</th>
+                        <th>Daylight size (W x H mm)</th>
                         <th>Lowest sightline (mm)</th>
                         <th>Span (mm)</th>
                         <th>Framing</th>
@@ -307,6 +353,15 @@ function buildPaneTableHTML(panes) {
 
 function mmCell(value) {
     return value == null ? '—' : String(value);
+}
+
+// Display-only wording for the Framing column - the route/engine value
+// itself ('fully', 'partly', 'sashless', or null) is never changed, only
+// how it is shown here.
+function framingDisplay(value) {
+    if (value === 'fully') return 'fully framed';
+    if (value === 'partly') return 'partly framed';
+    return value ?? '—';
 }
 
 function paneRowHTML(p) {
@@ -333,7 +388,7 @@ function paneRowHTML(p) {
             <td>${sightSize}</td>
             <td>${sightlineCell}</td>
             <td>${spanCell}</td>
-            <td>${escapeHtml(p.framing ?? '—')}</td>
+            <td>${escapeHtml(framingDisplay(p.framing))}</td>
             <td>${escapeHtml(p.method ?? '—')}</td>
             <td>${escapeHtml(p.status)}</td>
             <td>${notesCell}</td>

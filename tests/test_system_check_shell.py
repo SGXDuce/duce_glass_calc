@@ -94,6 +94,150 @@ def test_flag_restored_to_false():
     assert app_module.SYSTEM_CHECK_ENABLED is False
 
 
+def test_back_to_start_link_present():
+    # Cosmetic addition: a plain "Back to start" link to "/" - the old
+    # placeholder page had one and it was lost when the shell replaced it.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Back to start' in html
+        assert 'href="/"' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_daylight_size_header_not_sight_size():
+    # Cosmetic wording update: the pane table's column header must now read
+    # "Daylight size", not "Sight size". Internal field names (sight_width_mm
+    # etc.) are unaffected and not checked here.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Daylight size (W x H mm)' in html
+        assert 'Sight size' not in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_render_system_increments_seq_before_first_early_return():
+    # Source-level regression test only - this is JavaScript running in a
+    # browser, which the Flask test client cannot execute, so this does NOT
+    # run renderSystem() or prove its runtime behaviour. It only guards the
+    # ORDERING of two lines in the served page's source: the
+    # `translateRequestSeq += 1` increment inside renderSystem() must appear
+    # BEFORE that function's first early `return` (the `if (!state.export)`
+    # block), so that call is counted as stale-invalidating even when it
+    # exits early with no state.export, or later with an empty/invalid
+    # height field, rather than only when it goes on to send a fetch
+    # request. This is the ordering the bugfix depends on: without it, an
+    # in-flight request from an earlier renderSystem() call can still match
+    # the "current" sequence number by the time its response arrives, and
+    # render the pane table over a prompt the user is now looking at.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        render_system_start = html.index('function renderSystem()')
+        increment_pos = html.index('translateRequestSeq += 1', render_system_start)
+        first_early_return_pos = html.index(
+            'if (!state.export) {', render_system_start
+        )
+        assert increment_pos < first_early_return_pos, (
+            'translateRequestSeq must be incremented before renderSystem()\'s '
+            'first early return (if (!state.export)), not only later in the '
+            'function - otherwise an in-flight request from an earlier call '
+            'is not invalidated by a call that exits early.'
+        )
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+# ---------------------------------------------------------------------------
+# Explicit-trigger height field (replaces the debounce) - source-level tests
+# only. This is JavaScript running in a browser, which the Flask test client
+# cannot execute, so none of these run onFflHeightInput()/onFflHeightKeydown()/
+# renderSystem() or prove runtime behaviour - they only check that the served
+# page's source contains the expected strings/handlers.
+# ---------------------------------------------------------------------------
+
+def test_update_table_button_present():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Update table' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_height_field_has_enter_keydown_handler():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'onkeydown="onFflHeightKeydown(event)"' in html
+        assert "event.key === 'Enter'" in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_debounce_constant_removed():
+    # The debounce this task replaces must be gone entirely, not just unused.
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'FFL_HEIGHT_DEBOUNCE_MS' not in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_height_changed_prompt_text_present():
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        assert 'Height changed. Press Enter or click Update table' in html
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
+def test_input_handler_increments_seq():
+    # String check confined to onFflHeightInput()'s own body: the increment
+    # must be inside that function, not merely present somewhere on the page
+    # (renderSystem() already has its own, separate increment).
+    app_module.SYSTEM_CHECK_ENABLED = True
+    try:
+        client = get_client()
+        response = client.get('/system-check')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+
+        fn_start = html.index('function onFflHeightInput()')
+        fn_end = html.index('\n}', fn_start)
+        fn_body = html[fn_start:fn_end]
+        assert 'translateRequestSeq += 1' in fn_body
+    finally:
+        app_module.SYSTEM_CHECK_ENABLED = False
+
+
 # ---------------------------------------------------------------------------
 # /system-check/translate - schema-version guard using real fixtures
 # ---------------------------------------------------------------------------
