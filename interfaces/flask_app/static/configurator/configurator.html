@@ -2364,20 +2364,6 @@ function makeVerticalBarRow(colShareRef, colCount, barMM) {
   return row;
 }
 
-// Reachable only when the selected leaf is kind:'filled', productClass:'door', and type is
-// 'hinged' or 'horizontal-slider' — never 'fixed' door panels (no operable/openable panel to
-// apply a real timber-stile style to — a fixed door panel is just glass in a frame, same as a
-// fixed window), never window/side-panel panes. Mirrors CLASS_TYPES/DOOR_PANEL_TYPES's own
-// existing type vocabulary rather than inventing a new check.
-// A `hingedDoorAncestor` truthy means this leaf is itself an Awning sash NESTED inside a hinged
-// door panel (the only way type:'hinged' + productClass:'door' can occur below the door's own
-// top-level leaf — see isAllowedInHingedDoor/hingeEdge:'top' forcing) — that's a window-style
-// sash insert, not the door panel itself, so it must NOT get a door-panel style of its own.
-function canHaveDoorPanelStyle(node, hingedDoorAncestor) {
-  if (hingedDoorAncestor) return false;
-  return node.kind === 'filled' && node.productClass === 'door' && (node.type === 'hinged' || node.type === 'horizontal-slider');
-}
-
 // Part 3 — geometry engine. Given a catalog entry and the leaf's CURRENT live w/h (mm), computes
 // actual positions for every band/segment/zone. Genuinely live — called fresh every render, no
 // cached/resolved positions and no "confirm new size" step, unlike every assembly-preset family.
@@ -2731,34 +2717,6 @@ function render() {
       const span = document.createElement('span');
       span.textContent = 'empty';
       pane.appendChild(span);
-    } else if (l.node.doorPanelStyleId && DOOR_PANEL_CATALOG[l.node.doorPanelStyleId]) {
-      // Batch 31 — a door panel with a style applied renders its own live grid instead of the
-      // normal fixed/sash-band drawing below. Genuinely live: computeDoorPanelLayout is called
-      // fresh on this leaf's CURRENT l.w/l.h every render, so resizing the panel (directly, or by
-      // resizing the whole elevation — same cascade every other pane already goes through)
-      // rescales the door's internal layout with no separate "confirm new size" step.
-      pane.style.background = 'var(--frame)'; // fixed bands/segments show as timber by default
-      const entry = DOOR_PANEL_CATALOG[l.node.doorPanelStyleId];
-      const rows = computeDoorPanelLayout(entry, l.w, l.h);
-      rows.forEach((row, ri) => {
-        if (row.kind !== 'content') return; // fixed row bands are already timber via pane bg
-        row.columns.forEach((col, ci) => {
-          if (col.kind !== 'content') return; // fixed column segments (stiles/bars) same as above
-          const zoneKey = ri + '_' + ci;
-          const choice = (l.node.doorPanelZoneChoices && l.node.doorPanelZoneChoices[zoneKey]);
-          const isGlass = col.zone.type === 'fixed-glass' ||
-            (col.zone.type === 'interchangeable' && (choice || col.zone.options[0]) === 'glazing');
-          const zoneEl = document.createElement('div');
-          zoneEl.style.position = 'absolute';
-          zoneEl.style.left = (col.x * SCALE) + 'px';
-          zoneEl.style.top = (row.y * SCALE) + 'px';
-          zoneEl.style.width = Math.max(0, col.w * SCALE) + 'px';
-          zoneEl.style.height = Math.max(0, row.h * SCALE) + 'px';
-          zoneEl.style.background = isGlass ? 'var(--glass)' : '#8a5a2e';
-          zoneEl.style.pointerEvents = 'none';
-          pane.appendChild(zoneEl);
-        });
-      });
     } else {
       // Item 6: fixed panes have no sash band of their own — glass runs to the pane's own edge.
       // This also covers item 5's "fixed glazing as a child of a door panel renders with no
@@ -3410,11 +3368,6 @@ function renderToolbar() {
       return;
     }
 
-    if (ev.pendingSplit.mode === 'doorPanelStyle') {
-      renderDoorPanelStylePicker(bar);
-      return;
-    }
-
     if (ev.pendingSplit.mode === 'sash') {
       const row = document.createElement('div');
       row.className = 'inline-form';
@@ -3590,15 +3543,6 @@ function renderToolbar() {
   row1.appendChild(sashBtn);
   row1.appendChild(unframedBtn);
   row1.appendChild(presetBtn);
-  // Batch 31 — door panel style picker entry point. Gated by canHaveDoorPanelStyle (kind:'filled',
-  // productClass:'door', type hinged/horizontal-slider only — see its own comment) rather than a
-  // fresh check here, so the restriction stays in one place.
-  if (canHaveDoorPanelStyle(node, hingedDoorAncestor)) {
-    const doorStyleBtn = document.createElement('button');
-    doorStyleBtn.textContent = node.doorPanelStyleId ? ('Door panel style: ' + node.doorPanelStyleId) : 'Choose door panel style';
-    doorStyleBtn.onclick = () => { ev.pendingSplit = { path: ev.selected.path, mode: 'doorPanelStyle' }; render(); };
-    row1.appendChild(doorStyleBtn);
-  }
   bar.appendChild(row1);
 
   // Batch 12: this leaf's ancestor chain may include a marked assembly-preset split (the
@@ -5312,146 +5256,6 @@ function renderIconForPreset(pattern, family) {
   }
   if (family === 'double-hung') return renderDoubleHungPresetIcon(DOUBLE_HUNG_UNIT_COUNTS[pattern]);
   return renderPresetIcon(pattern, computeDefaultSlideDirections(pattern)); // sliding family
-}
-
-// Batch 31 — same general auto-generated-SVG-icon approach as renderIconForPreset above (a small
-// schematic box, not a photorealistic preview), applied to a door style's own row/column layout
-// at its reference proportions rather than an O/X pattern string.
-function renderDoorPanelStyleIcon(styleId) {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const boxW = 22, boxH = 32;
-  const entry = DOOR_PANEL_CATALOG[styleId];
-  const rows = computeDoorPanelLayout(entry, entry.referenceW, entry.referenceH);
-  const sx = boxW / entry.referenceW, sy = boxH / entry.referenceH;
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('width', boxW);
-  svg.setAttribute('height', boxH);
-  svg.setAttribute('viewBox', '0 0 ' + boxW + ' ' + boxH);
-  const outer = document.createElementNS(svgNS, 'rect');
-  outer.setAttribute('x', 0); outer.setAttribute('y', 0);
-  outer.setAttribute('width', boxW); outer.setAttribute('height', boxH);
-  outer.setAttribute('fill', '#f47920');
-  svg.appendChild(outer);
-  rows.forEach(row => {
-    if (row.kind === 'content') {
-      row.columns.forEach(col => {
-        if (col.kind !== 'content') return;
-        const zoneRect = document.createElementNS(svgNS, 'rect');
-        zoneRect.setAttribute('x', col.x * sx);
-        zoneRect.setAttribute('y', row.y * sy);
-        zoneRect.setAttribute('width', Math.max(0, col.w * sx));
-        zoneRect.setAttribute('height', Math.max(0, row.h * sy));
-        const isGlass = col.zone.type === 'fixed-glass' || (col.zone.type === 'interchangeable' && col.zone.options.includes('glazing'));
-        zoneRect.setAttribute('fill', isGlass ? '#5be3ea' : '#8a5a2e');
-        svg.appendChild(zoneRect);
-      });
-    }
-  });
-  return svg;
-}
-
-// Batch 31 — door panel style picker. Reuses the assembly-preset picker's own icon-button visual
-// language (renderAssemblyPresetForm's icon row, .preset-icon-btn/.preset-icon-label) rather than
-// its specific preset-family logic, per the batch prompt's own instruction.
-function renderDoorPanelStylePicker(bar) {
-  const ev = activeElevation();
-  const node = getNode(ev.pendingSplit.path);
-
-  const heading = document.createElement('div');
-  heading.className = 'toolbar-group-label';
-  heading.textContent = 'Door panel styles';
-  bar.appendChild(heading);
-
-  const iconRow = document.createElement('div');
-  iconRow.className = 'toolbar-row';
-  Object.keys(DOOR_PANEL_CATALOG).forEach(styleId => {
-    const btn = document.createElement('button');
-    btn.className = 'secondary preset-icon-btn';
-    btn.appendChild(renderDoorPanelStyleIcon(styleId));
-    const labelEl = document.createElement('div');
-    labelEl.className = 'preset-icon-label';
-    labelEl.textContent = styleId;
-    btn.appendChild(labelEl);
-    btn.onclick = () => {
-      const entry = DOOR_PANEL_CATALOG[styleId];
-      // Default every interchangeable zone to its own first catalog option (D22: 'glazing') —
-      // a sensible, always-valid starting state; the follow-up control below lets it be changed
-      // immediately. Zone ids are stable row/column indices into the style's own rowBands, since
-      // the catalog data itself has no other natural identifier for a zone.
-      const zoneChoices = {};
-      entry.rowBands.forEach((band, ri) => {
-        if (band.kind !== 'content') return;
-        band.columns.forEach((col, ci) => {
-          if (col.kind === 'content' && col.zone.type === 'interchangeable') {
-            zoneChoices[ri + '_' + ci] = col.zone.options[0];
-          }
-        });
-      });
-      // Deliberately does NOT clear ev.pendingSplit here (unlike the assembly-preset picker's own
-      // immediate-confirm pattern) — a style with interchangeable zone(s) (D22) needs the
-      // follow-up material picker below to actually render before the form closes; D1/D6 (no
-      // interchangeable zones) simply show no follow-up and the person clicks "Done" themselves.
-      setNode(ev.pendingSplit.path, { ...node, doorPanelStyleId: styleId, doorPanelZoneChoices: zoneChoices });
-      render();
-    };
-    iconRow.appendChild(btn);
-  });
-  bar.appendChild(iconRow);
-
-  // Batch 31 — material choice for a style already applied that has interchangeable zone(s). D1/
-  // D6 have none (pure fixed-glass) so this never renders for them; D22 has two. Deliberately a
-  // simple follow-up control, not styled to match the icon picker above (per the batch prompt).
-  if (node.doorPanelStyleId && DOOR_PANEL_CATALOG[node.doorPanelStyleId]) {
-    const entry = DOOR_PANEL_CATALOG[node.doorPanelStyleId];
-    const zoneRows = [];
-    entry.rowBands.forEach((band, ri) => {
-      if (band.kind !== 'content') return;
-      band.columns.forEach((col, ci) => {
-        if (col.kind === 'content' && col.zone.type === 'interchangeable') zoneRows.push({ ri, ci, zone: col.zone });
-      });
-    });
-    if (zoneRows.length > 0) {
-      const matLabel = document.createElement('div');
-      matLabel.className = 'toolbar-group-label';
-      matLabel.style.marginTop = '8px';
-      matLabel.textContent = 'Zone materials (' + node.doorPanelStyleId + ')';
-      bar.appendChild(matLabel);
-      zoneRows.forEach(({ ri, ci, zone }, idx) => {
-        const zoneKey = ri + '_' + ci;
-        const row = document.createElement('div');
-        row.className = 'inline-form';
-        const label = document.createElement('span');
-        label.textContent = 'Zone ' + (idx + 1) + ':';
-        const select = document.createElement('select');
-        zone.options.forEach(opt => {
-          const o = document.createElement('option');
-          o.value = opt;
-          o.textContent = opt === 'glazing' ? 'Glazing' : opt;
-          const current = (node.doorPanelZoneChoices && node.doorPanelZoneChoices[zoneKey]) || zone.options[0];
-          if (current === opt) o.selected = true;
-          select.appendChild(o);
-        });
-        select.addEventListener('change', () => {
-          const nextChoices = { ...(node.doorPanelZoneChoices || {}), [zoneKey]: select.value };
-          setNode(ev.pendingSplit.path, { ...node, doorPanelZoneChoices: nextChoices });
-          render();
-        });
-        row.appendChild(label);
-        row.appendChild(select);
-        bar.appendChild(row);
-      });
-    }
-  }
-
-  const doneRow = document.createElement('div');
-  doneRow.className = 'toolbar-row';
-  doneRow.style.marginTop = '8px';
-  const doneBtn = document.createElement('button');
-  doneBtn.className = 'secondary';
-  doneBtn.textContent = 'Done';
-  doneBtn.onclick = () => { ev.pendingSplit = null; render(); };
-  doneRow.appendChild(doneBtn);
-  bar.appendChild(doneRow);
 }
 
 // Batch 17 — sliding WINDOW overlap (structural change, originally -win ids only; sliding DOORS
