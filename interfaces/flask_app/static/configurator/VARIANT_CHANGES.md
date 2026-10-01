@@ -73,8 +73,9 @@ entries are applied there at the end of this project.
      Fixed keeps its dash; a sashless leaf shows its real four stored
      values, not a dash. For example, a sashless horizontal-slider leaf
      (`SASHLESS_HSLIDER_CAPPING_MM`, 15mm, on top/bottom, 0 on left/right)
-     reads top / bottom / left / right = 15 / 15 / 0 / 0 (corrected: was
-     15 / 15 / 0 / 0, stated without saying which leaf type it was). A
+     reads top / bottom / left / right = 15 / 15 / 0 / 0 (an earlier
+     version of this entry gave 15 / 15 / 0 / 0 without naming the leaf
+     type; that is correct for the sashless horizontal slider). A
      sashless double-hung leaf is the other way round
      (`SASHLESS_DH_CAPPING_MM`, 15mm, on left/right, 0 on top/bottom): it
      reads 0 / 0 / 15 / 15.
@@ -110,6 +111,18 @@ entries are applied there at the end of this project.
   click away from the row never runs that `keydown` handler, so it can
   never pull focus back into a sash box. Tag: carry back (tag proposed by
   Claude, not confirmed by Sahil). Not tested in a browser by Claude Code.
+- **Second follow-up:** fixed Tab/Shift+Tab on an unedited sash box — the
+  `keydown` handler always intercepted Tab and blurred the box, but an
+  unedited box never fires `change`, so nothing restored focus and the
+  cursor was lost; the same gap let Enter leave a stale "restore focus
+  here" intent behind. Tab/Shift+Tab is now only intercepted when the
+  box's text differs from the value it was built with, so an unedited box
+  uses the browser's own native Tab with no rebuild; Enter only records
+  its intent when a `change` will actually follow to consume it; and a
+  rejected entry refocuses the intended box directly (or the box itself
+  if there is no such target) instead of relying on a `render()` that no
+  longer happens. Tag: carry back (tag proposed by Claude, not confirmed
+  by Sahil). Not tested in a browser by Claude Code.
 
 ## Planned changes (not yet made)
 

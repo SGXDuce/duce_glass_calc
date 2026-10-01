@@ -201,7 +201,8 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 // 21:   double-hung asymmetric tuck-in correction (batch 20 fix)
 // 22:   casement/awning sash width prefill (real space) + casement no-mullion toggle
 // 23:   unframed silicone butt-joint mechanism (flat, same-elevation case) — isSiliconeJoint,
-//       sash*Locked flags, hasLockedEdge groundwork, withUniformSashMM skip-locked-edge behaviour
+//       sash*Locked flags, hasLockedEdge groundwork, skip-locked-edge behaviour in the (since
+//       replaced, see Step 4b) manual "Sash frame width" setter
 // 24:   restrict unframed silicone joints to fixed glass, window-only panes — hasLockedEdge() gate
 //       on makeTypeButton, "Add unframed joint" button gating, confirmUnframedJoint forcing
 // 25:   two-elevation state model + tab switcher — elevations[] array, setActiveElevationIndex,
@@ -2017,9 +2018,9 @@ function render() {
         pane.style.background = 'var(--glass)';
       } else {
         // Batch 9: per-edge sash frame widths — one stored value per edge (top/bottom/left/
-        // right), though the toolbar still only ever sets all four to the same number (see
-        // withUniformSashMM). Rendering already needs to key off individual edges here so it's
-        // ready for real per-edge values whenever a future batch adds the editing UI for them.
+        // right). Rendering keys off individual edges here, which is what lets Step 4b's
+        // per-edge toolbar boxes (each edge independently editable) show up correctly with no
+        // change needed to this drawing code.
         const sashEdges = getSashEdges(l.node);
         const insetTopPx = sashEdges.top * SCALE;
         const insetBottomPx = sashEdges.bottom * SCALE;
@@ -3080,6 +3081,11 @@ function renderToolbar() {
     // elsewhere (another button, the drawing, the table) never sets it and so never steals
     // focus back into a sash box (point 4 of the follow-up brief).
     let sashFocusIntentEdge = null;
+    // Step 4b second follow-up: the Tab/Shift+Tab target from the single most recent keydown on
+    // an edited box, consumed by the very next 'change' on that same box (accept or reject) and
+    // nulled out immediately after — never read by any other event, so it cannot outlive that one
+    // key press.
+    let lastKeyTarget = null;
 
     function nextEnabledEdge(fromEdge, step) {
       let i = SASH_EDGE_ORDER.indexOf(fromEdge);
@@ -3109,26 +3115,33 @@ function renderToolbar() {
       input.disabled = locked;
       input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
       if (locked) input.title = 'This edge is part of an unframed silicone joint and has no sash frame.';
-      // Step 4b follow-up: record where the keyboard means to go BEFORE the browser's own Tab
-      // handling runs, since render() (triggered by the 'change' this key also causes) destroys
-      // and rebuilds every sash input — the browser's native "next field" would otherwise be a
-      // now-gone element. Enter leaves sashFocusIntentEdge unset, i.e. "stay on this edge",
-      // matching today's accepted Enter behaviour.
-      // Only Tab TO ANOTHER BOX IN THIS ROW is intercepted (preventDefault + manual blur, so we
-      // control exactly where focus lands after the rebuild). Tab off the ends of the row (Right
-      // going forward, Top going backward) is left completely alone — no preventDefault, no
-      // forced blur — so the browser's own native Tab still runs and leaves the row normally,
-      // same as before any sash box existed.
+      // Step 4b second follow-up: the value this box was built/rebuilt with, as text. A 'change'
+      // event (and so the rebuild + focus restore below) only fires when the box's value actually
+      // differs from this, so an untouched box must never be treated as a keyboard commit.
+      const builtValue = input.value;
+      // Record where the keyboard means to go BEFORE the browser's own Tab handling runs, since
+      // render() (triggered by the 'change' this key also causes) destroys and rebuilds every
+      // sash input — the browser's native "next field" would otherwise be a now-gone element.
+      // Only an EDITED box is intercepted (preventDefault + manual blur, so we control exactly
+      // where focus lands after the rebuild) — nextEnabledEdge is captured into a local
+      // (lastKeyTarget) that this key press alone can use, so no intent survives past it. An
+      // unedited box is left completely alone on Tab/Shift+Tab — no preventDefault, no forced
+      // blur — so the browser's own native Tab moves focus to the next/previous DOM field with no
+      // rebuild, since there is nothing to commit.
       input.addEventListener('keydown', (e) => {
+        const edited = input.value !== builtValue;
         if (e.key === 'Tab') {
+          if (!edited) return; // let the browser move focus natively; nothing to commit
           const target = nextEnabledEdge(edge, e.shiftKey ? -1 : 1);
-          if (target) {
-            sashFocusIntentEdge = target;
-            e.preventDefault();
-            input.blur();
-          }
+          lastKeyTarget = target; // may be null (Tab off the end) — still a deliberate, single-use value
+          sashFocusIntentEdge = target;
+          e.preventDefault();
+          input.blur();
         } else if (e.key === 'Enter') {
-          sashFocusIntentEdge = edge;
+          // Only set the intent if a 'change' is actually going to fire to consume it — otherwise
+          // Enter on an unedited box would leave a stale edge name for a later unrelated change
+          // (on this or another box) to act on.
+          if (edited) sashFocusIntentEdge = edge;
         }
       });
       input.addEventListener('change', () => {
@@ -3137,9 +3150,20 @@ function renderToolbar() {
           input.value = locked ? 0 : edges[edge];
           sashErrDiv.textContent = err;
           sashFocusIntentEdge = null;
+          // No rebuild happens on a rejected entry, so the Tab/Shift+Tab target (if any, and if
+          // still enabled) is focused directly instead of relying on render() + id lookup. If
+          // there is no such target (Tab ran off the end of the row, or the target is locked),
+          // focus falls back to this box itself — input.blur() already ran in keydown, so without
+          // this fallback focus would otherwise be lost entirely.
+          const rejectTarget = lastKeyTarget;
+          lastKeyTarget = null;
+          const existing = rejectTarget && document.getElementById('sashEdgeInput-' + rejectTarget);
+          if (existing && !existing.disabled) { existing.focus(); existing.select(); }
+          else { input.focus(); input.select(); }
           return;
         }
         sashErrDiv.textContent = '';
+        lastKeyTarget = null;
         setNode(ev.selected.path, withSashEdgeMM(node, edge, Number(input.value)));
         const focusTarget = sashFocusIntentEdge;
         sashFocusIntentEdge = null;
@@ -4263,10 +4287,10 @@ function removeAngledJoin() {
 //   2. Zeroes AND LOCKS the specific touching edge on each of the two new children (right edge
 //      of children[0] / left edge of children[1] for axis:'v'; bottom edge of children[0] / top
 //      edge of children[1] for axis:'h' — matching walk()'s own existing .L/.R and .T/.B
-//      ordering). Locking matters because withUniformSashMM (the only thing the manual "Sash
-//      frame width" toolbar input calls) would otherwise silently un-zero this edge the next
-//      time someone used that box for an unrelated reason — locked edges are skipped by it (see
-//      withUniformSashMM's own batch-23 comment). This works for any pane type on either side,
+//      ordering). Locking matters because withSashEdgeMM (which the per-edge "Sash frame width"
+//      toolbar boxes call, see Step 4b) would otherwise silently un-zero this edge the next
+//      time someone edited that edge's box for an unrelated reason — locked edges are skipped by
+//      it (see withSashEdgeMM's own Step 4b comment). This works for any pane type on either side,
 //      not just 'fixed' (which already has zero sash everywhere and would make locking a no-op)
 //      — a fixed-framed, hinged, or slider pane keeps its normal sash on its other three edges,
 //      only the touching edge is zeroed/locked.
