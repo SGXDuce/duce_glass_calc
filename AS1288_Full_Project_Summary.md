@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.42 (Configurator variant: deletions merged, survey findings, decisions and plan)
+### Version: V1.43 (Configurator variant: browser checks, decisions after v1.42, plan unchanged)
 ### Last Updated: 1 October 2026
 
 ---
@@ -8,6 +8,32 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.43 - 1 October 2026 - Configurator variant: browser checks, decisions after v1.42, plan unchanged
+
+**A. VERIFIED BY SAHIL (browser, 1 October 2026, Incognito window so no extensions; System check run locally with the flag flipped in memory only).**
+- Casement C preset (1800 x 2100 elevation, frame 60, casement C 1680 x 1980, mullions No), sash box reads 40: System check table row pane F, daylight size 1600 x 1900, lowest sightline 100, span 1600 (shorter of 1600 x 1900, all four edges supported), framing "fully framed", method "fixed", status ready. This closes the v1.42 item B "Console on that build: not reported" gap: Console clean in Incognito.
+- The Configurator's own Assigned panes table for that build (screenshot): pane F, class window, type Casement, width 1680, height 1980, area 3.33 m2, visible glazed area 3.04 m2, sash frame 40. "F" is the pane's name, not its type. The drawing label letter was W for this window and D for the hinged door (seen in screenshots; read as the class letter, INFERRED BY CLAUDE). Arithmetic check by Claude: 1.6 x 1.9 = 3.04, matching the tool's daylight size 1600 x 1900.
+- In a normal browser window the Console showed an error "A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received", attributed to the page name. It did not appear in Incognito. INFERRED BY CLAUDE: it comes from a browser extension, not the app; not proven.
+- Hinged door leaf in a fresh build: hinge edge set to Left and to Right, Console empty (no red errors) both times. The "Door panels" row offers only Fixed, Hinged, Horizontal slider; no door panel style button is visible. The only dropdown seen on the leaf was "Hinge edge"; controls below the scrolled area, if any, were not tested. Chrome's blue Issues counter rose from 16 to 18; the issues were not inspected. This closes the v1.42 item H "hinged-door console check is not done".
+- The Configurator has no way to reopen a built system on the System check page ("One system per visit - nothing is saved"); a fresh rebuild reproduced the same casement numbers.
+
+**B. DECIDED BY SAHIL (answers given after v1.42 was written).**
+- The O panel's meeting stile is exported with option (b): a new optional export field and a schemaVersion bump from 6 to 7. The two saved fixtures (`tests/fixtures/sashless_ox_window.json`, `tests/fixtures/sashless_double_hung.json`) stay untouched until step 5d, when they are re-captured as real version-7 exports in the same step as the bump.
+- Finding the exact upstream Configurator commit for the ledger baseline is done at the end of the project, not now.
+- The browser-export safety net (plan step 2) is five exports, not three: Case A slider door, the OX door at 860 and 920, casement C, Case B (horizontal silicone joint at 990, panes `.T` and `.B` each 1680 x 990), Case C (vertical silicone joint at 840, panes `.L` and `.R` each 840 x 1980). Reason: steps 4b and 5a touch silicone-joint edges and sash handling, and Cases B and C are the verified cases for those.
+
+**C. REPORTED BY SAHIL.** In Case A the 40mm sash was the Configurator's own starting value; he left it, so a starting value did carry into a verified result.
+
+**D. PROPOSED BY CLAUDE (not decided, carried from the 1 October planning chat).** Step 5c includes a "reset to automatic" control for tuck-in boxes.
+
+**E. OPEN (found 1 October 2026 when reading the handover against v1.42).**
+- Naming: "Case C" (vertical silicone joint) and "casement C" (casement preset) are different things; write "casement C" in full.
+- Two descriptions of sashless sliders: v1.42 item E.8 (DECIDED BY SAHIL) says they keep today's behaviour; v1.42 item G (PROPOSED BY CLAUDE) says tuck-in 0 and locked. What today's behaviour is for a sashless slider has not been quoted from the code. Must be settled before step 5a.
+- The System check table row for the casement shows method "fixed". INFERRED BY CLAUDE: it is the span-rule label (see `_fixed_or_louvre_span` in `engine/schedule/translation.py`), not the pane type. Not checked in code.
+- Still open, unchanged from v1.42: step 5d scope beyond OX and its mirror; the `hasFrame` gating of the tuck-in; the rule "daylight = visible glass for the O" must be implemented before span or area feeds a wind calculation; whether the Pathway 2/3 tooltips match the daylight-size intent; Sahil's hand values for the OX O and X glass widths have not been sent; the cosmetic and loose-end items from v1.41.
+
+**F. Plan.** Unchanged from v1.42 item E.11 except step 2 now saves five exports (see item B). Step 0 (the two browser checks) is done. Next: save the browser exports, then step 4b, 5a, 5b, 5c, 5d.
 
 ### v1.42 — 1 October 2026 — Configurator variant: deletions merged, survey findings, decisions and plan
 
@@ -17,7 +43,7 @@ Every update to this document is logged here. Before editing, check the latest e
 - After the PR #24 and after the PR #25 changes, building an 1800 x 2100 elevation, frame 60 all sides, sliding door OX preset at 860 and 920, floor height 0, gave rows: `.R` 860 x 1980, lowest sightline 60, span 860; and `.S` 840 x 1940, lowest sightline 80, span 840. Same rows on master before the deletions. Console: only a favicon 404.
 - The "Closest standard size" line is gone; the OX and casement C preset forms pre-fill 860 and 920, and 1680.
 - The "Choose door panel style" button is gone from a horizontal-slider door leaf.
-- After the `PRESET_SASH_EDGES` deletion, a casement C preset (1680 x 1980, mullions No) gave sash 40, daylight size 1600 x 1900, lowest sightline 100, span 1600. Console on that build: not reported.
+- After the `PRESET_SASH_EDGES` deletion, a casement C preset (1680 x 1980, mullions No) gave sash 40, daylight size 1600 x 1900, lowest sightline 100, span 1600. Console on that build: not reported. **[CLOSED, see v1.43 item A]**
 - The Configurator toolbar has ONE "Sash frame width" box; Sahil confirmed the sash is 40 on the X leaf and the fixed O pane has none. The sash box is not editable in the preset form (that form asks only for section widths).
 - The Configurator's own Assigned panes table shows O 820 x 1980 and X 920 x 1980 for the OX build; the export/System check shows O 860 (daylight 860 x 1980) and X 920 (daylight 840 x 1940).
 
@@ -48,7 +74,7 @@ Every update to this document is logged here. Before editing, check the latest e
 8. The form's overlap is the O stile width; the gap between the glass pieces is the X stile width; the other panel's stile behind a glass piece does not reduce that glass. The rule is mirrored for XO and OXO. Windows use the same default stile as doors for now. Sashless sliders keep today's behaviour. The fixed 60 overlap becomes a computed value.
 9. The Configurator's table gets two new columns, made size and daylight, from the same correction code as the export.
 10. No saved systems exist, so there is no legacy-loading path for the old OX rule.
-11. Plan order (approved by Sahil, 1 October 2026): merge the casement change; this docs entry; save three browser exports (Case A slider, the OX door with today's 860 and 920, casement C) as the safety net; step 4b four sash boxes; step 5a shared edge helper and per-leaf tuck-in data at today's defaults, exports must match the saved ones exactly; step 5b table columns; step 5c tuck-in boxes with blocking; step 5d the OX meeting edge. Step 5d is the only step that changes OX numbers.
+11. Plan order (approved by Sahil, 1 October 2026): merge the casement change; this docs entry; save three browser exports (Case A slider, the OX door with today's 860 and 920, casement C) as the safety net **[CHANGED to five exports, see v1.43 item B]**; step 4b four sash boxes; step 5a shared edge helper and per-leaf tuck-in data at today's defaults, exports must match the saved ones exactly; step 5b table columns; step 5c tuck-in boxes with blocking; step 5d the OX meeting edge. Step 5d is the only step that changes OX numbers.
 
 **F. INFERRED BY CLAUDE (not checked in code or against a product).**
 - Model (approved by Sahil as the intended picture, numbers not measured): opening 1680, both stiles 40, X made size 900: O glass 800 plus O stile 40 = O made size 840, X glass 820, overlap 40, gap 40, 20 of the X's right stile hidden in the jamb; 800 + 40 + 820 + 20 = 1680; form check 840 + 900 - 40 - 20 = 1680. With O stile 60 and X stile 40: O glass 780, O made size 840, X made size 920, X glass 840, overlap 60, gap 40; 780 + 40 + 840 + 20 = 1680; form check 840 + 920 - 60 - 20 = 1680.
@@ -57,9 +83,9 @@ Every update to this document is logged here. Before editing, check the latest e
 - Preset forms check section widths before any leaf exists, so a per-leaf tuck-in needs the preset to use defaults at creation and let the user edit per leaf afterwards.
 - The corrections are separated enough that the work can be done in slices if exports are compared against saved files.
 
-**G. PROPOSED BY CLAUDE (not decided).** Export option (b) for the O's meeting stile (a new export field and schemaVersion 6 to 7) — Sahil is inclined to it but wants a survey of the translation layer first; see item I. The table keeps its existing columns and adds made size and daylight. Sashless sliders at tuck-in 0 and locked. Four sash boxes with locked and sashless edges read-only and the Sash column showing all four.
+**G. PROPOSED BY CLAUDE (not decided).** Export option (b) for the O's meeting stile (a new export field and schemaVersion 6 to 7) — Sahil is inclined to it but wants a survey of the translation layer first **[SUPERSEDED, see v1.43 item B: Sahil decided option (b)]**; see item I. The table keeps its existing columns and adds made size and daylight. Sashless sliders at tuck-in 0 and locked. Four sash boxes with locked and sashless edges read-only and the Sash column showing all four.
 
-**H. Still OPEN.** Step 5d scope beyond OX and its mirror (OXX, OXXX etc. need their own sketches; double-hung keeps today's rule); the export option for the O (see item I); what the Window Schedule page reads from the O — it reads only raw widthMM and heightMM (see item I); the 860 vs 820 question is explained but the engineering rule (daylight = visible glass) is only decided in principle; the upstream Configurator commit hash for the baseline is not checked; whether Sahil typed the 40mm sash in Case A is not checked; the hinged-door console check is not done; the `hasFrame` gating of the tuck-in is unconfirmed in the code; cosmetic and loose-end items from v1.41 are unchanged.
+**H. Still OPEN.** Step 5d scope beyond OX and its mirror (OXX, OXXX etc. need their own sketches; double-hung keeps today's rule); the export option for the O (see item I) **[DECIDED, see v1.43 item B]**; what the Window Schedule page reads from the O — it reads only raw widthMM and heightMM (see item I); the 860 vs 820 question is explained but the engineering rule (daylight = visible glass) is only decided in principle; the upstream Configurator commit hash for the baseline is not checked; whether Sahil typed the 40mm sash in Case A is not checked **[ANSWERED, see v1.43 item C]**; the hinged-door console check is not done **[DONE, see v1.43 item A]**; the `hasFrame` gating of the tuck-in is unconfirmed in the code; cosmetic and loose-end items from v1.41 are unchanged.
 
 **I. Export survey (REPORTED BY CLAUDE CODE, read-only, master 013c43a; quotes not checked by Sahil).** Question: how to export the O panel's meeting stile so System check can report the O's visible glass. Findings:
 - _sight_size subtracts pane sashEdgesMM from widthMM and heightMM and never looks at the pane type; today a fixed pane exports sashEdgesMM 0/0/0/0 (forced in buildExportElevation by an isFixed override), so the O's daylight equals its full width.
@@ -69,7 +95,7 @@ Every update to this document is logged here. Before editing, check the latest e
 - The version guard only demotes sashless panes; an O pane is never sashless, so it is never demoted by a version mismatch.
 - The Window Schedule page and engine/combined/ do not read the O's sash or area.
 - Not checked: every assertion in tests/test_schedule_translation.py (the survey admitted it did not read the whole file); some fixture pane numbers it cited were not in the quoted text.
-PROPOSED BY CLAUDE (not decided): option (b) as an optional field, with the bump to 7 and fixtures re-captured from real version-7 exports at step 5d, not before. Sahil's stated lean is (b); the bump and the fixture timing are not yet answered.
+PROPOSED BY CLAUDE (not decided): option (b) as an optional field, with the bump to 7 and fixtures re-captured from real version-7 exports at step 5d, not before. Sahil's stated lean is (b); the bump and the fixture timing are not yet answered. **[ANSWERED, see v1.43 item B]**
 
 ### v1.41 — 30 September 2026 — PR #20/#21 merged; full human impact confirmed in scope; Pathway 2/3 daylight-size intent stated; Configurator variant policy decided
 
