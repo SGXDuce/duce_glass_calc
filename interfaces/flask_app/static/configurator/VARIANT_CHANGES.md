@@ -31,7 +31,7 @@ entries are applied there at the end of this project.
   helper functions, `computeDoorPanelLayout`, the icon/picker functions, the
   render-loop drawing branch, the toolbar entry point, and
   `canHaveDoorPanelStyle`. Tag: AS1288-only, do not carry back. Commits
-  `b347831` (entry points and drawing) and this commit (catalogue and
+  `b347831` (entry points and drawing) and `10b53e3` (catalogue and
   helpers).
   REPORTED BY CLAUDE CODE: the catalogue had 33 keys, including D5L and
   D64H; D21 does not exist. The earlier "31" figure in the read-only survey
@@ -44,13 +44,20 @@ entries are applied there at the end of this project.
   INFERRED BY CLAUDE (not tested): a saved system that contains these
   fields will load and ignore them, because restoreFromRawState assigns
   state without checking fields.
+- **Deleted** `PRESET_SASH_EDGES` (the NGR-sourced casement and awning sash
+  shape) so casement and awning presets now use `DEFAULT_SASH_MM` (40) on
+  every stile and rail. Tag: AS1288-only, do not carry back.
+  REPORTED BY CLAUDE CODE: effect on the export: casement and awning leaves
+  now export sashEdgesMM 40/40/40/40 instead of 60/60/60/86 for newly built
+  presets.
 
 ## Planned changes (not yet made)
 
-1. Delete `PRESET_SASH_EDGES` (the NGR-sourced casement and awning sash
-   shape) so casement and awning presets start at `DEFAULT_SASH_MM` (40) on
-   every stile and rail. Status: PROPOSED, not built. Tag: AS1288-only, do
-   not carry back.
+1. Replace the single "Sash frame width" box with four per-edge boxes (top,
+   bottom, left, right). REPORTED BY CLAUDE CODE (survey, master b9253f1):
+   the data model, drawing, export and glazed-area calculation are already
+   per-edge; only the toolbar UI is uniform. Status: PROPOSED, not built.
+   Tag: carry back.
 2. Make the frame tuck-in editable per frame side (head, sill, left jamb,
    right jamb). The starting value rule is to be settled before this is
    built — see "Open before change 2" below. Status: PROPOSED, not built.
@@ -85,3 +92,7 @@ Open, not decided:
   each end) would need to become a separate left and right value. Raised by
   Sahil, 30 September 2026; the design impact is INFERRED BY CLAUDE, not
   yet checked in code.
+- (f) REPORTED BY CLAUDE CODE (survey, master b9253f1): none of the nine
+  tuck-in uses reads a leaf's sash width; today's tuck-in is a fixed amount
+  per edge. The preset form solves and checks widths before any leaf
+  exists.

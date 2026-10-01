@@ -177,16 +177,6 @@ const RIGHT_GUTTER = 95;
 const BOTTOM_GUTTER = 60;
 const DEFAULT_SASH_MM = 40;
 const DEFAULT_OVERLAP_MM = 25;
-// Batch 16: real per-type default sash edge shape (Duce's own NGR data — top/left/right rails
-// 60mm, bottom rail 86mm), stamped on panes created via the awning and casement assembly
-// presets. Manually created/edited panes are untouched — they keep using the uniform
-// DEFAULT_SASH_MM fallback everywhere else; this only changes what a PRESET stamps at creation.
-// Double-hung is deliberately excluded here — its meeting-rail edge should be 60mm rather than
-// this general 86mm-bottom shape (per the double-hung overlap batch's own explicit assumption),
-// and that structural batch (kind:'sashSplit' for the internal division) had not landed in the
-// working tree at the time this was written — applying this shape to double-hung now would risk
-// guessing at edge ordering that batch is meant to settle. Skipped, not silently resolved.
-const PRESET_SASH_EDGES = { sashTopMM: 60, sashLeftMM: 60, sashRightMM: 60, sashBottomMM: 86 };
 const DIM_ROW_STEP = 20; // px between stacked chain-dimension rows
 const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent split-dimension labels
 
@@ -4921,9 +4911,7 @@ function buildCasementPresetTree(pattern, sectionWidthsMM, mullionThicknessMM, p
   const hingeEdges = CASEMENT_HINGE_EDGES[pattern];
   const leaves = hingeEdges.map(edge => ({
     kind: 'filled', type: 'hinged', productClass, hingeEdge: edge,
-    // Batch 16: real per-type default shape (60/60/60/86) instead of the uniform
-    // DEFAULT_SASH_MM every other manually-assigned pane still falls back to.
-    ...PRESET_SASH_EDGES
+    sashTopMM: DEFAULT_SASH_MM, sashBottomMM: DEFAULT_SASH_MM, sashLeftMM: DEFAULT_SASH_MM, sashRightMM: DEFAULT_SASH_MM
   }));
   return foldSectionsIntoSplits(leaves, sectionWidthsMM, mullionThicknessMM);
 }
@@ -4937,8 +4925,7 @@ function buildAwningPresetTree(pattern, sectionWidthsMM, mullionThicknessMM, pro
   for (let i = 0; i < sectionCount; i++) {
     leaves.push({
       kind: 'filled', type: 'hinged', productClass, hingeEdge: 'top',
-      // Batch 16: real per-type default shape (60/60/60/86), same as casement above.
-      ...PRESET_SASH_EDGES
+      sashTopMM: DEFAULT_SASH_MM, sashBottomMM: DEFAULT_SASH_MM, sashLeftMM: DEFAULT_SASH_MM, sashRightMM: DEFAULT_SASH_MM
     });
   }
   return foldSectionsIntoSplits(leaves, sectionWidthsMM, mullionThicknessMM);
