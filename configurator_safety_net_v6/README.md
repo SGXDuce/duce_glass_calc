@@ -8,8 +8,10 @@ after which new schemaVersion 7 exports will be saved separately.
 
 ## How each was captured
 
-Opened `/configurator` standalone in an Incognito browser window, built the
-system, clicked Export JSON, then renamed the downloaded file.
+Opened `/configurator` standalone in a normal (not Incognito) browser window
+after a hard reload (Ctrl+Shift+R), built the system, clicked Export JSON,
+then renamed the downloaded file.
+(Corrected 1 October 2026: an earlier version said Incognito; Sahil reports it was not.)
 
 ## What each file is
 
@@ -28,11 +30,12 @@ system, clicked Export JSON, then renamed the downloaded file.
   `sashEdgesMM` as all 0.
 - The export holds no tuck-in or made-size field.
 
-## Comparison rule (PROPOSED BY CLAUDE, not decided by Sahil)
+## Comparison rule (DECIDED BY SAHIL, 1 October 2026; first proposed by Claude)
 
 Later re-exports should be compared on the `"system"` block exactly.
 `"rawState"` is allowed to differ, because it holds drawing and selection
 state, and step 5a may add tuck-in data there.
+DECIDED BY SAHIL on 1 October 2026 (was PROPOSED BY CLAUDE); after step 5a, print exactly what differs in rawState.
 
 ## Data note
 
