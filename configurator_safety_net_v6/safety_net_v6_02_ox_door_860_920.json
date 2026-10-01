@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 6,
+  "system": {
+    "elevationCount": 1,
+    "totalFrameLengthMM": 13680,
+    "angledJoinAngleDeg": null,
+    "angledJoinType": null,
+    "elevations": [
+      {
+        "name": "Elevation 1",
+        "overallWidthMM": 1800,
+        "overallHeightMM": 2100,
+        "hasFrame": true,
+        "frameMembersMM": {
+          "head": 60,
+          "sill": 60,
+          "jambL": 60,
+          "jambR": 60
+        },
+        "meetingEdges": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "frameLengthMM": 13680,
+        "panes": [
+          {
+            "id": ".R",
+            "productClass": "door",
+            "type": "fixed",
+            "hingeEdge": null,
+            "slideDirection": null,
+            "bladeWidthMM": null,
+            "bladeLengthMM": null,
+            "xMM": 40,
+            "yMM": 60,
+            "widthMM": 860,
+            "heightMM": 1980,
+            "areaM2": 1.7028,
+            "visibleGlazedAreaM2": 1.7028,
+            "sashEdgesMM": {
+              "top": 0,
+              "bottom": 0,
+              "left": 0,
+              "right": 0
+            },
+            "unframedEdgeCount": 0,
+            "unframedEdges": {
+              "top": false,
+              "bottom": false,
+              "left": false,
+              "right": false
+            },
+            "unframedEdgeReasons": {
+              "top": null,
+              "bottom": null,
+              "left": null,
+              "right": null
+            },
+            "linkedPaneId": null,
+            "sashless": false
+          },
+          {
+            "id": ".S",
+            "productClass": "door",
+            "type": "horizontal-slider",
+            "hingeEdge": null,
+            "slideDirection": "left",
+            "bladeWidthMM": null,
+            "bladeLengthMM": null,
+            "xMM": 840,
+            "yMM": 40,
+            "widthMM": 920,
+            "heightMM": 2020,
+            "areaM2": 1.8584,
+            "visibleGlazedAreaM2": 1.6296,
+            "sashEdgesMM": {
+              "top": 40,
+              "bottom": 40,
+              "left": 40,
+              "right": 40
+            },
+            "unframedEdgeCount": 0,
+            "unframedEdges": {
+              "top": false,
+              "bottom": false,
+              "left": false,
+              "right": false
+            },
+            "unframedEdgeReasons": {
+              "top": null,
+              "bottom": null,
+              "left": null,
+              "right": null
+            },
+            "linkedPaneId": null,
+            "sashless": false
+          }
+        ]
+      }
+    ]
+  },
+  "rawState": {
+    "rawStateSchemaVersion": 1,
+    "elevations": [
+      {
+        "name": "Elevation 1",
+        "overallW": 1800,
+        "overallH": 2100,
+        "root": {
+          "kind": "sashSplit",
+          "axis": "v",
+          "fromEdge": "end",
+          "sashSizeMM": 920,
+          "overlapMM": 60,
+          "children": [
+            {
+              "kind": "filled",
+              "type": "fixed",
+              "productClass": "door",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40
+            },
+            {
+              "kind": "filled",
+              "type": "horizontal-slider",
+              "productClass": "door",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40,
+              "slideDirection": "left"
+            }
+          ],
+          "assemblyPresetRef": {
+            "pattern": "OX",
+            "productClass": "door",
+            "id": "OX",
+            "panelWidthsMM": [
+              860,
+              920
+            ],
+            "sectionDrawnWidthsMM": [
+              820,
+              920
+            ]
+          }
+        },
+        "selected": null,
+        "pendingSplit": null,
+        "lastLeafRects": {
+          "0": {
+            "x": 0,
+            "y": 0,
+            "w": 820,
+            "h": 1980
+          },
+          "1": {
+            "x": 760,
+            "y": 0,
+            "w": 920,
+            "h": 1980
+          }
+        },
+        "lastLeaves": [
+          {
+            "path": [
+              0
+            ],
+            "x": 0,
+            "y": 0,
+            "w": 820,
+            "h": 1980,
+            "label": ".R",
+            "node": {
+              "kind": "filled",
+              "type": "fixed",
+              "productClass": "door",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40
+            }
+          },
+          {
+            "path": [
+              1
+            ],
+            "x": 760,
+            "y": 0,
+            "w": 920,
+            "h": 1980,
+            "label": ".S",
+            "node": {
+              "kind": "filled",
+              "type": "horizontal-slider",
+              "productClass": "door",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40,
+              "slideDirection": "left"
+            }
+          }
+        ],
+        "lastBars": [],
+        "lastNodeRects": {
+          "0": {
+            "x": 0,
+            "y": 0,
+            "w": 820,
+            "h": 1980
+          },
+          "1": {
+            "x": 760,
+            "y": 0,
+            "w": 920,
+            "h": 1980
+          },
+          "": {
+            "x": 0,
+            "y": 0,
+            "w": 1680,
+            "h": 1980
+          }
+        },
+        "lastGeom": {
+          "left": 60,
+          "top": 46,
+          "right": 572.6742857142857,
+          "bottom": 644.12,
+          "contentLeft": 77.08914285714286,
+          "contentTop": 63.08914285714286,
+          "contentRight": 555.5851428571428,
+          "contentBottom": 627.0308571428571,
+          "headPx": 17.089142857142857,
+          "sillPx": 17.089142857142857,
+          "jambLPx": 17.089142857142857,
+          "jambRPx": 17.089142857142857,
+          "extraRight": 0
+        },
+        "customOrigin": null,
+        "placingOrigin": false,
+        "hasFrame": true,
+        "frameMembers": {
+          "head": 60,
+          "sill": 60,
+          "jambL": 60,
+          "jambR": 60
+        },
+        "meetingEdges": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "meetingLink": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "lastValidOverallW": 1800,
+        "lastValidOverallH": 2100
+      }
+    ],
+    "activeElevationIndex": 0,
+    "angledJoinAngleDeg": null,
+    "angledJoinType": null
+  }
+}
