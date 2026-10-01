@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.43 (Configurator variant: browser checks, decisions after v1.42, plan unchanged)
+### Version: V1.44 (Configurator variant: five-export safety net merged, comparison rule decided)
 ### Last Updated: 1 October 2026
 
 ---
@@ -8,6 +8,33 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.44 - 1 October 2026 - Configurator variant: five-export safety net merged (PR #29), comparison rule decided
+
+**A. Merged and verified.**
+- VERIFIED BY SAHIL: PR #29 merged with a merge commit; master at 7cafa1c (parents fb8eb69 and 59695bd). Folder `configurator_safety_net_v6/` holds five real Configurator exports (schemaVersion 6) plus `README.md`: `safety_net_v6_01_caseA_slider_door.json`, `safety_net_v6_02_ox_door_860_920.json`, `safety_net_v6_03_casement_C_1680x1980.json`, `safety_net_v6_04_caseB_horizontal_silicone_990.json`, `safety_net_v6_05_caseC_vertical_silicone_840.json`. Before the merge, Sahil's PowerShell `Get-FileHash` showed each repo copy identical to its Downloads original. After the merge and pull, Sahil's own Python comparison of the parsed JSON of each repo file against its Downloads original printed True for all five.
+- REPORTED BY CLAUDE CODE (raw output pasted in chat and checked line by line by Claude; Sahil did not re-run it): `translate_system()` in `engine/schedule/translation.py` (reported lines 549-574; it is called by `system_check_translate()` in `interfaces/flask_app/app.py`, reported lines 159-229) was called directly, read-only, on each export with floor height 0. Every pane returned status "ready", no warnings, and every number matched the previously verified values: 01 Case A pane F daylight 1640 x 1940, lowest sightline 80, span 1640. 02 OX door: `.R` 860 x 1980, 60, span 860; `.S` 840 x 1940, 80, span 840. 03 casement C pane F 1600 x 1900, 100, span 1600. 04 Case B: `.T` and `.B` each 1680 x 990, span 1680, lowest sightline `.T` 1050 and `.B` 60, framing "partly". 05 Case C: `.L` and `.R` each 840 x 1980, span 1980, lowest sightline 60, framing "partly".
+- NOT COVERED by that check: the route's schema-version guard (the route was not called; the guard only demotes sashless panes and none of the five is sashless). Claude Code chose the other input fields (`building_use` "residential", `is_bathroom` False, `high_risk` False) and said they are only passed through; the grep behind that claim was not shown, but the outputs match the verified values.
+- Git warned "LF will be replaced by CRLF" when the files were staged. After checkout the repo copies are larger than the originals by about one byte per line (for example file 01: 4220 bytes became 4390), so file hashes of the repo copies no longer match the Downloads originals. The parsed data is identical (see above). Compare these files as parsed JSON, never by hash.
+
+**B. REPORTED BY SAHIL:** the five exports were NOT built in an Incognito window; the page was hard-reloaded (cache refreshed) before building. The README's earlier wording "Incognito browser window" was wrong and is corrected in this commit (see step 6). The v1.43 browser checks of the casement and the hinged door WERE run in Incognito; that is unchanged. No number is affected.
+
+**C. Facts seen in the export files (read by Claude from the pasted file contents; arithmetic by Claude).**
+- A casement exports as type `"hinged"`, `productClass` `"window"`. The Configurator's own Assigned panes table calls it "Casement". The pane label letter on the drawing is the class letter (W window, D door), INFERRED BY CLAUDE.
+- Fixed panes store sash 40 on their outer edges inside `rawState` but export `sashEdgesMM` all 0 (Case B and Case C files). The export holds no tuck-in or made-size field.
+- Case A file: `widthMM` 1720, `heightMM` 2020 at x 40, y 40, sash 40 on all four edges, `areaM2` 3.4744, `visibleGlazedAreaM2` 3.1816, `totalFrameLengthMM` 15280. The Configurator's own table showed visible glazed area 3.04 for the same build (the table does not run the export correction; known gap, step 5b). This real export replaces the hand-built width in `test_t1` (1680) as the true Case A figure; the test itself has not been switched to it.
+- OX file: `.R` fixed, x 40, y 60, width 860, height 1980, sash all 0; `.S` horizontal-slider, x 840, y 40, width 920, height 2020, sash 40 on all edges. INFERRED BY CLAUDE from those numbers: the two panes overlap by 60, and together they cover 1720 against the 1680 opening; only the O's height is uncorrected. This file is the "before" picture for step 5d.
+- Case B file: `.T` at y 1050, `.B` at y 60, each 1680 x 990, bottom of `.T` and top of `.B` flagged "silicone-flat", `totalFrameLengthMM` 7800. The on-screen label 1050 is measured from the frame's outer bottom (60 + 990). Case C file: `.L` at x 60, `.R` at x 900, each 840 x 1980, `totalFrameLengthMM` 7800.
+- The System check table row shows method "fixed" for all five exports, including the slider, the casement and the OX slider, so "method" does not follow pane type. What it means is not checked in code (INFERRED BY CLAUDE: it is the span-rule label).
+- `rawState` records UI state: the casement file has `"selected": null` and the Case A file has `"selected": {"path": [], "isBar": false}`. Two separate builds of the casement exported identical JSON (VERIFIED BY SAHIL, one pair; whether the window size changed between the two was not confirmed).
+
+**D. DECIDED BY SAHIL (1 October 2026):** later re-exports are compared on the `"system"` block exactly; `"rawState"` may differ, because it holds drawing and selection state and step 5a may add tuck-in data there. Added condition: after step 5a, Claude Code must print exactly what differs in `rawState` so it can be seen to be only the new tuck-in fields. This is what "must match the saved ones exactly" means in v1.42 item E.11 from now on. The five files are also run through the translation code and checked against the verified numbers in item A.
+
+**E. PROPOSED BY CLAUDE (not decided):** in step 4b, fixed panes should not show editable sash boxes, because the export forces their sash edges to 0; showing boxes would imply an effect that does not exist. Switching `test_t1` and its twin in `tests/test_system_check_shell.py` to the real Case A export is a separate small step, not yet scheduled.
+
+**F. OPEN (new or restated).** What today's behaviour is for a sashless slider (needed before step 5a; see v1.43 item E); what the System check "method" label means; the route's schema-version guard was not exercised by the safety-net check; the Case A real export is now in the repo but the tests still use the hand-built object; loose end: many old local and remote branches, including a local worktree branch named `worktree-agent-a0f3c5ec3038ef3a0` that is checked out in a separate working folder (not investigated). All other open items from v1.43 item E remain open.
+
+**G. Plan.** Step 2 (the browser-export safety net) is DONE. Next: step 4b four per-edge sash boxes, then 5a, 5b, 5c, 5d, as in v1.42 item E.11.
 
 ### v1.43 - 1 October 2026 - Configurator variant: browser checks, decisions after v1.42, plan unchanged
 
@@ -21,7 +48,7 @@ Every update to this document is logged here. Before editing, check the latest e
 **B. DECIDED BY SAHIL (answers given after v1.42 was written).**
 - The O panel's meeting stile is exported with option (b): a new optional export field and a schemaVersion bump from 6 to 7. The two saved fixtures (`tests/fixtures/sashless_ox_window.json`, `tests/fixtures/sashless_double_hung.json`) stay untouched until step 5d, when they are re-captured as real version-7 exports in the same step as the bump.
 - Finding the exact upstream Configurator commit for the ledger baseline is done at the end of the project, not now.
-- The browser-export safety net (plan step 2) is five exports, not three: Case A slider door, the OX door at 860 and 920, casement C, Case B (horizontal silicone joint at 990, panes `.T` and `.B` each 1680 x 990), Case C (vertical silicone joint at 840, panes `.L` and `.R` each 840 x 1980). Reason: steps 4b and 5a touch silicone-joint edges and sash handling, and Cases B and C are the verified cases for those.
+- The browser-export safety net (plan step 2) is five exports, not three: Case A slider door, the OX door at 860 and 920, casement C, Case B (horizontal silicone joint at 990, panes `.T` and `.B` each 1680 x 990), Case C (vertical silicone joint at 840, panes `.L` and `.R` each 840 x 1980). **[CAPTURED and merged, see v1.44 item A]** Reason: steps 4b and 5a touch silicone-joint edges and sash handling, and Cases B and C are the verified cases for those.
 
 **C. REPORTED BY SAHIL.** In Case A the 40mm sash was the Configurator's own starting value; he left it, so a starting value did carry into a verified result.
 
@@ -33,7 +60,7 @@ Every update to this document is logged here. Before editing, check the latest e
 - The System check table row for the casement shows method "fixed". INFERRED BY CLAUDE: it is the span-rule label (see `_fixed_or_louvre_span` in `engine/schedule/translation.py`), not the pane type. Not checked in code.
 - Still open, unchanged from v1.42: step 5d scope beyond OX and its mirror; the `hasFrame` gating of the tuck-in; the rule "daylight = visible glass for the O" must be implemented before span or area feeds a wind calculation; whether the Pathway 2/3 tooltips match the daylight-size intent; Sahil's hand values for the OX O and X glass widths have not been sent; the cosmetic and loose-end items from v1.41.
 
-**F. Plan.** Unchanged from v1.42 item E.11 except step 2 now saves five exports (see item B). Step 0 (the two browser checks) is done. Next: save the browser exports, then step 4b, 5a, 5b, 5c, 5d.
+**F. Plan.** Unchanged from v1.42 item E.11 except step 2 now saves five exports (see item B). Step 0 (the two browser checks) is done. Next: save the browser exports, **[DONE, see v1.44 item A]** then step 4b, 5a, 5b, 5c, 5d.
 
 ### v1.42 — 1 October 2026 — Configurator variant: deletions merged, survey findings, decisions and plan
 
