@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.44 (Configurator variant: five-export safety net merged, comparison rule decided)
+### Version: V1.45 (Configurator variant: step 4b merged, five-export recheck passed)
 ### Last Updated: 1 October 2026
 
 ---
@@ -8,6 +8,60 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.45 - 1 October 2026 - Configurator variant: step 4b (four per-edge sash boxes) merged (PR #31), five-export recheck passed
+
+**A. Merged.**
+- VERIFIED BY SAHIL: PR #31 merged with a merge commit; master at 68368d1 (parents a05c367 and 0a35f9c). Three commits: 8e15cda (four per-edge sash boxes, table shows all four values), 271ebbf (first Tab focus fix, comment and ledger tidy), 0a35f9c (Tab/Shift+Tab fix for unedited boxes, stale Enter intent removed, three stale comments reworded, ledger wording fixed). Only interfaces/flask_app/static/configurator/configurator.html and interfaces/flask_app/static/configurator/VARIANT_CHANGES.md changed (REPORTED BY CLAUDE CODE; Sahil's diff --stat for 0a35f9c showed exactly those two files).
+- REPORTED BY CLAUDE CODE (diffs read in chat by Claude; not run by Sahil): new functions withSashEdgeMM(), validateSashEdgeMM() and sashCellText(); withUniformSashMM() deleted (its remaining mentions are comments); SASH_EDGE_FIELD map added. Python tests 208 passed (the Configurator JavaScript is not covered by them). NOT DONE: no real JavaScript parser was ever run (Node and esprima unavailable in Claude Code's environment; only a brace-count was run, which is not a syntax check); the browser checks below are the evidence the page works.
+
+**B. DECIDED BY SAHIL (1 October 2026), the rules built in 4b.**
+1. A silicone-joint edge (sash*Locked flag set) shows 0 and its box is greyed out and cannot be edited.
+2. A sashless panel shows NO sash boxes at all (Sahil changed the earlier proposal of greyed-out boxes).
+3. A plain Fixed pane (type "fixed", windows and doors) shows no sash boxes. "Fixed (sash)" (type "fixed-framed") keeps its four boxes.
+4. The Assigned panes table shows all four sash values: header "Sash T / B / L / R (mm)", cell "top / bottom / left / right" (for example 40 / 40 / 40 / 40). Plain Fixed keeps a dash. A sashless leaf shows its real stored values, not a dash.
+5. Validation per box: reject a blank, a non-number, a negative number, and any value that makes left + right at or above the leaf width or top + bottom at or above the leaf height. On rejection the old value is restored and a short message appears. Zero is allowed.
+6. Each box changes only its own edge.
+Also decided: the Tab/Shift+Tab order is Top, Bottom, Left, Right; Tab off either end leaves the row as the browser normally does.
+
+**C. VERIFIED BY SAHIL (browser, 1 October 2026, local server, System check flag on in memory only).** Casement C preset (1800 x 2100, frame 60, 1680 x 1980):
+- Four boxes Top, Bottom, Left, Right each 40, none greyed; table header "Sash T / B / L / R (mm)", cell "40 / 40 / 40 / 40", visible glazed area 3.04.
+- Top changed to 30: table "30 / 40 / 40 / 40", glazed area 3.06. Hand check by Claude: (1680 - 40 - 40) x (1980 - 30 - 40) = 1600 x 1910 = 3.056 m2, shown 3.06.
+- Error messages seen with exactly this wording: blank and negative both "Sash edge must be a number, 0 or more."; Left 1650 gave "Left + right sash must be less than the leaf width (1680 mm)."; Top 1950 gave "Top + bottom sash must be less than the leaf height (1980 mm)." After a rejected entry the old value came back (confirmed for the cases asked).
+- Keyboard: Tab after editing Top lands in Bottom; Tab from an unedited Top and Shift+Tab from an unedited Left both worked after the second fix (before it, both lost the cursor: found by Sahil, fixed in 0a35f9c); editing Right then Tab moves on to the Export JSON button; an invalid Top entry followed by Tab shows the message, restores the value and lands in Bottom; Enter on an unedited box leaves the cursor in the same box and clicking the table afterwards leaves no cursor in a sash box (seen in a 6-second screen recording that Claude read as 13 still frames); clicking the table after editing Top updates the table (Sahil first reported it did not, then corrected himself: he had not noticed the redraw).
+- Pane types on the same pane: plain Fixed shows no boxes; Fixed (sash), Hinged and Horizontal slider show four boxes each.
+- Case B build (horizontal silicone joint at 990, both panes Fixed): no sash boxes for .T or .B; table sash cell "-" for both; both 1680 x 990, area and glazed 1.66; with a silicone pane selected every Door panels button is greyed and in the Window sashes row only Fixed is live (the other types greyed).
+- Sashless sliding window OX (preset form, "Build sashless" ticked, widths 840 and 900): .R plain Fixed 840 x 1980, dash, area and glazed 1.66; .S horizontal slider 900 x 1980, sash "15 / 15 / 0 / 0", area 1.78, glazed 1.75, no sash boxes; totals 3.45 and 3.42. Claude's arithmetic: 0.9 x (1.98 - 0.015 - 0.015) = 1.755, which a computer stores as 1.75499999 and so displays as 1.75 (checked by calculation).
+- Sashless double-hung D (preset form, "Build sashless" ticked, unit width 1680, top pane height 1020): both panes 1680 x 1020, sash "0 / 0 / 15 / 15", area 1.71, glazed 1.68, no sash boxes; totals 3.43 and 3.37. INFERRED BY CLAUDE: the two panes overlap by 60 (2 x 1020 against the 1980 opening), consistent with v1.42's note that the sashless double-hung overlap is 60.
+- Console: only the favicon 404 on every check Sahil reported on (page load and the later builds). Sahil gave no hand values before the sashless builds; the comparisons in this item are Claude's arithmetic against the tool, not independent hand values by Sahil.
+- NOT checked in the browser: the greyed-out box for a locked edge (unreachable, see item E); keyboard behaviour on pane types other than the casement; the Window Schedule page.
+
+**D. VERIFIED BY SAHIL: five-export recheck on the merged-equivalent code.** Sahil rebuilt each of the five systems from scratch in the Configurator, exported each, and ran a small comparison script (compare.py, kept in his Downloads\recheck_4b folder, NOT in the repo) against the matching committed file in configurator_safety_net_v6/. The script prints whether the "system" block and "schemaVersion" are identical and lists every "rawState" difference. Results:
+- 01 Case A slider door: system identical True, schemaVersion identical True, rawState differences 10, all under lastGeom.
+- 02 OX door 860 and 920: system True, schemaVersion True, 10 differences, all lastGeom.
+- 03 casement C: system True, schemaVersion True, 11 differences: ten lastGeom plus selected (saved null, new had the pane selected).
+- 04 Case B: system True, schemaVersion True, 10 differences, all lastGeom.
+- 05 Case C: system True, schemaVersion True, 10 differences, all lastGeom.
+Conclusion: step 4b changed no exported number for any of the five systems. The ten lastGeom values are screen-pixel numbers (right, bottom, contentLeft/Top/Right/Bottom, headPx, sillPx, jambLPx, jambRPx); INFERRED BY CLAUDE: they follow the size of the browser window at export time (the Case A rebuild differed from the saved file by 3 bytes, exactly the digits in "bottom": 644.12 against 720). This is the first practical use of the comparison rule decided in v1.44 item D.
+
+**E. Facts about the code (REPORTED BY CLAUDE CODE from read-only surveys, with diffs read by Claude; not checked by Sahil).**
+- Sashless leaves hold real capping values: sashless horizontal-slider top and bottom 15 (SASHLESS_HSLIDER_CAPPING_MM), left and right 0; sashless double-hung left and right 15 (SASHLESS_DH_CAPPING_MM), top and bottom 0. Both confirmed on screen (item C). What tuck-in the EXPORT applies to a sashless slider is still not quoted from the code.
+- The export's isFixed override forces sash 0 for plain "fixed" only, not for "fixed-framed" (code comment quoted by Claude Code).
+- A leaf with a silicone-locked edge is always plain Fixed (the unframed-joint split forces it, and type buttons other than Fixed are disabled): confirmed on screen in Case B. So rule 1's greyed-out box is defensive code that cannot currently be seen.
+- restoreFromRawState() exists in configurator.html (it can rebuild elevations from a saved rawState); its quote was cut off, how a user triggers it was not shown, and it was not tested.
+- After a preset is built, an "Edit assembly widths" button appears above the type buttons (seen by Sahil in a screenshot). What it does has not been examined; it may matter at step 5d.
+- The Configurator's own Assigned panes table still does not run the tuck-in correction (known gap, step 5b), so for example the OX table shows .R at 820 while the export says 860.
+
+**F. Corrections to earlier text.** Claude Code's first 4b report said all focus requirements held; browser testing found the Tab bug on unedited boxes, fixed in 0a35f9c. The v1.44 proposal "fixed panes should not show editable sash boxes" is now decided (item B, rule 3). The v1.42 item G wording "locked and sashless edges read-only" is superseded: sashless shows no boxes at all, a locked edge is greyed out.
+
+**G. OPEN.**
+- Ledger tag for the 4b changes: written as "carry back (tag proposed by Claude, not confirmed by Sahil)"; Sahil has not answered carry back versus AS1288-only.
+- What today's behaviour is for a sashless slider's tuck-in in the export (needed before step 5a; see v1.43 item E). Now partly answered by the stored capping values above.
+- compare.py lives only in Sahil's Downloads folder. PROPOSED BY CLAUDE (not decided): add it to the repo as a small tool so rechecks after steps 5a to 5d use the same script.
+- PROPOSED BY CLAUDE (not decided): use restoreFromRawState() to reload the saved exports instead of rebuilding five systems by hand after each step; needs a read-only survey of how it is triggered.
+- Still open, unchanged: step 5d scope beyond OX and its mirror; the hasFrame gating of the tuck-in; the rule "daylight = visible glass for the O" must be implemented before span or area feeds a wind calculation; whether the Pathway 2/3 tooltips match the daylight-size intent; Sahil's hand values for the OX O and X glass widths; what the System check "method" label means; the route's schema-version guard not exercised by the safety-net check; test_t1 still hand-built; old branches (including worktree-agent-a0f3c5ec3038ef3a0); the cosmetic and loose-end items from v1.41.
+
+**H. Plan.** Step 4b is DONE. Next: step 5a (shared "edge touches frame / mullion" helper and per-leaf tuck-in data at today's defaults; the five committed exports must still match on the "system" block and Claude Code must print what differs in rawState), then 5b, 5c, 5d, as in v1.42 item E.11. Before 5a: survey the sashless-slider tuck-in behaviour.
 
 ### v1.44 - 1 October 2026 - Configurator variant: five-export safety net merged (PR #29), comparison rule decided
 
@@ -30,11 +84,11 @@ Every update to this document is logged here. Before editing, check the latest e
 
 **D. DECIDED BY SAHIL (1 October 2026):** later re-exports are compared on the `"system"` block exactly; `"rawState"` may differ, because it holds drawing and selection state and step 5a may add tuck-in data there. Added condition: after step 5a, Claude Code must print exactly what differs in `rawState` so it can be seen to be only the new tuck-in fields. This is what "must match the saved ones exactly" means in v1.42 item E.11 from now on. The five files are also run through the translation code and checked against the verified numbers in item A.
 
-**E. PROPOSED BY CLAUDE (not decided):** in step 4b, fixed panes should not show editable sash boxes, because the export forces their sash edges to 0; showing boxes would imply an effect that does not exist. Switching `test_t1` and its twin in `tests/test_system_check_shell.py` to the real Case A export is a separate small step, not yet scheduled.
+**E. PROPOSED BY CLAUDE (not decided):** in step 4b, fixed panes should not show editable sash boxes, because the export forces their sash edges to 0; showing boxes would imply an effect that does not exist. **[DECIDED BY SAHIL, see v1.45 item B]** Switching `test_t1` and its twin in `tests/test_system_check_shell.py` to the real Case A export is a separate small step, not yet scheduled.
 
 **F. OPEN (new or restated).** What today's behaviour is for a sashless slider (needed before step 5a; see v1.43 item E); what the System check "method" label means; the route's schema-version guard was not exercised by the safety-net check; the Case A real export is now in the repo but the tests still use the hand-built object; loose end: many old local and remote branches, including a local worktree branch named `worktree-agent-a0f3c5ec3038ef3a0` that is checked out in a separate working folder (not investigated). All other open items from v1.43 item E remain open.
 
-**G. Plan.** Step 2 (the browser-export safety net) is DONE. Next: step 4b four per-edge sash boxes, then 5a, 5b, 5c, 5d, as in v1.42 item E.11.
+**G. Plan.** Step 2 (the browser-export safety net) is DONE. Next: step 4b four per-edge sash boxes, **[DONE, see v1.45]** then 5a, 5b, 5c, 5d, as in v1.42 item E.11.
 
 ### v1.43 - 1 October 2026 - Configurator variant: browser checks, decisions after v1.42, plan unchanged
 
@@ -101,7 +155,7 @@ Every update to this document is logged here. Before editing, check the latest e
 8. The form's overlap is the O stile width; the gap between the glass pieces is the X stile width; the other panel's stile behind a glass piece does not reduce that glass. The rule is mirrored for XO and OXO. Windows use the same default stile as doors for now. Sashless sliders keep today's behaviour. The fixed 60 overlap becomes a computed value.
 9. The Configurator's table gets two new columns, made size and daylight, from the same correction code as the export.
 10. No saved systems exist, so there is no legacy-loading path for the old OX rule.
-11. Plan order (approved by Sahil, 1 October 2026): merge the casement change; this docs entry; save three browser exports (Case A slider, the OX door with today's 860 and 920, casement C) as the safety net **[CHANGED to five exports, see v1.43 item B]**; step 4b four sash boxes; step 5a shared edge helper and per-leaf tuck-in data at today's defaults, exports must match the saved ones exactly; step 5b table columns; step 5c tuck-in boxes with blocking; step 5d the OX meeting edge. Step 5d is the only step that changes OX numbers.
+11. Plan order (approved by Sahil, 1 October 2026): merge the casement change; this docs entry; save three browser exports (Case A slider, the OX door with today's 860 and 920, casement C) as the safety net **[CHANGED to five exports, see v1.43 item B]**; step 4b four sash boxes; **[DONE, see v1.45]** step 5a shared edge helper and per-leaf tuck-in data at today's defaults, exports must match the saved ones exactly; step 5b table columns; step 5c tuck-in boxes with blocking; step 5d the OX meeting edge. Step 5d is the only step that changes OX numbers.
 
 **F. INFERRED BY CLAUDE (not checked in code or against a product).**
 - Model (approved by Sahil as the intended picture, numbers not measured): opening 1680, both stiles 40, X made size 900: O glass 800 plus O stile 40 = O made size 840, X glass 820, overlap 40, gap 40, 20 of the X's right stile hidden in the jamb; 800 + 40 + 820 + 20 = 1680; form check 840 + 900 - 40 - 20 = 1680. With O stile 60 and X stile 40: O glass 780, O made size 840, X made size 920, X glass 840, overlap 60, gap 40; 780 + 40 + 840 + 20 = 1680; form check 840 + 920 - 60 - 20 = 1680.
@@ -110,7 +164,7 @@ Every update to this document is logged here. Before editing, check the latest e
 - Preset forms check section widths before any leaf exists, so a per-leaf tuck-in needs the preset to use defaults at creation and let the user edit per leaf afterwards.
 - The corrections are separated enough that the work can be done in slices if exports are compared against saved files.
 
-**G. PROPOSED BY CLAUDE (not decided).** Export option (b) for the O's meeting stile (a new export field and schemaVersion 6 to 7) — Sahil is inclined to it but wants a survey of the translation layer first **[SUPERSEDED, see v1.43 item B: Sahil decided option (b)]**; see item I. The table keeps its existing columns and adds made size and daylight. Sashless sliders at tuck-in 0 and locked. Four sash boxes with locked and sashless edges read-only and the Sash column showing all four.
+**G. PROPOSED BY CLAUDE (not decided).** Export option (b) for the O's meeting stile (a new export field and schemaVersion 6 to 7) — Sahil is inclined to it but wants a survey of the translation layer first **[SUPERSEDED, see v1.43 item B: Sahil decided option (b)]**; see item I. The table keeps its existing columns and adds made size and daylight. Sashless sliders at tuck-in 0 and locked. Four sash boxes with locked and sashless edges read-only and the Sash column showing all four. **[CHANGED, see v1.45 item B: sashless shows no boxes at all; a locked edge is greyed out]**
 
 **H. Still OPEN.** Step 5d scope beyond OX and its mirror (OXX, OXXX etc. need their own sketches; double-hung keeps today's rule); the export option for the O (see item I) **[DECIDED, see v1.43 item B]**; what the Window Schedule page reads from the O — it reads only raw widthMM and heightMM (see item I); the 860 vs 820 question is explained but the engineering rule (daylight = visible glass) is only decided in principle; the upstream Configurator commit hash for the baseline is not checked; whether Sahil typed the 40mm sash in Case A is not checked **[ANSWERED, see v1.43 item C]**; the hinged-door console check is not done **[DONE, see v1.43 item A]**; the `hasFrame` gating of the tuck-in is unconfirmed in the code; cosmetic and loose-end items from v1.41 are unchanged.
 
