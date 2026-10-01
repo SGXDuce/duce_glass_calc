@@ -50,14 +50,84 @@ entries are applied there at the end of this project.
   REPORTED BY CLAUDE CODE: effect on the export: casement and awning leaves
   now export sashEdgesMM 40/40/40/40 instead of 60/60/60/86 for newly built
   presets.
+- **Replaced** the single "Sash frame width (mm)" toolbar box with four
+  per-edge boxes (Top, Bottom, Left, Right), and the Assigned panes table's
+  "Sash frame (mm)" column (top value only) with "Sash T / B / L / R (mm)"
+  (all four values). Tag: carry back (tag proposed by Claude, not confirmed
+  by Sahil). Branch `step-4b-sash-boxes`.
+  REPORTED BY CLAUDE CODE: this is a screen change only — no exported number
+  changes. `getSashEdges`, `DEFAULT_SASH_MM`, the `isFixed` override in
+  `buildExportElevation`, `buildExportDataOrBlockedError`,
+  `serializeRawState`, the drawing code, the glazed-area code, the preset
+  code, the unframed-joint locking code and `schemaVersion` were not
+  touched.
+  Rules implemented, exactly as decided by Sahil:
+  1. A silicone-joint edge (its `sash*Locked` flag set) shows 0 and its box
+     is disabled (greyed out); it cannot be edited.
+  2. A sashless leaf (`node.sashless === true`) shows no sash boxes at all.
+  3. A plain Fixed pane (`node.type === 'fixed'`, windows and doors) shows
+     no sash boxes. "Fixed (sash)" (`node.type === 'fixed-framed'`) keeps
+     its four boxes. Every other filled leaf type shows four boxes, as the
+     old single box did.
+  4. The Assigned panes table shows all four sash values per leaf. Plain
+     Fixed keeps its dash; a sashless leaf shows its real four stored
+     values, not a dash. For example, a sashless horizontal-slider leaf
+     (`SASHLESS_HSLIDER_CAPPING_MM`, 15mm, on top/bottom, 0 on left/right)
+     reads top / bottom / left / right = 15 / 15 / 0 / 0 (an earlier
+     version of this entry gave 15 / 15 / 0 / 0 without naming the leaf
+     type; that is correct for the sashless horizontal slider). A
+     sashless double-hung leaf is the other way round
+     (`SASHLESS_DH_CAPPING_MM`, 15mm, on left/right, 0 on top/bottom): it
+     reads 0 / 0 / 15 / 15.
+  5. Each box is validated on change: rejects a blank value, a non-finite
+     value, a negative value, or a value that would make left+right >= the
+     leaf's width or top+bottom >= the leaf's height (same `l.w`/`l.h` the
+     glazed-area code uses, read here via `ev.lastLeafRects` keyed by the
+     selected leaf's path). On rejection the box is restored to its
+     previous value and a plain-language message is shown in a
+     `.field-error` div under the boxes (the same CSS class already used
+     for the angled-join angle input's error). Zero is allowed; no
+     decimal-places rule was added.
+  6. Typing in one box changes only that edge (`withSashEdgeMM`, respecting
+     the lock flag) — the old "set all four at once" behaviour
+     (`withUniformSashMM`) is gone.
+  `withUniformSashMM` was deleted after confirming by grep that its only
+  caller was the old toolbar box's own `change` handler (the only other
+  hits were historical batch-log comments, left alone).
+  REPORTED BY CLAUDE CODE: Tab/Enter between the four boxes is preserved by
+  giving each box a stable id (`sashEdgeInput-<edge>`) and, after the
+  `render()` that a valid `change` triggers rebuilds the whole toolbar,
+  looking that same id back up and calling `.focus()`/`.select()` on it.
+  This was not tested in a browser (JavaScript is not covered by the
+  Python test suite); only visual/manual inspection and Python's `pytest`
+  were run.
+- **Follow-up:** fixed Tab focus order in the four sash boxes — Sahil found
+  in the browser that the earlier fix above (refocusing the same edge after
+  every `render()`) also caught Tab, so pressing Tab from Top landed back
+  in Top instead of Bottom. Each box's own `keydown` now records which edge
+  Tab/Shift+Tab is trying to reach (skipping locked edges) before `change`
+  fires and `render()` rebuilds the row, then refocuses that edge once the
+  rebuild is done; Enter still just keeps the cursor on the same edge. A
+  click away from the row never runs that `keydown` handler, so it can
+  never pull focus back into a sash box. Tag: carry back (tag proposed by
+  Claude, not confirmed by Sahil). Not tested in a browser by Claude Code.
+- **Second follow-up:** fixed Tab/Shift+Tab on an unedited sash box — the
+  `keydown` handler always intercepted Tab and blurred the box, but an
+  unedited box never fires `change`, so nothing restored focus and the
+  cursor was lost; the same gap let Enter leave a stale "restore focus
+  here" intent behind. Tab/Shift+Tab is now only intercepted when the
+  box's text differs from the value it was built with, so an unedited box
+  uses the browser's own native Tab with no rebuild; Enter only records
+  its intent when a `change` will actually follow to consume it; and a
+  rejected entry refocuses the intended box directly (or the box itself
+  if there is no such target) instead of relying on a `render()` that no
+  longer happens. Tag: carry back (tag proposed by Claude, not confirmed
+  by Sahil). Not tested in a browser by Claude Code.
 
 ## Planned changes (not yet made)
 
-1. Replace the single "Sash frame width" box with four per-edge boxes (top,
-   bottom, left, right). REPORTED BY CLAUDE CODE (survey, master b9253f1):
-   the data model, drawing, export and glazed-area calculation are already
-   per-edge; only the toolbar UI is uniform. Status: PROPOSED, not built.
-   Tag: carry back.
+1. ~~Replace the single "Sash frame width" box with four per-edge boxes
+   (top, bottom, left, right).~~ Done above (step 4b).
 2. Make the frame tuck-in editable per frame side (head, sill, left jamb,
    right jamb). The starting value rule is to be settled before this is
    built — see "Open before change 2" below. Status: PROPOSED, not built.

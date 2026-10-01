@@ -137,7 +137,7 @@
 
 <h2>Assigned panes (feeds the compliance calc, one row per pane)</h2>
 <table>
-  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash frame (mm)</th></tr></thead>
+  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash T / B / L / R (mm)</th></tr></thead>
   <tbody id="paneTable"></tbody>
   <tfoot><tr><td>Total</td><td></td><td></td><td></td><td id="totalPanes"></td><td id="totalArea"></td><td id="totalGlazedArea"></td><td></td></tr></tfoot>
 </table>
@@ -201,7 +201,8 @@ const DIM_LABEL_MIN_GAP = 40; // px — collision threshold between adjacent spl
 // 21:   double-hung asymmetric tuck-in correction (batch 20 fix)
 // 22:   casement/awning sash width prefill (real space) + casement no-mullion toggle
 // 23:   unframed silicone butt-joint mechanism (flat, same-elevation case) — isSiliconeJoint,
-//       sash*Locked flags, hasLockedEdge groundwork, withUniformSashMM skip-locked-edge behaviour
+//       sash*Locked flags, hasLockedEdge groundwork, skip-locked-edge behaviour in the (since
+//       replaced, see Step 4b) manual "Sash frame width" setter
 // 24:   restrict unframed silicone joints to fixed glass, window-only panes — hasLockedEdge() gate
 //       on makeTypeButton, "Add unframed joint" button gating, confirmUnframedJoint forcing
 // 25:   two-elevation state model + tab switcher — elevations[] array, setActiveElevationIndex,
@@ -1038,26 +1039,59 @@ function getSashEdges(node) {
     right: node.sashRightMM != null ? node.sashRightMM : DEFAULT_SASH_MM
   };
 }
-// Sets all four per-edge sash fields to the same value — used by the single-input toolbar
-// field, which is the only way to edit sash frame width in this batch.
-// Batch 23: skips any edge whose matching sash*Locked flag is true (see the unframed-joint
-// mechanism below) — a locked edge belongs to a genuine silicone joint and must stay at 0
-// regardless of what this uniform input is set to; only unlocked edges are touched. Named to
-// match the existing sashTopMM/sashBottomMM/sashLeftMM/sashRightMM per-edge convention exactly
-// (sashTopLocked/sashBottomLocked/sashLeftLocked/sashRightLocked), rather than a differently-
-// shaped parallel structure (e.g. a lockedEdges array/set).
+// Batch 23: true if any of the four edges is locked (see the unframed-joint mechanism below) —
+// a locked edge belongs to a genuine silicone joint and must stay at 0 no matter what is typed
+// into its own box; each of the four sash boxes is edited separately (Step 4b), and
+// withSashEdgeMM() below skips an edge's own mm field whenever its matching sash*Locked flag
+// (sashTopLocked/sashBottomLocked/sashLeftLocked/sashRightLocked) is set.
 // Batch 27: widened to also match kind:'empty' — Clear can leave a pane empty while it still
 // carries lock flags (see the Clear button below), and this must keep seeing those.
 function hasLockedEdge(node) {
   return !!((node.kind === 'filled' || node.kind === 'empty') && (node.sashTopLocked || node.sashBottomLocked || node.sashLeftLocked || node.sashRightLocked));
 }
-function withUniformSashMM(node, mm) {
+
+// Maps each per-edge toolbar input to its data field and lock flag. 'edge' is one of
+// 'top'/'bottom'/'left'/'right', matching getSashEdges()'s own keys.
+const SASH_EDGE_FIELD = {
+  top: { mmField: 'sashTopMM', lockedField: 'sashTopLocked' },
+  bottom: { mmField: 'sashBottomMM', lockedField: 'sashBottomLocked' },
+  left: { mmField: 'sashLeftMM', lockedField: 'sashLeftLocked' },
+  right: { mmField: 'sashRightMM', lockedField: 'sashRightLocked' }
+};
+
+// Step 4b: replaces withUniformSashMM — a sash is the moving frame around the glass, and each
+// of the four edges can now be set independently. Still respects a locked edge (a silicone
+// joint has no frame there, so it must stay at 0 regardless of what is typed).
+function withSashEdgeMM(node, edge, mm) {
+  const field = SASH_EDGE_FIELD[edge];
   const next = { ...node };
-  if (!node.sashTopLocked) next.sashTopMM = mm;
-  if (!node.sashBottomLocked) next.sashBottomMM = mm;
-  if (!node.sashLeftLocked) next.sashLeftMM = mm;
-  if (!node.sashRightLocked) next.sashRightMM = mm;
+  if (!node[field.lockedField]) next[field.mmField] = mm;
   return next;
+}
+
+// Step 4b validation for a single sash edge box. Returns null when the value is acceptable,
+// or a short plain-language message when it is not. leafW/leafH are the same leaf width/height
+// glazedAreaM2() uses, so the glazed opening (pane size minus the sash on each side) can never
+// be validated down to zero or less.
+function validateSashEdgeMM(rawValue, edge, node, leafW, leafH) {
+  const trimmed = String(rawValue).trim();
+  if (trimmed === '') return 'Sash edge must be a number, 0 or more.';
+  const mm = Number(trimmed);
+  if (!Number.isFinite(mm)) return 'Sash edge must be a number, 0 or more.';
+  if (mm < 0) return 'Sash edge must be a number, 0 or more.';
+  const edges = getSashEdges(node);
+  if (edge === 'left' || edge === 'right') {
+    const otherMM = edge === 'left' ? edges.right : edges.left;
+    if (mm + otherMM >= leafW) {
+      return 'Left + right sash must be less than the leaf width (' + Math.round(leafW) + ' mm).';
+    }
+  } else {
+    const otherMM = edge === 'top' ? edges.bottom : edges.top;
+    if (mm + otherMM >= leafH) {
+      return 'Top + bottom sash must be less than the leaf height (' + Math.round(leafH) + ' mm).';
+    }
+  }
+  return null;
 }
 
 function emptyNode() { return { kind: 'empty' }; }
@@ -1984,9 +2018,9 @@ function render() {
         pane.style.background = 'var(--glass)';
       } else {
         // Batch 9: per-edge sash frame widths — one stored value per edge (top/bottom/left/
-        // right), though the toolbar still only ever sets all four to the same number (see
-        // withUniformSashMM). Rendering already needs to key off individual edges here so it's
-        // ready for real per-edge values whenever a future batch adds the editing UI for them.
+        // right). Rendering keys off individual edges here, which is what lets Step 4b's
+        // per-edge toolbar boxes (each edge independently editable) show up correctly with no
+        // change needed to this drawing code.
         const sashEdges = getSashEdges(l.node);
         const insetTopPx = sashEdges.top * SCALE;
         const insetBottomPx = sashEdges.bottom * SCALE;
@@ -3026,28 +3060,127 @@ function renderToolbar() {
     if (row4.children.length) bar.appendChild(row4);
   }
 
-  // Item 6: hide the sash frame width input entirely for fixed panes — they have no band.
-  if (node.kind === 'filled' && node.type !== 'fixed') {
+  // Item 6 / Step 4b: no sash boxes at all for a plain Fixed pane (no sash frame of its own) or
+  // a sashless leaf (its two sashless edges are 0 by design, not a value to edit here).
+  if (node.kind === 'filled' && node.type !== 'fixed' && !node.sashless) {
     const row5 = document.createElement('div');
     row5.className = 'toolbar-row';
     const label = document.createElement('span');
     label.style.fontSize = '12px';
     label.style.color = 'var(--text-dim)';
     label.textContent = 'Sash frame width (mm)';
-    const input = document.createElement('input');
-    input.type = 'number';
-    // Batch 9: single input still edits all four per-edge values uniformly — there is no
-    // per-edge editing UI in this batch. Displaying node.sashTopMM (any one edge would do,
-    // since nothing yet creates unequal values) as the current value.
-    input.value = getSashEdges(node).top;
-    input.style.cssText = 'width:80px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
-    input.addEventListener('change', () => {
-      setNode(ev.selected.path, withUniformSashMM(node, Number(input.value) || 0));
-      render();
-    });
     row5.appendChild(label);
-    row5.appendChild(input);
+
+    const edges = getSashEdges(node);
+    const sashErrDiv = document.createElement('div');
+    sashErrDiv.className = 'field-error';
+
+    const SASH_EDGE_ORDER = ['top', 'bottom', 'left', 'right'];
+    // Step 4b follow-up: which edge keyboard Tab/Shift+Tab/Enter should land on once render()
+    // has rebuilt this row — set only by this row's own keydown handler below, so a click
+    // elsewhere (another button, the drawing, the table) never sets it and so never steals
+    // focus back into a sash box (point 4 of the follow-up brief).
+    let sashFocusIntentEdge = null;
+    // Step 4b second follow-up: the Tab/Shift+Tab target from the single most recent keydown on
+    // an edited box, consumed by the very next 'change' on that same box (accept or reject) and
+    // nulled out immediately after — never read by any other event, so it cannot outlive that one
+    // key press.
+    let lastKeyTarget = null;
+
+    function nextEnabledEdge(fromEdge, step) {
+      let i = SASH_EDGE_ORDER.indexOf(fromEdge);
+      for (;;) {
+        i += step;
+        if (i < 0 || i >= SASH_EDGE_ORDER.length) return null;
+        const candidate = SASH_EDGE_ORDER[i];
+        if (!node[SASH_EDGE_FIELD[candidate].lockedField]) return candidate;
+      }
+    }
+
+    SASH_EDGE_ORDER.forEach(edge => {
+      const field = SASH_EDGE_FIELD[edge];
+      const wrap = document.createElement('span');
+      wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
+      const edgeLabel = document.createElement('span');
+      edgeLabel.style.fontSize = '11px';
+      edgeLabel.style.color = 'var(--text-dim)';
+      edgeLabel.textContent = edge.charAt(0).toUpperCase() + edge.slice(1);
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.id = 'sashEdgeInput-' + edge;
+      const locked = !!node[field.lockedField];
+      // A locked edge sits on a silicone joint — there is no frame there, so it is always 0 and
+      // cannot be edited (greyed out).
+      input.value = locked ? 0 : edges[edge];
+      input.disabled = locked;
+      input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
+      if (locked) input.title = 'This edge is part of an unframed silicone joint and has no sash frame.';
+      // Step 4b second follow-up: the value this box was built/rebuilt with, as text. A 'change'
+      // event (and so the rebuild + focus restore below) only fires when the box's value actually
+      // differs from this, so an untouched box must never be treated as a keyboard commit.
+      const builtValue = input.value;
+      // Record where the keyboard means to go BEFORE the browser's own Tab handling runs, since
+      // render() (triggered by the 'change' this key also causes) destroys and rebuilds every
+      // sash input — the browser's native "next field" would otherwise be a now-gone element.
+      // Only an EDITED box is intercepted (preventDefault + manual blur, so we control exactly
+      // where focus lands after the rebuild) — nextEnabledEdge is captured into a local
+      // (lastKeyTarget) that this key press alone can use, so no intent survives past it. An
+      // unedited box is left completely alone on Tab/Shift+Tab — no preventDefault, no forced
+      // blur — so the browser's own native Tab moves focus to the next/previous DOM field with no
+      // rebuild, since there is nothing to commit.
+      input.addEventListener('keydown', (e) => {
+        const edited = input.value !== builtValue;
+        if (e.key === 'Tab') {
+          if (!edited) return; // let the browser move focus natively; nothing to commit
+          const target = nextEnabledEdge(edge, e.shiftKey ? -1 : 1);
+          lastKeyTarget = target; // may be null (Tab off the end) — still a deliberate, single-use value
+          sashFocusIntentEdge = target;
+          e.preventDefault();
+          input.blur();
+        } else if (e.key === 'Enter') {
+          // Only set the intent if a 'change' is actually going to fire to consume it — otherwise
+          // Enter on an unedited box would leave a stale edge name for a later unrelated change
+          // (on this or another box) to act on.
+          if (edited) sashFocusIntentEdge = edge;
+        }
+      });
+      input.addEventListener('change', () => {
+        const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0);
+        if (err) {
+          input.value = locked ? 0 : edges[edge];
+          sashErrDiv.textContent = err;
+          sashFocusIntentEdge = null;
+          // No rebuild happens on a rejected entry, so the Tab/Shift+Tab target (if any, and if
+          // still enabled) is focused directly instead of relying on render() + id lookup. If
+          // there is no such target (Tab ran off the end of the row, or the target is locked),
+          // focus falls back to this box itself — input.blur() already ran in keydown, so without
+          // this fallback focus would otherwise be lost entirely.
+          const rejectTarget = lastKeyTarget;
+          lastKeyTarget = null;
+          const existing = rejectTarget && document.getElementById('sashEdgeInput-' + rejectTarget);
+          if (existing && !existing.disabled) { existing.focus(); existing.select(); }
+          else { input.focus(); input.select(); }
+          return;
+        }
+        sashErrDiv.textContent = '';
+        lastKeyTarget = null;
+        setNode(ev.selected.path, withSashEdgeMM(node, edge, Number(input.value)));
+        const focusTarget = sashFocusIntentEdge;
+        sashFocusIntentEdge = null;
+        render();
+        // Only a keyboard commit (Tab/Shift+Tab/Enter, via the keydown handler above) sets
+        // focusTarget — a plain click-away blur leaves it null, so focus is never pulled back.
+        if (focusTarget) {
+          const restored = document.getElementById('sashEdgeInput-' + focusTarget);
+          if (restored && !restored.disabled) { restored.focus(); restored.select(); }
+        }
+      });
+      wrap.appendChild(edgeLabel);
+      wrap.appendChild(input);
+      row5.appendChild(wrap);
+    });
     bar.appendChild(row5);
+    bar.appendChild(sashErrDiv);
   }
 
   // Item 2 (batch 5): louvre blade width/length — stored inputs for the AS 1288 blade-envelope
@@ -4154,10 +4287,10 @@ function removeAngledJoin() {
 //   2. Zeroes AND LOCKS the specific touching edge on each of the two new children (right edge
 //      of children[0] / left edge of children[1] for axis:'v'; bottom edge of children[0] / top
 //      edge of children[1] for axis:'h' — matching walk()'s own existing .L/.R and .T/.B
-//      ordering). Locking matters because withUniformSashMM (the only thing the manual "Sash
-//      frame width" toolbar input calls) would otherwise silently un-zero this edge the next
-//      time someone used that box for an unrelated reason — locked edges are skipped by it (see
-//      withUniformSashMM's own batch-23 comment). This works for any pane type on either side,
+//      ordering). Locking matters because withSashEdgeMM (which the per-edge "Sash frame width"
+//      toolbar boxes call, see Step 4b) would otherwise silently un-zero this edge the next
+//      time someone edited that edge's box for an unrelated reason — locked edges are skipped by
+//      it (see withSashEdgeMM's own Step 4b comment). This works for any pane type on either side,
 //      not just 'fixed' (which already has zero sash everywhere and would make locking a no-op)
 //      — a fixed-framed, hinged, or slider pane keeps its normal sash on its other three edges,
 //      only the touching edge is zeroed/locked.
@@ -5090,6 +5223,16 @@ function glazedAreaM2(l) {
   return (glazedW * glazedH) / 1e6;
 }
 
+// Step 4b: Assigned panes table cell — shows all four sash values (top/bottom/left/right), not
+// only the top edge. A plain Fixed pane has no sash frame at all, so it keeps the dash; a
+// sashless leaf shows its real stored values (its two sashless edges are 0, the other two carry
+// the sashless capping width), not a dash.
+function sashCellText(node) {
+  if (node.type === 'fixed') return '—';
+  const edges = getSashEdges(node);
+  return edges.top + ' / ' + edges.bottom + ' / ' + edges.left + ' / ' + edges.right;
+}
+
 function renderTable(leaves) {
   const tbody = document.getElementById('paneTable');
   tbody.innerHTML = '';
@@ -5113,7 +5256,7 @@ function renderTable(leaves) {
       '<td>' + Math.round(l.h) + '</td>' +
       '<td>' + areaM2.toFixed(2) + '</td>' +
       '<td>' + glazedM2.toFixed(2) + '</td>' +
-      '<td>' + (l.node.type === 'fixed' ? '—' : getSashEdges(l.node).top) + '</td>';
+      '<td>' + sashCellText(l.node) + '</td>';
     tbody.appendChild(row);
   });
   document.getElementById('totalPanes').textContent = filledCount + ' panes';
