@@ -71,7 +71,13 @@ entries are applied there at the end of this project.
      old single box did.
   4. The Assigned panes table shows all four sash values per leaf. Plain
      Fixed keeps its dash; a sashless leaf shows its real four stored
-     values (e.g. 15 / 15 / 0 / 0), not a dash.
+     values, not a dash. For example, a sashless horizontal-slider leaf
+     (`SASHLESS_HSLIDER_CAPPING_MM`, 15mm, on top/bottom, 0 on left/right)
+     reads top / bottom / left / right = 15 / 15 / 0 / 0 (corrected: was
+     15 / 15 / 0 / 0, stated without saying which leaf type it was). A
+     sashless double-hung leaf is the other way round
+     (`SASHLESS_DH_CAPPING_MM`, 15mm, on left/right, 0 on top/bottom): it
+     reads 0 / 0 / 15 / 15.
   5. Each box is validated on change: rejects a blank value, a non-finite
      value, a negative value, or a value that would make left+right >= the
      leaf's width or top+bottom >= the leaf's height (same `l.w`/`l.h` the
@@ -94,6 +100,16 @@ entries are applied there at the end of this project.
   This was not tested in a browser (JavaScript is not covered by the
   Python test suite); only visual/manual inspection and Python's `pytest`
   were run.
+- **Follow-up:** fixed Tab focus order in the four sash boxes — Sahil found
+  in the browser that the earlier fix above (refocusing the same edge after
+  every `render()`) also caught Tab, so pressing Tab from Top landed back
+  in Top instead of Bottom. Each box's own `keydown` now records which edge
+  Tab/Shift+Tab is trying to reach (skipping locked edges) before `change`
+  fires and `render()` rebuilds the row, then refocuses that edge once the
+  rebuild is done; Enter still just keeps the cursor on the same edge. A
+  click away from the row never runs that `keydown` handler, so it can
+  never pull focus back into a sash box. Tag: carry back (tag proposed by
+  Claude, not confirmed by Sahil). Not tested in a browser by Claude Code.
 
 ## Planned changes (not yet made)
 

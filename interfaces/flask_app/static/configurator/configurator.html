@@ -1038,12 +1038,11 @@ function getSashEdges(node) {
     right: node.sashRightMM != null ? node.sashRightMM : DEFAULT_SASH_MM
   };
 }
-// Batch 23: skips any edge whose matching sash*Locked flag is true (see the unframed-joint
-// mechanism below) — a locked edge belongs to a genuine silicone joint and must stay at 0
-// regardless of what this uniform input is set to; only unlocked edges are touched. Named to
-// match the existing sashTopMM/sashBottomMM/sashLeftMM/sashRightMM per-edge convention exactly
-// (sashTopLocked/sashBottomLocked/sashLeftLocked/sashRightLocked), rather than a differently-
-// shaped parallel structure (e.g. a lockedEdges array/set).
+// Batch 23: true if any of the four edges is locked (see the unframed-joint mechanism below) —
+// a locked edge belongs to a genuine silicone joint and must stay at 0 no matter what is typed
+// into its own box; each of the four sash boxes is edited separately (Step 4b), and
+// withSashEdgeMM() below skips an edge's own mm field whenever its matching sash*Locked flag
+// (sashTopLocked/sashBottomLocked/sashLeftLocked/sashRightLocked) is set.
 // Batch 27: widened to also match kind:'empty' — Clear can leave a pane empty while it still
 // carries lock flags (see the Clear button below), and this must keep seeing those.
 function hasLockedEdge(node) {
@@ -3075,7 +3074,24 @@ function renderToolbar() {
     const sashErrDiv = document.createElement('div');
     sashErrDiv.className = 'field-error';
 
-    ['top', 'bottom', 'left', 'right'].forEach(edge => {
+    const SASH_EDGE_ORDER = ['top', 'bottom', 'left', 'right'];
+    // Step 4b follow-up: which edge keyboard Tab/Shift+Tab/Enter should land on once render()
+    // has rebuilt this row — set only by this row's own keydown handler below, so a click
+    // elsewhere (another button, the drawing, the table) never sets it and so never steals
+    // focus back into a sash box (point 4 of the follow-up brief).
+    let sashFocusIntentEdge = null;
+
+    function nextEnabledEdge(fromEdge, step) {
+      let i = SASH_EDGE_ORDER.indexOf(fromEdge);
+      for (;;) {
+        i += step;
+        if (i < 0 || i >= SASH_EDGE_ORDER.length) return null;
+        const candidate = SASH_EDGE_ORDER[i];
+        if (!node[SASH_EDGE_FIELD[candidate].lockedField]) return candidate;
+      }
+    }
+
+    SASH_EDGE_ORDER.forEach(edge => {
       const field = SASH_EDGE_FIELD[edge];
       const wrap = document.createElement('span');
       wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
@@ -3093,20 +3109,47 @@ function renderToolbar() {
       input.disabled = locked;
       input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
       if (locked) input.title = 'This edge is part of an unframed silicone joint and has no sash frame.';
+      // Step 4b follow-up: record where the keyboard means to go BEFORE the browser's own Tab
+      // handling runs, since render() (triggered by the 'change' this key also causes) destroys
+      // and rebuilds every sash input — the browser's native "next field" would otherwise be a
+      // now-gone element. Enter leaves sashFocusIntentEdge unset, i.e. "stay on this edge",
+      // matching today's accepted Enter behaviour.
+      // Only Tab TO ANOTHER BOX IN THIS ROW is intercepted (preventDefault + manual blur, so we
+      // control exactly where focus lands after the rebuild). Tab off the ends of the row (Right
+      // going forward, Top going backward) is left completely alone — no preventDefault, no
+      // forced blur — so the browser's own native Tab still runs and leaves the row normally,
+      // same as before any sash box existed.
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+          const target = nextEnabledEdge(edge, e.shiftKey ? -1 : 1);
+          if (target) {
+            sashFocusIntentEdge = target;
+            e.preventDefault();
+            input.blur();
+          }
+        } else if (e.key === 'Enter') {
+          sashFocusIntentEdge = edge;
+        }
+      });
       input.addEventListener('change', () => {
         const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0);
         if (err) {
           input.value = locked ? 0 : edges[edge];
           sashErrDiv.textContent = err;
+          sashFocusIntentEdge = null;
           return;
         }
         sashErrDiv.textContent = '';
         setNode(ev.selected.path, withSashEdgeMM(node, edge, Number(input.value)));
+        const focusTarget = sashFocusIntentEdge;
+        sashFocusIntentEdge = null;
         render();
-        // Step 4b: render() rebuilds the whole toolbar, which would otherwise drop focus and
-        // break Tab/Enter between the four boxes — restore focus to this same edge's new input.
-        const restored = document.getElementById('sashEdgeInput-' + edge);
-        if (restored && !restored.disabled) { restored.focus(); restored.select(); }
+        // Only a keyboard commit (Tab/Shift+Tab/Enter, via the keydown handler above) sets
+        // focusTarget — a plain click-away blur leaves it null, so focus is never pulled back.
+        if (focusTarget) {
+          const restored = document.getElementById('sashEdgeInput-' + focusTarget);
+          if (restored && !restored.disabled) { restored.focus(); restored.select(); }
+        }
       });
       wrap.appendChild(edgeLabel);
       wrap.appendChild(input);
