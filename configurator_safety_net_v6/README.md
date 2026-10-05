@@ -40,3 +40,11 @@ DECIDED BY SAHIL on 1 October 2026 (was PROPOSED BY CLAUDE); after step 5a, prin
 ## Data note
 
 These files contain only window dimensions and no confidential data.
+
+## Re-checking after a Configurator change
+
+- Run from the repo root: `python tools/compare.py <saved file> <new file>`
+- `<saved file>` is one of the committed exports in this folder. `<new file>` is a fresh export of the same system, rebuilt by hand in the Configurator.
+- The script compares parsed JSON, not file hashes. Git changes line endings on checkout, so hashes of the repo copies differ from the originals.
+- Rule decided by Sahil: the `"system"` block and `"schemaVersion"` must be identical. `"rawState"` may differ (screen-pixel values under `lastGeom`, and `"selected"`). After step 5a, every `rawState` difference must be listed and explained.
+- Known result on 1 October 2026 for the five committed files against fresh rebuilds: 01 = 10 differences, 02 = 10, 03 = 11 (ten `lastGeom` plus `"selected"`), 04 = 10, 05 = 10.
