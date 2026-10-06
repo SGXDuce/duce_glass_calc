@@ -141,7 +141,6 @@
   <tbody id="paneTable"></tbody>
   <tfoot><tr><td>Total</td><td></td><td></td><td></td><td id="totalPanes"></td><td id="totalArea"></td><td id="totalGlazedArea"></td><td></td><td></td><td></td></tr></tfoot>
 </table>
-<div class="note" id="sizeNote"></div>
 <div class="warn-line" id="emptyWarning"></div>
 <!-- Batch 40 — export-blocking errors (cross-elevation pane mismatch) show HERE, right next to the
      button that triggers them, in addition to the top-of-page #configuratorError banner (kept for
@@ -5269,19 +5268,14 @@ function madeSizeCellText(pane) {
 
 // Daylight = made size less the sash edges on each side, using the export's own sash edge values.
 // A fixed pane has sash edges of 0 in the export, so its daylight equals its made size (known
-// issue, fixed in step 5d). A sashless pane shows its made size with an asterisk, because the
-// capping deduction is not known yet and is not invented here.
+// issue, fixed in step 5d). Sashless panes keep their stored capping edges in the same field,
+// so their daylight deducts those edges like every other pane.
 function daylightSizeCellText(pane) {
   if (!pane) return '—';
-  if (pane.sashless) return madeSizeCellText(pane) + '*';
   const e = pane.sashEdgesMM;
   const w = pane.widthMM - e.left - e.right;
   const h = pane.heightMM - e.top - e.bottom;
   return formatSizeMM(w) + ' × ' + formatSizeMM(h);
-}
-
-function renderSizeNote(anySashless) {
-  document.getElementById('sizeNote').textContent = anySashless ? '* Sashless: capping deduction not applied yet.' : '';
 }
 
 function renderTable(leaves) {
@@ -5291,7 +5285,6 @@ function renderTable(leaves) {
   let totalGlazedArea = 0;
   let filledCount = 0;
   let emptyCount = 0;
-  let anySashlessShown = false;
   const exportPanes = getActiveExportPaneMap();
   leaves.forEach(l => {
     if (l.node.kind !== 'filled') { emptyCount++; return; }
@@ -5301,7 +5294,6 @@ function renderTable(leaves) {
     const glazedM2 = glazedAreaM2(l);
     totalGlazedArea += glazedM2;
     const exportPane = exportPanes ? exportPanes.get(l.label) : null;
-    if (exportPane && exportPane.sashless) anySashlessShown = true;
     const row = document.createElement('tr');
     row.innerHTML =
       '<td>' + l.label + '</td>' +
@@ -5316,7 +5308,6 @@ function renderTable(leaves) {
       '<td>' + daylightSizeCellText(exportPane) + '</td>';
     tbody.appendChild(row);
   });
-  renderSizeNote(anySashlessShown);
   document.getElementById('totalPanes').textContent = filledCount + ' panes';
   document.getElementById('totalArea').textContent = totalArea.toFixed(2) + ' m²';
   document.getElementById('totalGlazedArea').textContent = totalGlazedArea.toFixed(2) + ' m²';

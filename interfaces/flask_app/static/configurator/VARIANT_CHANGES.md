@@ -138,10 +138,9 @@ entries are applied there at the end of this project.
   compare_full.py show an identical system block in all five.
 
 - **Step 5b:** added two display-only columns to the Configurator's pane
-  table, "Made size (mm)" and "Daylight size (mm)" (width x height), plus a
-  one-line note under the table. New functions: `getActiveExportPaneMap`,
-  `formatSizeMM`, `madeSizeCellText`, `daylightSizeCellText`,
-  `renderSizeNote`; `renderTable` and the table heading/footer changed. Both
+  table, "Made size (mm)" and "Daylight size (mm)" (width x height). New
+  functions: `getActiveExportPaneMap`, `formatSizeMM`, `madeSizeCellText`,
+  `daylightSizeCellText`; `renderTable` and the table heading/footer changed. Both
   columns read the active elevation's `buildExportElevation` result (a pure
   read): made size is the pane's `widthMM` x `heightMM`, daylight is those
   less the same `sashEdgesMM` values the export carries. The export, every
@@ -150,18 +149,24 @@ entries are applied there at the end of this project.
   - Daylight for fixed panes is KNOWN WRONG until step 5d: the export gives
     fixed panes sash edges of 0, so their daylight equals their made size.
     DECIDED BY SAHIL: left as is for now.
-  - Sashless panes show daylight equal to made size with an asterisk, and the
-    note "* Sashless: capping deduction not applied yet." appears under the
-    table. OPEN ITEM: Sahil to supply the capping mm per stile, and whether
-    top and bottom are deducted too. No deduction is invented.
+  - Sashless panes keep their stored capping edges, and their daylight
+    deducts them like every other pane: 15 mm per capped edge. This matches
+    the existing "Visible glazed area" column (VERIFIED against that column
+    for files 08 and 09 by Claude's arithmetic). No asterisk and no note
+    under the table.
+  - OPEN ITEM: the table's older "Area" and "Visible glazed area" columns
+    use the drawn leaf size, but the new Daylight column and the export use
+    the made size, so they disagree (example: file 13 .L glazed 1.56 vs
+    daylight 860 x 1940 = 1.67 m2). Not caused by 5b. Which columns feed the
+    compliance calc is not yet known.
   - Failure fallback is a PLACEHOLDER (Sahil will revisit): if the export
     cannot be built for the current system (cross-elevation mismatch or a
     throw), both new columns show "—", every other column still works and no
     new error message is added.
   - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
-    not installed on Claude Code's machine, so the JavaScript was not run or
-    syntax-checked; only a browser rebuild can check it (REPORTED BY CLAUDE
-    CODE).
+    not installed on Claude Code's machine, so no syntax check was done. The
+    page was run in a browser test with tools/ui_regression.py (headless
+    Chromium, REPORTED BY CLAUDE CODE).
 
 ## Planned changes (not yet made)
 
