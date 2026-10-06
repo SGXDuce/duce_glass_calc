@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.47 (Configurator variant: compare.py and seven extra exports merged, translation baseline recorded)
+### Version: V1.48 (Configurator variant: step 5a merged, compare_full.py and safety-net export 13 added)
 ### Last Updated: 6 October 2026
 
 ---
@@ -8,6 +8,41 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.48 - 6 October 2026 - Configurator variant: step 5a merged (lone-slider edge classifier), compare_full.py and file 13 added
+
+**A. Merged.**
+- VERIFIED BY SAHIL (his terminal paste): PR #37 merged with a merge commit; master 140c7fe, parents a85a369 and 101b162. Five files changed, 355 insertions and 19 deletions. The three commits: 013a038 (tools/compare_full.py), 42bdd36 (safety-net export 13), 101b162 (the step 5a refactor).
+- DECIDED BY SAHIL (6 October 2026): the "narrow Option 2" for 5a. Only the lone-slider rule was moved into a shared classifier. The other three correction functions and the double-hung overlap function were left alone.
+
+**B. tools/compare_full.py.** REPORTED BY CLAUDE CODE (raw output pasted and read by Claude): a new 27-line script. It prints every difference in "system" and in "rawState" with its full path, with no 40-line cap. tools/compare.py is unchanged. Tests: all 12 files then in the safety net compared with themselves gave schemaVersion True, system 0, rawState 0; a deliberate change of one pane widthMM from 900 to 901 in a temporary copy printed the exact path system/elevations[0]/panes[0]/widthMM. Usage: python tools/compare_full.py <saved.json> <new.json>.
+
+**C. Safety-net export 13.** configurator_safety_net_v6/safety_net_v6_13_sliders_both_sides_of_mullion.json is a real Configurator export (REPORTED BY SAHIL), exported from the code BEFORE the refactor (commit order, REPORTED BY CLAUDE CODE from git log). Framed 1800 x 2100, frame 60, mullion position 920, thickness 40, two horizontal sliders: .L 940 x 2020 at x 40, y 40; .R 780 x 2020 at x 980, y 40; sash edges 40. No hand values were written before the export, so the check is Claude's arithmetic against the tool: .L = 900 + 20 (frame) + 20 (mullion) = 940, x = -20 + 60 = 40; .R = 740 + 20 + 20 = 780. The safety net now has 13 exports.
+
+**D. The survey behind the decision.** REPORTED BY CLAUDE CODE (code printed and read by Claude; arithmetic reproducing the exports checked by Claude): the four tuck-in correction functions are not one rule. computeSlidingAssemblyLeafCorrections works from entered section widths (panelWidthsMM and drawn widths), not from an edge test. computeSlidingAssemblyVerticalCorrections compares with the row rectangle and exempts fixed leaves. computeDoubleHungWidthCorrections compares with the unit rectangle and gives every unit edge the same tuck-in. Only computeLoneSlidingLeafCorrections separates a frame edge from a real mullion (findAdjacentSplit plus a mullion test). One shared rule for all four would have changed behaviour, so it was not done.
+
+**E. What 5a changed.** REPORTED BY CLAUDE CODE: in configurator.html, isRealMullionNode and classifyLeafEdges were added, and computeLoneSlidingLeafCorrections now builds its four tuck-ins from classifyLeafEdges. Left and right edges are 'frame', 'mullion' or 'none'. Top and bottom are 'frame' or 'none' only (a transom is still not tested, on purpose). The constants, schemaVersion (still 6) and the exported "system" block are unchanged. The old and new code were read side by side by Claude and found equivalent (INFERRED BY CLAUDE, not run).
+
+**F. How it was checked.**
+- REPORTED BY CLAUDE CODE: node is not installed (not found in bash or PowerShell), so no syntax check and no old-versus-new equivalence run was done. Nothing was installed.
+- REPORTED BY SAHIL: the Console had no red errors on load; view-source showed classifyLeafEdges, so the page served the new code.
+- VERIFIED BY SAHIL (his terminal paste): five systems were rebuilt by hand and exported (files 01, 02, 10, 11, 13) and compared with the saved files using compare_full.py. In all five: schemaVersion identical True and system differences 0. rawState differences were 10, 10, 10, 4 and 11. INFERRED BY CLAUDE from the printed paths: all are screen-pixel values under lastGeom (they depend on the browser window size), plus "selected" in file 13 (which pane was highlighted at export). File 11 has only 4 because with no frame the frame-thickness values are 0 in both.
+- INFERRED BY CLAUDE: files 01, 10, 11 and 13 run the changed function; file 02 runs untouched code and was the smoke test. Not exercised by any export: a lone vertical slider, a sashless lone slider, a lone slider beside a silicone joint, a mullion above or below a lone slider.
+
+**G. New findings** (INFERRED BY CLAUDE from the printed code; not run):
+- getDoubleHungOverlapMM adds FRAME_TUCKIN_MM to the double-hung overlap when there is a frame and the unit is not sashless. That is where the framed overlap of 100 (60 + 40) comes from, and it sits outside the four correction functions. Where the tuck-in constants and getDoubleHungOverlapMM are used (REPORTED BY CLAUDE CODE, line numbers from git grep):
+  - FRAME_TUCKIN_MM: lines 198, 400, 428, 551, 557, 919, 949, 968, 970, 1001, 1680, 3771, 4040, 4699, 4722, 4730, 4739, 4742, 4787, 4799, 4821, 5102, 5109, 5704, 5747, 6085 (4699 is the constant definition).
+  - SLIDING_HEIGHT_TUCKIN_MM: lines 948, 969, 989, 1003, 1008, 1010, 4728, 4735, 4740, 5746, 5771, 6018, 6086 (4735 is the constant definition).
+  - DOUBLE_HUNG_JAMB_TUCKIN_MM: lines 967, 4737, 4744, 5823, 5845 (4744 is the constant definition).
+  - SASHLESS_FRAME_TUCKIN_MM: lines 399, 919, 1001, 1680, 4040, 4715, 4722, 4726, 4786, 4799, 4813, 4821, 5704, 5747, 6085 (4726 is the constant definition).
+  - getDoubleHungOverlapMM: lines 410, 555, 969, 3628, 3636, 3686, 3748, 3766, 4741, 5108, 5111, 5143, 5835. Line 5108 is the definition; lines 3636, 3766 and 5143 are calls (5143's text was cut at 140 characters); the other lines are comments.
+- With no outer frame every tuck-in reads 0, including at a mullion edge (lone slider and double-hung). For a sliding assembly it depends on the entered widths: cannot tell.
+- The mullion tuck-in is a fixed 20 per leaf whatever the bar width. In file 13 the two sashes meet at the bar centre line (x 980) with a 40 bar; a thinner bar would make them overlap. Not tested.
+- A tuck-in box on a leaf inside a preset (step 5c) will conflict with preset widths that are driven by the entered section widths. This is a design question for 5c.
+
+**H. OPEN.** All v1.47 open items remain open, plus the four findings in item G, the untested combinations in item F, node not installed (needed before the final audit), and: no hand values were written for exports 06 to 13.
+
+**I. Plan.** PROPOSED BY CLAUDE: 5b (made-size and daylight columns in the table), 5c (tuck-in boxes with blocking; settle the preset question in item G first; Opus worth considering), 5d (OX meeting edge, schemaVersion 7; Opus worth considering).
 
 ### v1.47 - 6 October 2026 - Configurator variant: compare.py and seven extra exports merged, translation baseline before step 5a
 
