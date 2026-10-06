@@ -123,6 +123,17 @@ entries are applied there at the end of this project.
   if there is no such target) instead of relying on a `render()` that no
   longer happens. Tag: carry back (tag proposed by Claude, not confirmed
   by Sahil). Not tested in a browser by Claude Code.
+- **Step 5a:** added `isRealMullionNode` and `classifyLeafEdges`;
+  `computeLoneSlidingLeafCorrections` now asks `classifyLeafEdges` whether
+  each leaf edge sits against the frame, a real mullion or nothing, instead
+  of doing those tests inline (the old local `isRealMullion` is gone). No
+  behaviour change intended; `schemaVersion` stays 6. The other three
+  correction functions and `getDoubleHungOverlapMM` are untouched. Top and
+  bottom edges are still tested for the frame only, never for a mullion or
+  transom; this is kept on purpose in step 5a. Tag: carry back (tag proposed
+  by Claude, not confirmed by Sahil). Not tested in a browser; node is not
+  installed here, so no syntax check or old-versus-new equivalence run was
+  done (REPORTED BY CLAUDE CODE).
 
 ## Planned changes (not yet made)
 

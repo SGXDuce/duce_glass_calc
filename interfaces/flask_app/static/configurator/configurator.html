@@ -6038,6 +6038,39 @@ function findAdjacentSplit(root, path, axis, side) {
   return found;
 }
 
+// A real mullion is a physical timber divider: it has thickness and is not a silicone joint.
+// A zero-thickness split or a silicone joint is just a seam between two panes, not a member.
+function isRealMullionNode(node) {
+  return !!node && node.thicknessMM > 0 && !node.isSiliconeJoint;
+}
+
+// Says what each of a leaf's four edges sits against: 'frame', 'mullion' or 'none'.
+// Meaning: a leaf edge that sits against the outer frame or against a real mullion gets a
+// tuck-in; an edge that sits against another leaf or a silicone joint does not.
+// Left and right: 'frame' if the edge touches the opening edge; otherwise 'mullion' if the
+// nearest vertical split on that side is a real mullion; otherwise 'none'. The split is only
+// looked up when the edge is not already on the frame.
+// Top and bottom: 'frame' or 'none' only. They NEVER return 'mullion' — a transom above or
+// below a leaf is not tested. That is kept on purpose in step 5a so behaviour does not change.
+function classifyLeafEdges(leaf, ev, openingW, openingH) {
+  const touchesFrameLeft = Math.abs(leaf.x - 0) < EDGE_TOUCH_EPS_MM;
+  const touchesFrameRight = Math.abs(leaf.x + leaf.w - openingW) < EDGE_TOUCH_EPS_MM;
+  const touchesFrameTop = Math.abs(leaf.y - 0) < EDGE_TOUCH_EPS_MM;
+  const touchesFrameBottom = Math.abs(leaf.y + leaf.h - openingH) < EDGE_TOUCH_EPS_MM;
+  // 'start': leaf is the high child (index 1) of the adjacent split, so the split sits on the
+  // leaf's left edge. 'end': leaf is the low child (index 0), so the split sits on its right edge.
+  const leftKind = touchesFrameLeft ? 'frame'
+    : isRealMullionNode(findAdjacentSplit(ev.root, leaf.path, 'v', 'start')) ? 'mullion' : 'none';
+  const rightKind = touchesFrameRight ? 'frame'
+    : isRealMullionNode(findAdjacentSplit(ev.root, leaf.path, 'v', 'end')) ? 'mullion' : 'none';
+  return {
+    left: leftKind,
+    right: rightKind,
+    top: touchesFrameTop ? 'frame' : 'none',
+    bottom: touchesFrameBottom ? 'frame' : 'none'
+  };
+}
+
 function computeLoneSlidingLeafCorrections(leaves, ev, openingW, openingH) {
   const assemblyRanges = [];
   collectSlidingAssemblyRanges(ev.root, [], assemblyRanges);
@@ -6052,25 +6085,11 @@ function computeLoneSlidingLeafCorrections(leaves, ev, openingW, openingH) {
     const tuckInW = ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
     const tuckInH = (ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0;
 
-    const touchesFrameLeft = Math.abs(l.x - 0) < EDGE_TOUCH_EPS_MM;
-    const touchesFrameRight = Math.abs(l.x + l.w - openingW) < EDGE_TOUCH_EPS_MM;
-    const touchesFrameTop = Math.abs(l.y - 0) < EDGE_TOUCH_EPS_MM;
-    const touchesFrameBottom = Math.abs(l.y + l.h - openingH) < EDGE_TOUCH_EPS_MM;
-
-    const isRealMullion = (n) => !!n && n.thicknessMM > 0 && !n.isSiliconeJoint;
-    // 'end' side: leaf is the low/left/top child (index 0) of the adjacent split, so the split
-    // sits on the leaf's high/right/bottom edge. 'start' side: leaf is the high child (index 1),
-    // split sits on the leaf's low/left/top edge.
-    const leftMullion = touchesFrameLeft ? null : findAdjacentSplit(ev.root, l.path, 'v', 'start');
-    const rightMullion = touchesFrameRight ? null : findAdjacentSplit(ev.root, l.path, 'v', 'end');
-
-    let tuckLeft = 0, tuckRight = 0, tuckTop = 0, tuckBottom = 0;
-    if (touchesFrameLeft) tuckLeft = tuckInW / 2;
-    else if (isRealMullion(leftMullion)) tuckLeft = tuckInW / 2;
-    if (touchesFrameRight) tuckRight = tuckInW / 2;
-    else if (isRealMullion(rightMullion)) tuckRight = tuckInW / 2;
-    if (touchesFrameTop) tuckTop = tuckInH / 2;
-    if (touchesFrameBottom) tuckBottom = tuckInH / 2;
+    const edges = classifyLeafEdges(l, ev, openingW, openingH);
+    const tuckLeft = (edges.left === 'frame' || edges.left === 'mullion') ? tuckInW / 2 : 0;
+    const tuckRight = (edges.right === 'frame' || edges.right === 'mullion') ? tuckInW / 2 : 0;
+    const tuckTop = edges.top === 'frame' ? tuckInH / 2 : 0;
+    const tuckBottom = edges.bottom === 'frame' ? tuckInH / 2 : 0;
 
     if (tuckLeft === 0 && tuckRight === 0 && tuckTop === 0 && tuckBottom === 0) return;
 
