@@ -137,6 +137,32 @@ entries are applied there at the end of this project.
   Console; five rebuilt exports (files 01, 02, 10, 11, 13) compared with
   compare_full.py show an identical system block in all five.
 
+- **Step 5b:** added two display-only columns to the Configurator's pane
+  table, "Made size (mm)" and "Daylight size (mm)" (width x height), plus a
+  one-line note under the table. New functions: `getActiveExportPaneMap`,
+  `formatSizeMM`, `madeSizeCellText`, `daylightSizeCellText`,
+  `renderSizeNote`; `renderTable` and the table heading/footer changed. Both
+  columns read the active elevation's `buildExportElevation` result (a pure
+  read): made size is the pane's `widthMM` x `heightMM`, daylight is those
+  less the same `sashEdgesMM` values the export carries. The export, every
+  correction function, every tuck-in constant and `schemaVersion` (stays 6)
+  are untouched.
+  - Daylight for fixed panes is KNOWN WRONG until step 5d: the export gives
+    fixed panes sash edges of 0, so their daylight equals their made size.
+    DECIDED BY SAHIL: left as is for now.
+  - Sashless panes show daylight equal to made size with an asterisk, and the
+    note "* Sashless: capping deduction not applied yet." appears under the
+    table. OPEN ITEM: Sahil to supply the capping mm per stile, and whether
+    top and bottom are deducted too. No deduction is invented.
+  - Failure fallback is a PLACEHOLDER (Sahil will revisit): if the export
+    cannot be built for the current system (cross-elevation mismatch or a
+    throw), both new columns show "—", every other column still works and no
+    new error message is added.
+  - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+    not installed on Claude Code's machine, so the JavaScript was not run or
+    syntax-checked; only a browser rebuild can check it (REPORTED BY CLAUDE
+    CODE).
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes
