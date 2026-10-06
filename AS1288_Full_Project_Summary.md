@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.46 (Configurator variant: survey findings and decisions before step 5a)
+### Version: V1.47 (Configurator variant: compare.py and seven extra exports merged, translation baseline recorded)
 ### Last Updated: 6 October 2026
 
 ---
@@ -8,6 +8,56 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.47 - 6 October 2026 - Configurator variant: compare.py and seven extra exports merged, translation baseline before step 5a
+
+**A. Merged.**
+- VERIFIED BY SAHIL (his terminal paste): PR #34 merged with a merge commit; master d92a8e1 (parents 01000f6 and 5b6039e). It adds tools/compare.py and a usage note in configurator_safety_net_v6/README.md.
+- REPORTED BY CLAUDE CODE (raw output pasted and read by Claude): the repo copy of tools/compare.py has the same SHA256 as the Downloads original (A433D5A4...8D8DEC). Against the five committed exports and Sahil's fresh rebuilds it printed system True and schemaVersion True for all five, with rawState differences 10, 10, 11, 10, 10. Claude read the script (20 lines). It compares only "system", "schemaVersion" and "rawState"; if "system" differs it prints only False and not where; it lists only the first 40 rawState differences (the count still shows the total). INFERRED BY CLAUDE: step 5a needs a one-off command to locate any "system" difference, and the 40-line limit may cut the list if 5a adds many fields. The script was deliberately left unchanged.
+- Then the extra-exports PR: PR #35 merged with merge commit 18315ac (parents d92a8e1 and b181c81), REPORTED BY CLAUDE CODE (git log). VERIFIED BY SAHIL (terminal paste before the push): the commit b181c81 adds exactly eight files (seven .json plus the README), 1822 insertions and 1 deletion; Sahil's own Python check showed each repo copy equal to its Downloads source as parsed JSON (seven True); the README grep showed no run-together words.
+
+**B. The seven extra exports** (all real Configurator exports, schemaVersion 6, REPORTED BY SAHIL; no hand values were written before them, so every comparison here is "Claude's arithmetic against the tool", not Sahil's check):
+- 06 safety_net_v6_06_framed_double_hung_1680x1980.json - 1800 x 2100, frame 60: .S and .R each 1720 x 1040, sash 40, y 1000 and 60.
+- 07 safety_net_v6_07_framed_OX_window_860_920.json - 1800 x 2100, frame 60: .R fixed 860 x 1980 (x 40, y 60); .S slider 920 x 2020 (x 840, y 40).
+- 08 safety_net_v6_08_sashless_OX_840_900.json - .R fixed 840 x 1980; .S slider 900 x 1980, sash 15/15/0/0, glazed 1.755.
+- 09 safety_net_v6_09_sashless_double_hung_1020.json - both 1680 x 1020, sash 0/0/15/15.
+- 10 safety_net_v6_10_slider_beside_mullion_980.json - mullion position 920, thickness 40: .L fixed 900 x 1980; .R slider 780 x 2020 (x 980, y 40).
+- 11 safety_net_v6_11_no_frame_slider_1680x1980.json - hasFrame false: F slider 1680 x 1980, glazed 3.04.
+- 12 safety_net_v6_12_no_frame_double_hung_1680x1980.json - hasFrame false: both 1680 x 1020, overlap 60, glazed 1.504 each.
+- REPORTED BY CLAUDE CODE (raw output pasted and read by Claude): 83 numeric checks passed with 0 failures; every one of the 13 panes has productClass "window"; OX.json (a window) was used for file 07, not the committed door export. Two Downloads files matched the OX window signature; the committed-door copy was rejected because its panes are doors.
+- Build changes, DECIDED BY SAHIL (6 October 2026): the fixture-matching double-hung (an 1800-high elevation) was replaced by the no-frame double-hung (file 12); the 2100 x 1500 demo export with a 60 frame (an OX preset beside a mullion) was ignored and not committed.
+- REPORTED BY CLAUDE CODE: the README has two cosmetic points left alone (no blank line before the new heading; the old last line gained a newline). INFERRED BY CLAUDE: the fixture tests/fixtures/sashless_double_hung.json appears to use a 1680-high opening (870 + 870 - 1680 = 60), while file 09 uses a 1980-high one.
+
+**C. Facts read from the exports** (arithmetic by Claude; the code behind them is INFERRED BY CLAUDE, not checked in code):
+- File 10: the slider's width 780 is the 740 region plus 20 at the mullion edge plus 20 at the frame edge; its height 2020 is 1980 plus 40. So today's export gives a mullion edge the same 20 tuck-in as a frame edge. Step 5a must keep this.
+- File 11 against Case A (same opening 1680 x 1980, with a 60 frame, exports 1720 x 2020): with no outer frame the slider gets no tuck-in (1680 x 1980). This matches the survey rule that every tuck-in reads 0 with no frame.
+- File 12 against file 06: with no outer frame the double-hung overlap is 60 (the framed overlap is 100) and the width gets no jamb tuck-in (1680 against 1720).
+- Files 06 and 07: the window export has the same numbers as the OX door export; only productClass differs (REPORTED BY CLAUDE CODE).
+- The lowest sightline looks like the pane's yMM plus its bottom sash edge (file 06 .R: 60 + 40 = 100; file 12 .S: 960 + 40 = 1000; file 11 F: 0 + 40 = 40). This needs yMM measured from the bottom, which matches Case B in v1.44 item C. INFERRED BY CLAUDE.
+
+**D. Translation baseline** (REPORTED BY CLAUDE CODE, raw output pasted and read by Claude; read-only calls to translate_system(), floor height 0). Every pane returned status "ready". Columns: file, pane, daylight size, lowest sightline, span, framing, warning.
+
+| File | Pane | Daylight size | Lowest sightline | Span | Framing | Warning |
+|---|---|---|---|---|---|---|
+| 06 | .S | 1640 x 960 | 1040 | 960 | fully | vertical-slider tuck-in warning |
+| 06 | .R | 1640 x 960 | 100 | 960 | fully | same warning |
+| 07 | .R | 860 x 1980 | 60 | 860 | fully | none |
+| 07 | .S | 840 x 1940 | 80 | 840 | fully | none |
+| 08 | .R | 840 x 1980 | 60 | 1980 (top and bottom supported, right unsupported) | partly | none |
+| 08 | .S | none | none | 1950 (between the two held edges) | sashless | none |
+| 09 | .S | none | none | 1650 | sashless | same warning |
+| 09 | .R | none | none | 1650 | sashless | same warning |
+| 10 | .L | 900 x 1980 | 60 | 900 | fully | none |
+| 10 | .R | 700 x 1940 | 80 | 700 | fully | none |
+| 11 | F | 1600 x 1900 | 40 | 1600 | fully | none |
+| 12 | .S | 1600 x 940 | 1000 | 940 | fully | same warning |
+| 12 | .R | 1600 x 940 | 40 | 940 | fully | same warning |
+
+Sashless panes show none for daylight and sightline because the pane table leaves those cells empty for a sashless pane (INFERRED BY CLAUDE from the v1.41 change). The warning text is the known open product question that the vertical slider's 20 mm tuck-in is unconfirmed. Arithmetic checks by Claude: 1720 - 80 = 1640; 1040 - 80 = 960; 780 - 80 = 700; 2020 - 80 = 1940; 1680 - 80 = 1600; 1980 - 80 = 1900; 1980 - 30 = 1950; 1680 - 30 = 1650.
+
+**E. OPEN.** All v1.46 open items remain open, plus: the saved sashless double-hung fixture uses a different opening height from file 09; whether the no-frame double-hung overlap of 60 is the intended rule or a side effect of how the preset reads the frame; the 20 mm vertical-slider tuck-in is still unconfirmed (it shows as a warning on every double-hung pane); the compare.py limits in item A; the translation baseline above has not been repeated after any code change.
+
+**F. Plan.** PROPOSED BY CLAUDE: 5a next (shared "edge touches frame / mullion" helper and per-leaf tuck-in data at today's defaults). After 5a, Sahil rebuilds the twelve systems (the five old plus the seven new) in the browser, exports each, and runs python tools/compare.py against the matching saved file; the "system" block must match for all twelve and every rawState difference must be listed. Then 5b, 5c, 5d as in v1.46 item E.
 
 ### v1.46 - 6 October 2026 - Configurator variant: sashless-slider survey, decisions A to E before step 5a
 
