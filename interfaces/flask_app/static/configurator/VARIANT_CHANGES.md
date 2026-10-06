@@ -131,9 +131,11 @@ entries are applied there at the end of this project.
   correction functions and `getDoubleHungOverlapMM` are untouched. Top and
   bottom edges are still tested for the frame only, never for a mullion or
   transom; this is kept on purpose in step 5a. Tag: carry back (tag proposed
-  by Claude, not confirmed by Sahil). Not tested in a browser; node is not
-  installed here, so no syntax check or old-versus-new equivalence run was
-  done (REPORTED BY CLAUDE CODE).
+  by Claude, not confirmed by Sahil). Node is not installed on
+  Claude Code's machine, so no syntax check or equivalence run was done
+  (REPORTED BY CLAUDE CODE). REPORTED BY SAHIL: no red errors in the
+  Console; five rebuilt exports (files 01, 02, 10, 11, 13) compared with
+  compare_full.py show an identical system block in all five.
 
 ## Planned changes (not yet made)
 
@@ -177,3 +179,11 @@ Open, not decided:
   tuck-in uses reads a leaf's sash width; today's tuck-in is a fixed amount
   per edge. The preset form solves and checks widths before any leaf
   exists.
+- (g) INFERRED BY CLAUDE (6 October 2026 survey, not run): the mullion
+  tuck-in is a fixed 20mm per leaf whatever the bar width; in safety-net
+  file 13 the two sashes meet at the bar centre line with a 40mm bar.
+  Relevant to the blocking rule in 5c.
+- (h) INFERRED BY CLAUDE (6 October 2026 survey): getDoubleHungOverlapMM
+  also uses FRAME_TUCKIN_MM, so the double-hung head/sill tuck-in sits in
+  the overlap and not in the correction functions. The line numbers are
+  in summary v1.48 item G.
