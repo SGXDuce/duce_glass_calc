@@ -48,3 +48,16 @@ These files contain only window dimensions and no confidential data.
 - The script compares parsed JSON, not file hashes. Git changes line endings on checkout, so hashes of the repo copies differ from the originals.
 - Rule decided by Sahil: the `"system"` block and `"schemaVersion"` must be identical. `"rawState"` may differ (screen-pixel values under `lastGeom`, and `"selected"`). After step 5a, every `rawState` difference must be listed and explained.
 - Known result on 1 October 2026 for the five committed files against fresh rebuilds: 01 = 10 differences, 02 = 10, 03 = 11 (ten `lastGeom` plus `"selected"`), 04 = 10, 05 = 10.
+## Extra exports added 6 October 2026
+
+| File | What it is | Key numbers (read from the file) |
+|---|---|---|
+| safety_net_v6_06_framed_double_hung_1680x1980.json | Framed double-hung window, 1800 x 2100 overall | Both sashes 1720 x 1040, sash edges all 40; .S at x 40, y 1000; .R at x 40, y 60 |
+| safety_net_v6_07_framed_OX_window_860_920.json | Framed OX window (fixed pane plus sliding sash) | .R fixed 860 x 1980 at x 40, y 60, sash edges 0; .S horizontal slider 920 x 2020 at x 840, y 40, sash edges 40 |
+| safety_net_v6_08_sashless_OX_840_900.json | Sashless OX (fixed pane beside a sashless slider) | .R fixed 840 x 1980 at x 60, y 60, right edge "next-to-sashless"; .S 900 x 1980 at x 840, y 60, sash top 15 bottom 15 left 0 right 0, visible glazed area 1.755 m2 |
+| safety_net_v6_09_sashless_double_hung_1020.json | Sashless double-hung | Both sashes 1680 x 1020 at x 60; sash top 0 bottom 0 left 15 right 15; .S at y 1020, .R at y 60 |
+| safety_net_v6_10_slider_beside_mullion_980.json | Fixed pane, mullion, then a sliding sash | .L fixed 900 x 1980 at x 60, y 60, sash edges 0; .R slider 780 x 2020 at x 980, y 40, sash edges 40; mullion position 920, thickness 40 |
+| safety_net_v6_11_no_frame_slider_1680x1980.json | Single slider, no outer frame | Pane F 1680 x 1980 at x 0, y 0, sash edges 40; visible glazed area 3.04 m2; overall 1680 x 1980 |
+| safety_net_v6_12_no_frame_double_hung_1680x1980.json | Double-hung, no outer frame | Both sashes 1680 x 1020 at x 0, sash edges 40; .S at y 960, .R at y 0; overlap 60; visible glazed area 1.504 m2 each; overall 1680 x 1980 |
+
+Real Configurator exports, schemaVersion 6, supplied by Sahil on 6 October 2026 (REPORTED BY SAHIL). No hand values were written before these exports were made. The key numbers above were read from the files and checked by Claude's arithmetic against the tool, not hand-calculated by Sahil. Files 11 and 12 have no outer frame. The older fixture tests/fixtures/sashless_double_hung.json appears to use a 1680-high opening, while file 09 uses a 1980-high opening (INFERRED BY CLAUDE from the fixture's heights in the summary; not checked in the fixture itself).
