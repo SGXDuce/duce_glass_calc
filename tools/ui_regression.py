@@ -48,6 +48,20 @@ FILES = [
 FILE_14_BEFORE_NAME = 'safety_net_v6_14_no_frame_two_sliders_mullion_BEFORE_5c2.json'
 FILES.append(('14', 'safety_net_v6_14_no_frame_two_sliders_mullion_AFTER_5c2.json',
               {'.L': ('980 x 2100', '900 x 2020'), '.R': ('820 x 2100', '740 x 2020')}, False))
+# Preset files 07, 02, 06 and 12 (step 4 coverage). Expected table values are read from the saved
+# export, Claude's arithmetic, not Sahil's hand values: sash/leaf size = widthMM x heightMM; daylight =
+# those less sashEdgesMM (a fixed pane has sash edges 0, so its daylight equals its size).
+#   07 and 02 (framed OX): .R fixed 860 x 1980 (edges 0); .S slider 920 x 2020, edges 40 -> 840 x 1940.
+#   06 (framed double-hung): .S and .R both 1720 x 1040, edges 40 -> 1640 x 960.
+#   12 (no-frame double-hung, 1680 x 1980): .S and .R both 1680 x 1020, edges 40 -> 1600 x 940.
+FILES.append(('07', 'safety_net_v6_07_framed_OX_window_860_920.json',
+              {'.R': ('860 x 1980', '860 x 1980'), '.S': ('920 x 2020', '840 x 1940')}, False))
+FILES.append(('02', 'safety_net_v6_02_ox_door_860_920.json',
+              {'.R': ('860 x 1980', '860 x 1980'), '.S': ('920 x 2020', '840 x 1940')}, False))
+FILES.append(('06', 'safety_net_v6_06_framed_double_hung_1680x1980.json',
+              {'.S': ('1720 x 1040', '1640 x 960'), '.R': ('1720 x 1040', '1640 x 960')}, False))
+FILES.append(('12', 'safety_net_v6_12_no_frame_double_hung_1680x1980.json',
+              {'.S': ('1680 x 1020', '1600 x 940'), '.R': ('1680 x 1020', '1600 x 940')}, False))
 NOTE_TEXT = '* Sashless: capping deduction not applied yet.'
 
 fallback_used = []   # (file, what) pairs where a page function replaced a real click
@@ -235,7 +249,55 @@ def recipe_09(page, fid):
     click_button(page, 'Confirm preset')
 
 
-RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09}
+def recipe_07(page, fid):
+    # framed OX sliding window, not sashless, section widths 860 / 920
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding windows', 'OX')
+    ensure_value(page, '#presetWidthInput0', 860, 'Section 1 (O) width')
+    ensure_value(page, '#presetWidthInput1', 920, 'Section 2 (X) width')
+    click_button(page, 'Confirm preset')
+
+
+def recipe_02(page, fid):
+    # same as recipe_07 but the sliding DOOR family (heading "Sliding doors")
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding doors', 'OX')
+    ensure_value(page, '#presetWidthInput0', 860, 'Section 1 (O) width')
+    ensure_value(page, '#presetWidthInput1', 920, 'Section 2 (X) width')
+    click_button(page, 'Confirm preset')
+
+
+def recipe_06(page, fid):
+    # framed double-hung, not sashless, unit width 1680, top pane height 1040
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Double-hung windows', 'D')
+    ensure_value(page, '#dhUnitWidthInput', 1680, 'Unit width')
+    ensure_value(page, '#dhTopHeightInput', 1040, 'Top pane height')
+    click_button(page, 'Confirm preset')
+
+
+def recipe_12(page, fid):
+    # as recipe_06 but NO outer frame; the saved export is 1680 x 1980 overall, top height 1020
+    set_overall(page, 1680, 1980)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Double-hung windows', 'D')
+    ensure_value(page, '#dhUnitWidthInput', 1680, 'Unit width')
+    ensure_value(page, '#dhTopHeightInput', 1020, 'Top pane height')
+    click_button(page, 'Confirm preset')
+
+
+RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09,
+           '07': recipe_07, '02': recipe_02, '06': recipe_06, '12': recipe_12}
 
 
 # ---------------------------------------------------------------- reading and checking
