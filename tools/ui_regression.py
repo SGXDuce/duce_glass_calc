@@ -1,4 +1,4 @@
-"""Browser regression test for the Configurator's Made size / Daylight size columns (step 5b).
+"""Browser regression test for the Configurator's Sash/Leaf size / Daylight size columns (step 5b).
 
 Builds five saved systems by clicking through the real Configurator UI in headless Chromium,
 reads the pane table, then exports and compares each export with its saved safety-net file.
@@ -24,7 +24,7 @@ PORT = 5001
 URL = 'http://127.0.0.1:%d/configurator' % PORT
 OUT_DIR = os.path.join(tempfile.gettempdir(), 'ui_regression_exports')
 
-# Expected table values: pane id -> (made size, daylight size).
+# Expected table values: pane id -> (sash/leaf size, daylight size).
 FILES = [
     ('13', 'safety_net_v6_13_sliders_both_sides_of_mullion.json',
      {'.L': ('940 x 2020', '860 x 1940'), '.R': ('780 x 2020', '700 x 1940')}, False),
@@ -240,7 +240,7 @@ def check_table(rows, note, expected, expect_note, fid):
             print('  FAIL pane %s: row missing or short (%s)' % (pid, r))
             ok = False
             continue
-        for name, got, want in (('Made size', r[8], made), ('Daylight size', r[9], daylight)):
+        for name, got, want in (('Sash/Leaf size', r[8], made), ('Daylight size', r[9], daylight)):
             good = got == want
             ok = ok and good
             print('  %s pane %s %s: got "%s", expected "%s"' % ('PASS' if good else 'FAIL', pid, name, got, want))
@@ -276,6 +276,37 @@ def info_prints(page, fid):
         for j in range(sels.count()):
             vals.append(sels.nth(j).input_value())
         print('    pane #%d slide/hinge dropdown value(s): %s' % (i, vals if vals else 'none shown'))
+
+
+def heading_info(page):
+    """Info only (not a check): width and wrapping of the pane table headings (file 13)."""
+    info = page.evaluate("""() => {
+        const table = document.querySelector('#paneTable').closest('table');
+        let box = table.parentElement;
+        while (box && box !== document.documentElement) {
+            const ox = getComputedStyle(box).overflowX;
+            if (ox === 'auto' || ox === 'scroll') break;
+            box = box.parentElement;
+        }
+        const scroller = box && box !== document.documentElement ? box : document.documentElement;
+        const heads = {};
+        for (const th of table.querySelectorAll('thead th')) {
+            const t = th.textContent.trim();
+            if (t === 'Sash/Leaf size (mm)' || t === 'Daylight size (mm)') {
+                const range = document.createRange();
+                range.selectNodeContents(th);
+                const tops = new Set(Array.from(range.getClientRects()).map(r => Math.round(r.top)));
+                heads[t] = {offsetHeight: th.offsetHeight, lineHeight: getComputedStyle(th).lineHeight, lines: tops.size};
+            }
+        }
+        return {scroller: scroller === document.documentElement ? 'document' : (scroller.id || scroller.tagName),
+                scrollWidth: scroller.scrollWidth, clientWidth: scroller.clientWidth, tableWidth: table.offsetWidth, heads: heads};
+    }""")
+    print('  INFO heading layout (not a check): scroll container %s, scrollWidth %s, clientWidth %s, table width %s' %
+          (info['scroller'], info['scrollWidth'], info['clientWidth'], info['tableWidth']))
+    for name, h in info['heads'].items():
+        print('  INFO heading "%s": offsetHeight %s px, computed line-height %s, %s text line(s) (counted from the rendered text)' %
+              (name, h['offsetHeight'], h['lineHeight'], h['lines']))
 
 
 def run_file(browser, fid, saved_name, expected, expect_note):
@@ -314,6 +345,8 @@ def run_file(browser, fid, saved_name, expected, expect_note):
         print('  Export saved to %s' % new_path)
         result['export'] = 'PASS' if run_compare(os.path.join(SAFETY_DIR, saved_name), new_path) else 'FAIL'
 
+        if fid == '13':
+            heading_info(page)
         if fid in ('08', '09'):
             info_prints(page, fid)
     except LabelNotFound as e:
@@ -388,7 +421,7 @@ def run_tuck_scenario(browser):
         page.wait_for_timeout(200)
 
         # a) nothing typed: today's values, box says auto
-        check('a) .L made/daylight with nothing typed', read_pane(page, '.L') == start, '%s (want %s)' % (read_pane(page, '.L'), start))
+        check('a) .L sash/leaf size and daylight with nothing typed', read_pane(page, '.L') == start, '%s (want %s)' % (read_pane(page, '.L'), start))
         check('a) left tuck-in box is marked auto', 'auto' in tuck_label(page, 'left'),
               '"%s", shows %s' % (tuck_label(page, 'left'), page.locator('#tuckInInput-left').input_value()))
 
@@ -447,7 +480,7 @@ def run_tuck_scenario(browser):
               'box shows %s' % page.locator('#sashEdgeInput-left').input_value())
 
         # h) typed left tuck-in 0 lets the left sash go to 0. Expected numbers are Claude's arithmetic,
-        # not hand values: made = 900 drawn + 0 left + 20 right = 920; daylight = 920 - 0 (left sash)
+        # not hand values: sash/leaf size = 900 drawn + 0 left + 20 right = 920; daylight = 920 - 0 (left sash)
         # - 40 (right sash) = 880 wide, and 2020 - 40 - 40 = 1940 high.
         sash_zero = ('920 x 2020', '880 x 1940')
         set_number(page, '#tuckInInput-left', 0)
@@ -456,18 +489,18 @@ def run_tuck_scenario(browser):
         page.wait_for_timeout(200)
         check('h) left sash 0 accepted', page.locator('#sashEdgeInput-left').input_value() == '0',
               'box shows %s, "%s"' % (page.locator('#sashEdgeInput-left').input_value(), tuck_error_text(page)))
-        check('h) .L made/daylight with left tuck-in 0 and left sash 0', read_pane(page, '.L') == sash_zero,
+        check('h) .L sash/leaf size and daylight with left tuck-in 0 and left sash 0', read_pane(page, '.L') == sash_zero,
               '%s (want %s)' % (read_pane(page, '.L'), sash_zero))
 
-        # i) the left Tuck-in box shows 0 and the Made size column agrees with it
+        # i) the left Tuck-in box shows 0 and the Sash/Leaf size column agrees with it
         check('i) left tuck-in box shows 0', page.locator('#tuckInInput-left').input_value() == '0',
               'shows %s' % page.locator('#tuckInInput-left').input_value())
-        check('i) made size agrees with the box', read_pane(page, '.L')[0] == sash_zero[0], str(read_pane(page, '.L')))
+        check('i) sash/leaf size agrees with the box', read_pane(page, '.L')[0] == sash_zero[0], str(read_pane(page, '.L')))
 
-        # j) reset with the left sash still 0: the cap holds the tuck-in at 0, so made stays 920 x 2020
+        # j) reset with the left sash still 0: the cap holds the tuck-in at 0, so sash/leaf size stays 920 x 2020
         click_button(page, 'Reset tuck-ins to automatic')
         page.wait_for_timeout(200)
-        check('j) after reset with left sash 0, made stays 920 x 2020', read_pane(page, '.L') == sash_zero,
+        check('j) after reset with left sash 0, sash/leaf size stays 920 x 2020', read_pane(page, '.L') == sash_zero,
               '%s (want %s)' % (read_pane(page, '.L'), sash_zero))
         check('j) left tuck-in box still shows 0', page.locator('#tuckInInput-left').input_value() == '0')
 
