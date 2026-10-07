@@ -37,6 +37,13 @@ FILES = [
     ('09', 'safety_net_v6_09_sashless_double_hung_1020.json',
      {'.S': ('1680 x 1020', '1650 x 1020'), '.R': ('1680 x 1020', '1650 x 1020')}, False),
 ]
+# File 14 (no outer frame, two sliders beside a mullion). The expected numbers are Claude's
+# arithmetic, NOT hand values: no frame means the opening is the full 1800 x 2100; mullion
+# centre 980, thickness 40, so .L is 960 wide and .R is 800 wide, both 2100 high; sash edges 40.
+# (An earlier draft said 780 for .R; that was the framed file 13 value, corrected by Sahil.)
+FILE_14_BEFORE = ('14', 'safety_net_v6_14_no_frame_two_sliders_mullion_BEFORE_5c2.json',
+                  {'.L': ('960 x 2100', '880 x 2020'), '.R': ('800 x 2100', '720 x 2020')}, False)
+FILES.append(FILE_14_BEFORE)
 NOTE_TEXT = '* Sashless: capping deduction not applied yet.'
 
 fallback_used = []   # (file, what) pairs where a page function replaced a real click
@@ -177,6 +184,14 @@ def recipe_13(page, fid):
     select_pane(page, 1, fid); click_window_sash_type(page, 'Horizontal slider')
 
 
+def recipe_14(page, fid):
+    # same as recipe_13 minus add_frame: no outer frame
+    set_overall(page, 1800, 2100)
+    add_mullion(page, fid)
+    select_pane(page, 0, fid); click_window_sash_type(page, 'Horizontal slider')
+    select_pane(page, 1, fid); click_window_sash_type(page, 'Horizontal slider')
+
+
 def recipe_11(page, fid):
     set_overall(page, 1680, 1980)
     select_pane(page, 0, fid)
@@ -216,7 +231,7 @@ def recipe_09(page, fid):
     click_button(page, 'Confirm preset')
 
 
-RECIPES = {'13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09}
+RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09}
 
 
 # ---------------------------------------------------------------- reading and checking
