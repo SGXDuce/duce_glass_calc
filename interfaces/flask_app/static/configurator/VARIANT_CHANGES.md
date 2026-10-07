@@ -255,6 +255,42 @@ entries are applied there at the end of this project.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
   not installed, so no syntax check; verified with tools/ui_regression.py.
 
+### Step 5c-2: no-frame sliders tuck into a mullion
+
+- The rule: a sash slides behind a mullion whether or not the elevation has
+  an outer frame. So a slider with no outer frame now gets an automatic
+  tuck-in of 20 mm (half of `FRAME_TUCKIN_MM`) at a real mullion edge, left
+  and right only. A typed value follows the same gate: allowed (and the box
+  enabled) at a mullion edge with no frame, still forced to 0 at an opening
+  edge with no frame.
+- What stays 0: an opening edge with no frame (nothing to slide behind), top
+  and bottom with no frame (a transom is still never tested), sashless
+  sliders (their own constant is 0), and a silicone-joint edge. Framed
+  systems do not change at all.
+- Code: new `noFrameBlocksTuckIn`; `autoTuckInMM` and `uncappedTuckInMM` use
+  it instead of testing `hasFrame` on its own, and so does the disabled test
+  in `appendTuckInRow` (its title now says "an opening edge with no outer
+  frame"). The existing blocking rules still apply: cap by the sash width,
+  mullion edge capped at half the mullion thickness, sash cannot be narrowed
+  below the tuck-in.
+- New safety-net files (exports made by tools/ui_regression.py, layout:
+  1800 x 2100, no outer frame, mullion at 980 thickness 40, both panes
+  horizontal sliders): `safety_net_v6_14_no_frame_two_sliders_mullion_BEFORE_5c2.json`
+  (today's rule: .L 960 x 2100, .R 800 x 2100) and
+  `safety_net_v6_14_no_frame_two_sliders_mullion_AFTER_5c2.json` (.L 980 x
+  2100, .R 820 x 2100). The expected numbers are Claude's arithmetic, not
+  hand values.
+- Numbers that change: only a no-frame lone slider beside a real mullion.
+  None of the 13 earlier safety-net files has one. Between the BEFORE and
+  AFTER files the system differences are the two sliders' `widthMM`,
+  `areaM2` and `visibleGlazedAreaM2`, the right slider's `xMM` (1000 to
+  980, it now starts 20 mm further left), and `frameLengthMM` /
+  `totalFrameLengthMM` (14020 to 14100, the two sliders are 40 mm wider in
+  total, counted on top and bottom).
+- No export field or schema change; `schemaVersion` stays 6.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+  not installed, so no syntax check; verified with tools/ui_regression.py.
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes

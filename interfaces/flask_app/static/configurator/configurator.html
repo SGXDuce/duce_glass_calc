@@ -1086,26 +1086,37 @@ function typedTuckInMM(node, edge) {
   return (typeof v === 'number' && Number.isFinite(v) && v >= 0) ? v : null;
 }
 
+// Step 5c-2: a sash slides behind a mullion whether or not there is an outer frame. With no outer
+// frame, an opening edge has nothing to slide behind, so only a real mullion edge (left/right
+// only) can still hold a tuck-in. A transom (top/bottom) is never tested.
+function noFrameBlocksTuckIn(edge, edgeKind, ev) {
+  if (ev.hasFrame) return false;
+  return !((edge === 'left' || edge === 'right') && edgeKind === 'mullion');
+}
+
 // The automatic tuck-in for one edge: half of the full jamb (left/right) or head/sill (top/bottom)
 // allowance, only where the edge sits against the outer frame (or, left/right only, a real
-// mullion). No outer frame means no tuck-in at all; a sashless pane uses its own smaller figures.
+// mullion). With no outer frame only a real mullion edge tucks in (not for a sashless pane); an
+// opening edge stays 0. A sashless pane uses its own smaller figures.
 function autoTuckInMM(node, edge, edgeKind, ev) {
   const sashless = node.sashless === true;
   const sideways = edge === 'left' || edge === 'right';
-  const full = sideways
-    ? (ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0)
-    : ((ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0);
+  const full = noFrameBlocksTuckIn(edge, edgeKind, ev) || (!ev.hasFrame && sashless)
+    ? 0
+    : (sideways
+      ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM)
+      : ((ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0));
   const touches = sideways ? (edgeKind === 'frame' || edgeKind === 'mullion') : edgeKind === 'frame';
   return touches ? full / 2 : 0;
 }
 
 // The tuck-in this edge would have if its sash were wide enough: the typed value if there is one,
-// otherwise the automatic one. A typed value is still forced to 0 where nothing can tuck in: no
-// outer frame, a sashless pane, or a silicone-joint edge.
+// otherwise the automatic one. A typed value is still forced to 0 where nothing can tuck in: an
+// opening edge with no outer frame (a mullion edge is fine), a sashless pane, or a silicone-joint edge.
 function uncappedTuckInMM(node, edge, edgeKind, ev) {
   const typed = typedTuckInMM(node, edge);
   if (typed === null) return autoTuckInMM(node, edge, edgeKind, ev);
-  if (!ev.hasFrame || node.sashless === true || node[SASH_EDGE_FIELD[edge].lockedField]) return 0;
+  if (noFrameBlocksTuckIn(edge, edgeKind, ev) || node.sashless === true || node[SASH_EDGE_FIELD[edge].lockedField]) return 0;
   return typed;
 }
 
@@ -3362,7 +3373,7 @@ function appendTuckInRow(bar, node, ev) {
 
   TUCK_EDGES.forEach(edge => {
     const typed = typedTuckInMM(node, edge);
-    const disabled = !!node[SASH_EDGE_FIELD[edge].lockedField] || sashes[edge] === 0 || !ev.hasFrame;
+    const disabled = !!node[SASH_EDGE_FIELD[edge].lockedField] || sashes[edge] === 0 || noFrameBlocksTuckIn(edge, kinds[edge], ev);
     const shown = disabled ? 0 : effectiveTuckInMM(node, edge, kinds[edge], ev);
     const wrap = document.createElement('span');
     wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
@@ -3376,7 +3387,7 @@ function appendTuckInRow(bar, node, ev) {
     input.value = shown;
     input.disabled = disabled;
     input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
-    if (disabled) input.title = 'No tuck-in here: silicone joint, no sash on this edge, or no outer frame.';
+    if (disabled) input.title = 'No tuck-in here: silicone joint, no sash on this edge, or an opening edge with no outer frame (nothing to slide behind).';
     input.addEventListener('change', () => {
       let mullionThickness = null;
       if (kinds[edge] === 'mullion') {
