@@ -243,6 +243,18 @@ entries are applied there at the end of this project.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
   not installed, so no syntax check; verified with tools/ui_regression.py.
 
+### Rename: "Made size (mm)" column heading is now "Sash/Leaf size (mm)"
+
+- Display only. The Assigned panes table heading changed from "Made size (mm)"
+  to "Sash/Leaf size (mm)" (label decided by Sahil). The cells, the numbers
+  and the column position are unchanged.
+- Unchanged: the function names (`madeSizeCellText` and the others), the
+  export fields `widthMM` / `heightMM`, every calculation, and
+  `schemaVersion` (stays 6).
+- The word "made" in earlier entries of this log is kept as history.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+  not installed, so no syntax check; verified with tools/ui_regression.py.
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes

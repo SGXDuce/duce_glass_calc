@@ -137,7 +137,7 @@
 
 <h2>Assigned panes (feeds the compliance calc, one row per pane)</h2>
 <table>
-  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash T / B / L / R (mm)</th><th>Made size (mm)</th><th>Daylight size (mm)</th></tr></thead>
+  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash T / B / L / R (mm)</th><th>Sash/Leaf size (mm)</th><th>Daylight size (mm)</th></tr></thead>
   <tbody id="paneTable"></tbody>
   <tfoot><tr><td>Total</td><td></td><td></td><td></td><td id="totalPanes"></td><td id="totalArea"></td><td id="totalGlazedArea"></td><td></td><td></td><td></td></tr></tfoot>
 </table>
@@ -5409,7 +5409,7 @@ function sashCellText(node) {
   return edges.top + ' / ' + edges.bottom + ' / ' + edges.left + ' / ' + edges.right;
 }
 
-// Step 5b: made size and daylight size columns. Display only — both read the active elevation's
+// Step 5b: sash/leaf size (shown as 'Sash/Leaf size') and daylight size columns. Display only — both read the active elevation's
 // export result (buildExportElevation, a pure read), so the table shows the same numbers the
 // export carries. Nothing here feeds back into the export or any correction function.
 //
@@ -5442,8 +5442,8 @@ function madeSizeCellText(pane) {
   return formatSizeMM(pane.widthMM) + ' × ' + formatSizeMM(pane.heightMM);
 }
 
-// Daylight = made size less the sash edges on each side, using the export's own sash edge values.
-// A fixed pane has sash edges of 0 in the export, so its daylight equals its made size (known
+// Daylight = sash/leaf size (shown as 'Sash/Leaf size') less the sash edges on each side, using the export's own sash edge values.
+// A fixed pane has sash edges of 0 in the export, so its daylight equals its sash/leaf size (known
 // issue, fixed in step 5d). Sashless panes keep their stored capping edges in the same field,
 // so their daylight deducts those edges like every other pane.
 function daylightSizeCellText(pane) {
