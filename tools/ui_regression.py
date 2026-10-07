@@ -653,12 +653,107 @@ def run_no_frame_mullion_scenario(browser):
         ctx.close()
     return ok and clean
 
+# ---------------------------------------------------------------- preset slide-direction lock
+
+LOCK_TIP = 'Slide direction is set by the preset pattern. Choose a different preset to change it.'
+
+
+def dir_select(page):
+    """The horizontal-slider 'Slide direction' select in the toolbar (options left/right), or None."""
+    sel = page.locator('#toolbar select:has(option[value=left]):has(option[value=right])')
+    return sel.first if sel.count() else None
+
+
+def run_dirlock_scenario(browser):
+    """Slide direction is locked inside OX-family presets, and free everywhere else (preset direction lock)."""
+    print('\n=== Preset slide-direction lock scenario ===')
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def fresh():
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+
+    def describe(sel):
+        return 'none' if sel is None else 'disabled=%s value=%s title="%s"' % (sel.is_disabled(), sel.input_value(), sel.get_attribute('title'))
+
+    try:
+        # a) file 07 layout: the X (.S) is locked
+        fresh(); recipe_07(page, '07')
+        select_pane(page, 1, '07'); page.wait_for_timeout(200)
+        sel = dir_select(page)
+        check('a) file 07 X (.S) select exists, disabled, value left, tooltip', sel is not None and sel.is_disabled()
+              and sel.input_value() == 'left' and sel.get_attribute('title') == LOCK_TIP, describe(sel))
+        # b) the O (.R) is fixed: no slide-direction select
+        select_pane(page, 0, '07'); page.wait_for_timeout(200)
+        sel = dir_select(page)
+        check('b) file 07 O (.R) shows no slide-direction select', sel is None, describe(sel))
+
+        # c) OXXO-win framed 1800 x 2100, prefilled widths
+        fresh()
+        set_overall(page, 1800, 2100)
+        add_frame(page)
+        select_pane(page, 0, 'dirlock')
+        click_button(page, 'Apply assembly preset')
+        pick_preset(page, 'Sliding windows', 'OXXO')
+        click_button(page, 'Confirm preset')
+        page.wait_for_timeout(300)
+        n = page.locator('#diagram .pane').count()
+        check('c) OXXO builds 4 panes', n == 4, 'panes=%d' % n)
+        for idx, want in ((1, 'left'), (2, 'right')):
+            select_pane(page, idx, 'dirlock'); page.wait_for_timeout(200)
+            sel = dir_select(page)
+            check('c) OXXO pane %d select disabled, value %s, tooltip' % (idx, want), sel is not None and sel.is_disabled()
+                  and sel.input_value() == want and sel.get_attribute('title') == LOCK_TIP, describe(sel))
+
+        # d) file 13 layout (lone sliders): .L select enabled and changeable; export matches file 13 once back on left
+        fresh(); recipe_13(page, '13')
+        select_pane(page, 0, '13'); page.wait_for_timeout(200)
+        sel = dir_select(page)
+        check('d) file 13 .L select exists and is enabled', sel is not None and sel.is_enabled(), describe(sel))
+        sel.select_option('right'); page.wait_for_timeout(300)
+        check('d) .L changed to right', dir_select(page).input_value() == 'right', describe(dir_select(page)))
+        changed = export_text(page, 'dirlock_d_right.json')
+        saved13 = os.path.join(SAFETY_DIR, FILES[0][1])
+        print('  compare, .L set to right (expect only .L slideDirection to differ):')
+        run_compare(saved13, changed)
+        dir_select(page).select_option('left'); page.wait_for_timeout(300)
+        back = export_text(page, 'dirlock_d_left.json')
+        check('d) .L set back to left: system block matches saved file 13', run_compare(saved13, back))
+
+        # e) file 09 layout (sashless double-hung): the vertical selects are not locked
+        fresh(); recipe_09(page, '09')
+        for idx in (0, 1):
+            select_pane(page, idx, '09'); page.wait_for_timeout(200)
+            sel = page.locator('#toolbar select:has(option[value=up]):has(option[value=down])')
+            check('e) file 09 pane %d select exists and is enabled' % idx, sel.count() == 1 and sel.first.is_enabled(),
+                  'count=%d, enabled=%s' % (sel.count(), sel.first.is_enabled() if sel.count() else None))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
 
 def main():
     proc = None
     results = {}
     tuck_ok = False
     nf_ok = False
+    dl_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -668,6 +763,7 @@ def main():
                 results[fid] = run_file(browser, fid, saved_name, expected, expect_note)
             tuck_ok = run_tuck_scenario(browser)
             nf_ok = run_no_frame_mullion_scenario(browser)
+            dl_ok = run_dirlock_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -680,9 +776,10 @@ def main():
         print('%-6s %-8s %-8s %-8s' % (fid, r['table'], r['console'], r['export']))
     print('%-6s %s' % ('tuck', 'PASS' if tuck_ok else 'FAIL'))
     print('%-6s %s' % ('nofr', 'PASS' if nf_ok else 'FAIL'))
+    print('%-6s %s' % ('dirlock', 'PASS' if dl_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
