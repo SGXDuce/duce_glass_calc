@@ -137,9 +137,9 @@
 
 <h2>Assigned panes (feeds the compliance calc, one row per pane)</h2>
 <table>
-  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash T / B / L / R (mm)</th></tr></thead>
+  <thead><tr><th>Pane</th><th>Class</th><th>Type</th><th>Width (mm)</th><th>Height (mm)</th><th>Area (m²)</th><th>Visible glazed area (m²)</th><th>Sash T / B / L / R (mm)</th><th>Made size (mm)</th><th>Daylight size (mm)</th></tr></thead>
   <tbody id="paneTable"></tbody>
-  <tfoot><tr><td>Total</td><td></td><td></td><td></td><td id="totalPanes"></td><td id="totalArea"></td><td id="totalGlazedArea"></td><td></td></tr></tfoot>
+  <tfoot><tr><td>Total</td><td></td><td></td><td></td><td id="totalPanes"></td><td id="totalArea"></td><td id="totalGlazedArea"></td><td></td><td></td><td></td></tr></tfoot>
 </table>
 <div class="warn-line" id="emptyWarning"></div>
 <!-- Batch 40 — export-blocking errors (cross-elevation pane mismatch) show HERE, right next to the
@@ -5233,6 +5233,51 @@ function sashCellText(node) {
   return edges.top + ' / ' + edges.bottom + ' / ' + edges.left + ' / ' + edges.right;
 }
 
+// Step 5b: made size and daylight size columns. Display only — both read the active elevation's
+// export result (buildExportElevation, a pure read), so the table shows the same numbers the
+// export carries. Nothing here feeds back into the export or any correction function.
+//
+// Returns a Map of pane id -> exported pane for the active elevation, or null when the export
+// can't be built (a cross-elevation mismatch, or a throw such as a stale sliding-assembly
+// marker). Placeholder behaviour: the caller then shows a dash in the two new columns and adds
+// no error message of its own.
+function getActiveExportPaneMap() {
+  try {
+    const links = computeCrossElevationLinks();
+    if (!links.ok) return null;
+    const exported = buildExportElevation(activeElevation(), activeElevationIndex, links.linksByElevation[activeElevationIndex]);
+    if (!exported || !Array.isArray(exported.panes)) return null;
+    const byId = new Map();
+    exported.panes.forEach(p => byId.set(p.id, p));
+    return byId;
+  } catch (e) {
+    return null;
+  }
+}
+
+// A size as the export gives it: whole mm stays whole, anything else is trimmed to two decimals
+// (only to hide floating-point noise — the export itself is not rounded).
+function formatSizeMM(value) {
+  return String(Number(value.toFixed(2)));
+}
+
+function madeSizeCellText(pane) {
+  if (!pane) return '—';
+  return formatSizeMM(pane.widthMM) + ' × ' + formatSizeMM(pane.heightMM);
+}
+
+// Daylight = made size less the sash edges on each side, using the export's own sash edge values.
+// A fixed pane has sash edges of 0 in the export, so its daylight equals its made size (known
+// issue, fixed in step 5d). Sashless panes keep their stored capping edges in the same field,
+// so their daylight deducts those edges like every other pane.
+function daylightSizeCellText(pane) {
+  if (!pane) return '—';
+  const e = pane.sashEdgesMM;
+  const w = pane.widthMM - e.left - e.right;
+  const h = pane.heightMM - e.top - e.bottom;
+  return formatSizeMM(w) + ' × ' + formatSizeMM(h);
+}
+
 function renderTable(leaves) {
   const tbody = document.getElementById('paneTable');
   tbody.innerHTML = '';
@@ -5240,6 +5285,7 @@ function renderTable(leaves) {
   let totalGlazedArea = 0;
   let filledCount = 0;
   let emptyCount = 0;
+  const exportPanes = getActiveExportPaneMap();
   leaves.forEach(l => {
     if (l.node.kind !== 'filled') { emptyCount++; return; }
     filledCount++;
@@ -5247,6 +5293,7 @@ function renderTable(leaves) {
     totalArea += areaM2;
     const glazedM2 = glazedAreaM2(l);
     totalGlazedArea += glazedM2;
+    const exportPane = exportPanes ? exportPanes.get(l.label) : null;
     const row = document.createElement('tr');
     row.innerHTML =
       '<td>' + l.label + '</td>' +
@@ -5256,7 +5303,9 @@ function renderTable(leaves) {
       '<td>' + Math.round(l.h) + '</td>' +
       '<td>' + areaM2.toFixed(2) + '</td>' +
       '<td>' + glazedM2.toFixed(2) + '</td>' +
-      '<td>' + sashCellText(l.node) + '</td>';
+      '<td>' + sashCellText(l.node) + '</td>' +
+      '<td>' + madeSizeCellText(exportPane) + '</td>' +
+      '<td>' + daylightSizeCellText(exportPane) + '</td>';
     tbody.appendChild(row);
   });
   document.getElementById('totalPanes').textContent = filledCount + ' panes';

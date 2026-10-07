@@ -137,6 +137,45 @@ entries are applied there at the end of this project.
   Console; five rebuilt exports (files 01, 02, 10, 11, 13) compared with
   compare_full.py show an identical system block in all five.
 
+- **Step 5b:** added two display-only columns to the Configurator's pane
+  table, "Made size (mm)" and "Daylight size (mm)" (width x height). New
+  functions: `getActiveExportPaneMap`, `formatSizeMM`, `madeSizeCellText`,
+  `daylightSizeCellText`; `renderTable` and the table heading/footer changed. Both
+  columns read the active elevation's `buildExportElevation` result (a pure
+  read): made size is the pane's `widthMM` x `heightMM`, daylight is those
+  less the same `sashEdgesMM` values the export carries. The export, every
+  correction function, every tuck-in constant and `schemaVersion` (stays 6)
+  are untouched.
+  - Daylight for fixed panes is KNOWN WRONG until step 5d: the export gives
+    fixed panes sash edges of 0, so their daylight equals their made size.
+    DECIDED BY SAHIL: left as is for now.
+  - Sashless panes keep their stored capping edges, and their daylight
+    deducts them like every other pane: 15 mm per capped edge. This matches
+    the existing "Visible glazed area" column (checked by Claude's arithmetic
+    against that column for files 08 and 09; not hand-verified by Sahil). No asterisk and no note
+    under the table.
+  - The table's older "Area" and "Visible glazed area" columns use the drawn
+    leaf size and are display only: nothing outside `renderTable` reads them
+    (REPORTED BY CLAUDE CODE).
+  - The export computes its own `areaM2` from the made size and its
+    `visibleGlazedAreaM2` from the made size less the sash edges, the same
+    basis as the Daylight column (`buildExportElevation`, about lines
+    6213-6214; REPORTED BY CLAUDE CODE). Example: file 13 .L table glazed
+    1.56 m2 vs export and Daylight 860 x 1940 = 1.67 m2.
+  - OPEN ITEM: not traced whether the compliance calc or System check reads
+    the export's `areaM2` (made size, not daylight) or its
+    `visibleGlazedAreaM2`. This matters for the 30 September 2026 decision
+    that daylight is the basis for span, aspect ratio and area (DECIDED BY
+    SAHIL).
+  - Failure fallback is a PLACEHOLDER (Sahil will revisit): if the export
+    cannot be built for the current system (cross-elevation mismatch or a
+    throw), both new columns show "—", every other column still works and no
+    new error message is added.
+  - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+    not installed on Claude Code's machine, so no syntax check was done. The
+    page was run in a browser test with tools/ui_regression.py (headless
+    Chromium, REPORTED BY CLAUDE CODE).
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes
