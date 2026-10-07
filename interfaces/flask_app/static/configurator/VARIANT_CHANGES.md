@@ -341,3 +341,33 @@ Open, not decided:
   also uses FRAME_TUCKIN_MM, so the double-hung head/sill tuck-in sits in
   the overlap and not in the correction functions. The line numbers are
   in summary v1.48 item G.
+
+## Preset slide-direction lock
+
+- What changed: inside a sliding-window or sliding-door assembly preset (the
+  OX family: OX, OXX, OXXO, XOX, OXXX, OXXXX, OXXXXX, window and door ids),
+  the "Slide direction" dropdown on a horizontal slider is shown disabled,
+  still displaying the current value, with the tooltip "Slide direction is
+  set by the preset pattern. Choose a different preset to change it."
+- The rule behind it (DECIDED BY SAHIL): where two X sashes meet, sliding
+  the same way = overlap, sliding apart = butt, sliding towards each other
+  = overlap (see the decision below).
+- The decision to lock (DECIDED BY SAHIL): the preset code sets each join
+  type from the pattern when the preset is built and never reads the
+  dropdown, so changing a direction afterwards would leave the export
+  silently wrong. Inside a sliding preset the directions stay as built; to
+  get a different arrangement the user picks a different preset.
+- Not locked: lone sliders, manually built sliders, and double-hung
+  vertical sliders. Finding for double-hung (REPORTED BY CLAUDE CODE, tested
+  in the harness on the file 09 layout, not committed): flipping a
+  double-hung direction changes only that pane's slideDirection field (one
+  system difference, plus the matching rawState fields and the arrow in the
+  drawing). No size, overlap or other number changes.
+- DECIDED BY SAHIL (8 October 2026): sashes sliding towards each other
+  overlap. The full rule is now: same direction = overlap, sliding apart =
+  butt, sliding towards each other = overlap. The preset lock means no
+  preset can reach the towards-each-other case today; it only matters if
+  the dropdown is ever made to rebuild the joins.
+- No numbers change. No stored data is rewritten, old saved designs are
+  untouched, schemaVersion stays 6.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).

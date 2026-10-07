@@ -3121,6 +3121,18 @@ function renderToolbar() {
         if ((node.slideDirection || 'left') === dir) opt.selected = true;
         select.appendChild(opt);
       });
+      // Preset slide-direction lock: inside a sliding (OX-family) window or door preset, each
+      // join between two X sashes (overlap or butt) was fixed from the pattern when the preset
+      // was built and is never re-read from this dropdown, so changing the direction afterwards
+      // would leave the export silently wrong. The dropdown is shown but disabled; to get a
+      // different arrangement the user picks a different preset. Lone and manually built
+      // sliders (no sliding preset around them) are unchanged. Double-hung is a different
+      // family and is not locked. No stored data changes.
+      const presetAnc = findAssemblyPresetAncestor(ev.selected.path);
+      if (presetAnc && isSlidingOverlapId(presetAnc.assemblyPresetRef.id || presetAnc.assemblyPresetRef.pattern, presetAnc.assemblyPresetRef.pattern)) {
+        select.disabled = true;
+        select.title = 'Slide direction is set by the preset pattern. Choose a different preset to change it.';
+      }
       select.addEventListener('change', () => {
         setNode(ev.selected.path, { ...node, slideDirection: select.value });
         render();
