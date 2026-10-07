@@ -1069,16 +1069,103 @@ function withSashEdgeMM(node, edge, mm) {
   return next;
 }
 
+// Step 5c-1: per-edge tuck-in for LONE and MANUALLY SPLIT sliders. Tuck-in is how far the sliding
+// sash runs behind the frame or mullion, so the made size is larger than the drawn size by that
+// amount on that edge. null/missing = automatic (the fixed rule in autoTuckInMM below); a number
+// (0 or more) = typed by the user. The four fields live on the filled leaf and are saved/restored
+// with the rest of the tree; they have no effect on anything but sliders.
+const TUCK_EDGE_FIELD = { top: 'tuckTopMM', bottom: 'tuckBottomMM', left: 'tuckLeftMM', right: 'tuckRightMM' };
+const TUCK_EDGES = ['top', 'bottom', 'left', 'right'];
+
+function isTuckInSlider(node) {
+  return !!node && (node.type === 'horizontal-slider' || node.type === 'vertical-slider');
+}
+
+function typedTuckInMM(node, edge) {
+  const v = node[TUCK_EDGE_FIELD[edge]];
+  return (typeof v === 'number' && Number.isFinite(v) && v >= 0) ? v : null;
+}
+
+// The automatic tuck-in for one edge: half of the full jamb (left/right) or head/sill (top/bottom)
+// allowance, only where the edge sits against the outer frame (or, left/right only, a real
+// mullion). No outer frame means no tuck-in at all; a sashless pane uses its own smaller figures.
+function autoTuckInMM(node, edge, edgeKind, ev) {
+  const sashless = node.sashless === true;
+  const sideways = edge === 'left' || edge === 'right';
+  const full = sideways
+    ? (ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0)
+    : ((ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0);
+  const touches = sideways ? (edgeKind === 'frame' || edgeKind === 'mullion') : edgeKind === 'frame';
+  return touches ? full / 2 : 0;
+}
+
+// The tuck-in this edge would have if its sash were wide enough: the typed value if there is one,
+// otherwise the automatic one. A typed value is still forced to 0 where nothing can tuck in: no
+// outer frame, a sashless pane, or a silicone-joint edge.
+function uncappedTuckInMM(node, edge, edgeKind, ev) {
+  const typed = typedTuckInMM(node, edge);
+  if (typed === null) return autoTuckInMM(node, edge, edgeKind, ev);
+  if (!ev.hasFrame || node.sashless === true || node[SASH_EDGE_FIELD[edge].lockedField]) return 0;
+  return typed;
+}
+
+// The tuck-in that actually applies to a leaf edge. The tuck-in is the part of the sash that
+// slides behind the frame or mullion, so it has to fit inside the sash: it can never be more than
+// the sash width on that edge, whether it is automatic or typed. A sash set to 0 therefore
+// tucks in 0, and the table, the export and the Tuck-in box all agree.
+function effectiveTuckInMM(node, edge, edgeKind, ev) {
+  return Math.min(uncappedTuckInMM(node, edge, edgeKind, ev), getSashEdges(node)[edge]);
+}
+
+// For the sash box check: the tuck-in on the selected leaf's edge before the sash-width cap (what
+// the Tuck-in box would show if the sash were wide enough). 0 for anything that has no tuck-in
+// row: a non-slider, a sashless pane, or a pane under an assembly-preset marker.
+function selectedEdgeTuckInMM(node, edge, ev) {
+  if (!isTuckInSlider(node) || node.sashless === true) return 0;
+  const path = ev.selected.path;
+  if (findAssemblyPresetAncestor(path)) return 0;
+  const m = getMembers(ev);
+  const openingW = getOpeningW(getOverallW(), m);
+  const openingH = getOpeningH(getOverallH(), m);
+  const leaves = [];
+  collectExportGeometry(ev.root, 0, 0, openingW, openingH, [], leaves, [], []);
+  const leaf = leaves.find(l => pathKey(l.path) === pathKey(path));
+  if (!leaf) return 0;
+  const kinds = classifyLeafEdges(leaf, ev, openingW, openingH);
+  return uncappedTuckInMM(node, edge, kinds[edge], ev);
+}
+
+// Validation for a typed tuck-in box. Returns null when fine, or a one-line reason. The tuck-in
+// cannot be wider than the sash on that edge; at a mullion edge it is also capped at half the
+// mullion thickness (mullionThicknessMM is null for any other kind of edge).
+function validateTuckInMM(rawValue, edge, node, mullionThicknessMM) {
+  const trimmed = String(rawValue).trim();
+  const mm = Number(trimmed);
+  if (trimmed === '' || !Number.isFinite(mm) || mm < 0) return 'Tuck-in must be a number, 0 or more.';
+  const sash = getSashEdges(node)[edge];
+  if (mm > sash) return 'Tuck-in cannot be more than the ' + edge + ' sash width (' + sash + ' mm).';
+  if (mullionThicknessMM != null && mm > mullionThicknessMM / 2) {
+    return 'Tuck-in at a mullion cannot be more than half the mullion thickness (' + (mullionThicknessMM / 2) + ' mm).';
+  }
+  return null;
+}
+
 // Step 4b validation for a single sash edge box. Returns null when the value is acceptable,
 // or a short plain-language message when it is not. leafW/leafH are the same leaf width/height
 // glazedAreaM2() uses, so the glazed opening (pane size minus the sash on each side) can never
 // be validated down to zero or less.
-function validateSashEdgeMM(rawValue, edge, node, leafW, leafH) {
+function validateSashEdgeMM(rawValue, edge, node, leafW, leafH, tuckInMM) {
   const trimmed = String(rawValue).trim();
   if (trimmed === '') return 'Sash edge must be a number, 0 or more.';
   const mm = Number(trimmed);
   if (!Number.isFinite(mm)) return 'Sash edge must be a number, 0 or more.';
   if (mm < 0) return 'Sash edge must be a number, 0 or more.';
+  // Step 5c-1: the tuck-in is the part of the sash that slides behind the frame, so the sash
+  // cannot be made narrower than the tuck-in on that edge, automatic or typed. tuckInMM is the
+  // selected slider edge's uncapped tuck-in (0 or omitted when no tuck-in applies).
+  if (tuckInMM > 0 && mm < tuckInMM) {
+    return 'Sash edge cannot be less than its tuck-in (' + tuckInMM + ' mm) - lower the tuck-in first.';
+  }
   const edges = getSashEdges(node);
   if (edge === 'left' || edge === 'right') {
     const otherMM = edge === 'left' ? edges.right : edges.left;
@@ -2921,6 +3008,14 @@ function renderToolbar() {
       if (node.sashBottomLocked) newNode.sashBottomLocked = true;
       if (node.sashLeftLocked) newNode.sashLeftLocked = true;
       if (node.sashRightLocked) newNode.sashRightLocked = true;
+      // Step 5c-1: typed tuck-ins travel with the sash values. They only ever take effect on a
+      // slider (computeLoneSlidingLeafCorrections and the tuck-in boxes both check the type), so
+      // keeping them on a pane that is temporarily another type is harmless, and switching back
+      // to a slider restores what the user typed.
+      TUCK_EDGES.forEach(e => {
+        const f = TUCK_EDGE_FIELD[e];
+        if (node[f] != null) newNode[f] = node[f];
+      });
       // Every call site passes an explicit hingeEdge for type:'hinged' ('left' for the door
       // and window "Hinged" buttons, 'top' for "Awning"); hingedDoorAncestor still wins when
       // set, since a hinged child of a hinged door panel is only ever the awning case.
@@ -3145,7 +3240,7 @@ function renderToolbar() {
         }
       });
       input.addEventListener('change', () => {
-        const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0);
+        const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0, selectedEdgeTuckInMM(node, edge, ev));
         if (err) {
           input.value = locked ? 0 : edges[edge];
           sashErrDiv.textContent = err;
@@ -3181,6 +3276,7 @@ function renderToolbar() {
     });
     bar.appendChild(row5);
     bar.appendChild(sashErrDiv);
+    appendTuckInRow(bar, node, ev);
   }
 
   // Item 2 (batch 5): louvre blade width/length — stored inputs for the AS 1288 blade-envelope
@@ -3237,6 +3333,86 @@ function renderToolbar() {
 // split's own bar/mullion is selected directly (checked at each call site, since
 // findAssemblyPresetAncestor only ever matches strict ancestors, same contract as
 // findHingedDoorAncestor).
+// Step 5c-1: the per-edge tuck-in row under the sash boxes. Shown only for a lone or manually
+// split slider (not under an assembly-preset marker). Each box shows the effective value and an
+// "auto" tag while it is automatic; a rejected entry snaps back with a one-line reason.
+function appendTuckInRow(bar, node, ev) {
+  if (!isTuckInSlider(node) || node.sashless === true) return;
+  const path = ev.selected.path;
+  if (findAssemblyPresetAncestor(path)) return;
+  const m = getMembers(ev);
+  const openingW = getOpeningW(getOverallW(), m);
+  const openingH = getOpeningH(getOverallH(), m);
+  const leaves = [];
+  collectExportGeometry(ev.root, 0, 0, openingW, openingH, [], leaves, [], []);
+  const leaf = leaves.find(l => pathKey(l.path) === pathKey(path));
+  if (!leaf) return;
+  const kinds = classifyLeafEdges(leaf, ev, openingW, openingH);
+  const sashes = getSashEdges(node);
+
+  const row = document.createElement('div');
+  row.className = 'toolbar-row';
+  const label = document.createElement('span');
+  label.style.fontSize = '12px';
+  label.style.color = 'var(--text-dim)';
+  label.textContent = 'Tuck-in (mm)';
+  row.appendChild(label);
+  const errDiv = document.createElement('div');
+  errDiv.className = 'field-error';
+
+  TUCK_EDGES.forEach(edge => {
+    const typed = typedTuckInMM(node, edge);
+    const disabled = !!node[SASH_EDGE_FIELD[edge].lockedField] || sashes[edge] === 0 || !ev.hasFrame;
+    const shown = disabled ? 0 : effectiveTuckInMM(node, edge, kinds[edge], ev);
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
+    const edgeLabel = document.createElement('span');
+    edgeLabel.style.fontSize = '11px';
+    edgeLabel.style.color = 'var(--text-dim)';
+    edgeLabel.textContent = edge.charAt(0).toUpperCase() + edge.slice(1) + (typed === null ? ' (auto)' : ' (typed)');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = 'tuckInInput-' + edge;
+    input.value = shown;
+    input.disabled = disabled;
+    input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
+    if (disabled) input.title = 'No tuck-in here: silicone joint, no sash on this edge, or no outer frame.';
+    input.addEventListener('change', () => {
+      let mullionThickness = null;
+      if (kinds[edge] === 'mullion') {
+        const split = findAdjacentSplit(ev.root, path, 'v', edge === 'left' ? 'start' : 'end');
+        mullionThickness = split ? split.thicknessMM : null;
+      }
+      const err = validateTuckInMM(input.value, edge, node, mullionThickness);
+      if (err) {
+        input.value = shown;
+        errDiv.textContent = err;
+        return;
+      }
+      setNode(path, { ...node, [TUCK_EDGE_FIELD[edge]]: Number(input.value) });
+      render();
+    });
+    wrap.appendChild(edgeLabel);
+    wrap.appendChild(input);
+    row.appendChild(wrap);
+  });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.id = 'tuckInResetBtn';
+  resetBtn.className = 'secondary';
+  resetBtn.textContent = 'Reset tuck-ins to automatic';
+  resetBtn.disabled = TUCK_EDGES.every(e => typedTuckInMM(node, e) === null);
+  resetBtn.onclick = () => {
+    const next = { ...node };
+    TUCK_EDGES.forEach(e => { next[TUCK_EDGE_FIELD[e]] = null; });
+    setNode(path, next);
+    render();
+  };
+  row.appendChild(resetBtn);
+  bar.appendChild(row);
+  bar.appendChild(errDiv);
+}
+
 function appendEditAssemblyWidthsButton(bar, markedPath, assemblyPresetRef) {
   // Batch 14: deliberately do NOT offer "Edit assembly widths" for a double-hung marker —
   // absent entirely, not shown-disabled. The existing reopen mechanism (confirmAssemblyEdit,
@@ -6130,15 +6306,12 @@ function computeLoneSlidingLeafCorrections(leaves, ev, openingW, openingH) {
     if (node.type !== 'horizontal-slider' && node.type !== 'vertical-slider') return;
     if (assemblyRanges.some(r => pathStartsWith(l.path, r.path))) return; // covered by the preset pipeline
 
-    const sashless = node.sashless === true;
-    const tuckInW = ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
-    const tuckInH = (ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0;
-
+    // Step 5c-1: a typed per-edge tuck-in replaces the automatic one (see effectiveTuckInMM).
     const edges = classifyLeafEdges(l, ev, openingW, openingH);
-    const tuckLeft = (edges.left === 'frame' || edges.left === 'mullion') ? tuckInW / 2 : 0;
-    const tuckRight = (edges.right === 'frame' || edges.right === 'mullion') ? tuckInW / 2 : 0;
-    const tuckTop = edges.top === 'frame' ? tuckInH / 2 : 0;
-    const tuckBottom = edges.bottom === 'frame' ? tuckInH / 2 : 0;
+    const tuckLeft = effectiveTuckInMM(node, 'left', edges.left, ev);
+    const tuckRight = effectiveTuckInMM(node, 'right', edges.right, ev);
+    const tuckTop = effectiveTuckInMM(node, 'top', edges.top, ev);
+    const tuckBottom = effectiveTuckInMM(node, 'bottom', edges.bottom, ev);
 
     if (tuckLeft === 0 && tuckRight === 0 && tuckTop === 0 && tuckBottom === 0) return;
 
