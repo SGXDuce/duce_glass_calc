@@ -151,14 +151,22 @@ entries are applied there at the end of this project.
     DECIDED BY SAHIL: left as is for now.
   - Sashless panes keep their stored capping edges, and their daylight
     deducts them like every other pane: 15 mm per capped edge. This matches
-    the existing "Visible glazed area" column (VERIFIED against that column
-    for files 08 and 09 by Claude's arithmetic). No asterisk and no note
+    the existing "Visible glazed area" column (checked by Claude's arithmetic
+    against that column for files 08 and 09; not hand-verified by Sahil). No asterisk and no note
     under the table.
-  - OPEN ITEM: the table's older "Area" and "Visible glazed area" columns
-    use the drawn leaf size, but the new Daylight column and the export use
-    the made size, so they disagree (example: file 13 .L glazed 1.56 vs
-    daylight 860 x 1940 = 1.67 m2). Not caused by 5b. Which columns feed the
-    compliance calc is not yet known.
+  - The table's older "Area" and "Visible glazed area" columns use the drawn
+    leaf size and are display only: nothing outside `renderTable` reads them
+    (REPORTED BY CLAUDE CODE).
+  - The export computes its own `areaM2` from the made size and its
+    `visibleGlazedAreaM2` from the made size less the sash edges, the same
+    basis as the Daylight column (`buildExportElevation`, about lines
+    6213-6214; REPORTED BY CLAUDE CODE). Example: file 13 .L table glazed
+    1.56 m2 vs export and Daylight 860 x 1940 = 1.67 m2.
+  - OPEN ITEM: not traced whether the compliance calc or System check reads
+    the export's `areaM2` (made size, not daylight) or its
+    `visibleGlazedAreaM2`. This matters for the 30 September 2026 decision
+    that daylight is the basis for span, aspect ratio and area (DECIDED BY
+    SAHIL).
   - Failure fallback is a PLACEHOLDER (Sahil will revisit): if the export
     cannot be built for the current system (cross-elevation mismatch or a
     throw), both new columns show "—", every other column still works and no
