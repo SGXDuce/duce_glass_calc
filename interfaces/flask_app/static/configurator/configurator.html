@@ -4986,7 +4986,7 @@ function isSlidingOverlapId(id, pattern) {
 // unchanged) rather than only ever reading the global directly — makes the tuck-in gating
 // testable/traceable against an explicit value without depending on global state, and matches
 // this batch's own call site, which passes it explicitly.
-// Batch 42 — `sashless` (default false) selects SASHLESS_FRAME_TUCKIN_MM (6) instead of
+// Batch 42 — `sashless` (default false) selects SASHLESS_FRAME_TUCKIN_MM (currently 0) instead of
 // FRAME_TUCKIN_MM (40) for the tuck-in term only; every other part of this formula (panel sizing,
 // overlap accounting) is unaffected by sashless-ness, per the batch prompt's own instruction.
 function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sashless) {
@@ -5013,7 +5013,7 @@ function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sas
 // is no tuck-in to subtract, so T equals the overlap-only reduction, matching batch 17). There
 // is no mullion at any sliding-overlap join, so unlike every other family this total is never
 // sectionWidths-plus-mullions.
-// Batch 42 — `sashless` (default false) swaps in SASHLESS_FRAME_TUCKIN_MM (6) for the tuck-in
+// Batch 42 — `sashless` (default false) swaps in SASHLESS_FRAME_TUCKIN_MM (currently 0) for the tuck-in
 // term, same as the prefill function above; overlap accounting is unaffected by sashless-ness.
 function computeSlidingWinTotalWidth(pattern, sectionWidthsMM, sashless) {
   const slideDirections = computeDefaultSlideDirections(pattern);
