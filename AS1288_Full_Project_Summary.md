@@ -1,13 +1,50 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.48 (Configurator variant: step 5a merged, compare_full.py and safety-net export 13 added)
-### Last Updated: 6 October 2026
+### Version: V1.49 (Configurator variant: step 5b merged, sashless daylight uses stored capping edges, tools/ui_regression.py added)
+### Last Updated: 7 October 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.49 - 7 October 2026 - Configurator variant: step 5b merged (made size and daylight columns), sashless daylight uses stored capping edges, tools/ui_regression.py added
+
+**A. Merged.** VERIFIED BY SAHIL (post-merge terminal check): docs v1.48 merged as PR #38 (master 0808a1f). Step 5b merged as PR #39 (master 4a7f7a6, parents 0808a1f and 264e52e). Branch commits: 4423e68 (made size and daylight columns), b226578 (sashless daylight uses stored capping edges), 65d17b3 (adds tools/ui_regression.py), 264e52e (corrects two ledger statements).
+
+**B. What 5b added.** REPORTED BY CLAUDE CODE (the diff was checked by Sahil's terminal check): two display-only columns in the Configurator's pane table, "Made size (mm)" and "Daylight size (mm)". Both read the active elevation's buildExportElevation result (a read, nothing written back). Made size = widthMM x heightMM from the export. Daylight = made size less the export's sashEdgesMM (left + right across, top + bottom down). New functions: getActiveExportPaneMap, formatSizeMM, madeSizeCellText, daylightSizeCellText; renderTable and the table heading/footer changed. The export, correction functions, tuck-in constants and schemaVersion (6) are untouched.
+
+**C. Sashless daylight.**
+- DECIDED BY SAHIL: first built as "made size with an asterisk".
+- DECIDED BY SAHIL (Claude proposed it; Sahil accepted it by running the change): it was then changed once the data showed the capping edges are already stored. Sashless panes keep their stored sash edges in the export (file 08 .S: top 15, bottom 15, left 0, right 0; file 09 both panes: left 15, right 15) and daylight now deducts them like any pane (08 .S 900 x 1950; 09 1650 x 1020). The asterisk, the note under the table, renderSizeNote and the sizeNote div were removed.
+- INFERRED BY CLAUDE (Claude's arithmetic against the tool; not hand-verified by Sahil): this agrees with the table's existing Visible glazed area column and with the v1.47 baseline spans of 1950 and 1650.
+
+**D. tools/ui_regression.py (new).**
+- REPORTED BY CLAUDE CODE: a browser regression test using Playwright and headless Chromium. It starts the app on port 5001 with SYSTEM_CHECK_ENABLED set in memory only, builds files 13, 11, 10, 08 and 09 by real clicks through the Configurator UI, reads the table, exports, and runs tools/compare_full.py against the saved safety-net file. Run: .venv\Scripts\python tools\ui_regression.py. Playwright and its Chromium were installed in the .venv only; requirements.txt and the PyInstaller spec are untouched. The click recipes live in this script.
+- VERIFIED BY SAHIL: he ran it himself and got PASS for all five, system differences 0, exit code 0.
+- REPORTED BY CLAUDE CODE (made / daylight, mm): 13 .L 940 x 2020 / 860 x 1940; 13 .R 780 x 2020 / 700 x 1940; 11 F 1680 x 1980 / 1600 x 1900; 10 .L (fixed) 900 x 1980 / 900 x 1980; 10 .R 780 x 2020 / 700 x 1940; 08 .R 840 x 1980 / 840 x 1980; 08 .S 900 x 1980 / 900 x 1950; 09 both 1680 x 1020 / 1650 x 1020.
+- REPORTED BY CLAUDE CODE: the system block was identical to the saved export in all five, including 08 and 09 built through the preset forms. rawState differences were only screen-pixel lastGeom values (smaller headless window) plus selected/path[0] in file 10.
+- REPORTED BY CLAUDE CODE (also found): file 08 .S slides left; file 09 .S slides down and .R slides up; the OX form pre-fills 840 and 900 and the double-hung form pre-fills unit width 1680 and top height 1020 for these builds.
+
+**E. Findings.** REPORTED BY CLAUDE CODE:
+1. The table's older Area and Visible glazed area columns (and their totals) use the drawn leaf size and are display only; nothing outside renderTable reads them.
+2. The export computes its own areaM2 from the made size and its visibleGlazedAreaM2 from the made size less the sash edges (buildExportElevation, about lines 6213-6214), the same basis as the Daylight column (example file 13 .L: table glazed 1.56 m2 vs export and Daylight 860 x 1940 = 1.67 m2).
+
+**F. Known and accepted.**
+- DECIDED BY SAHIL: daylight for fixed panes is wrong until step 5d (the export gives fixed panes sash edges of 0, so the O of an OX shows daylight equal to made size).
+- DECIDED BY SAHIL (to defer): the "—" fallback when the export cannot be built is a placeholder for Sahil to revisit.
+
+**G. Open items.**
+1. INFERRED BY CLAUDE: no confirmation has been received from Sahil that the table layout looks fine with the two new columns.
+2. INFERRED BY CLAUDE: not traced whether the compliance calc or System check reads the export's areaM2 (made size) or visibleGlazedAreaM2 (daylight basis); matters for the 30 September 2026 decision that daylight is the basis for span, aspect ratio and area.
+3. REPORTED BY CLAUDE CODE: the test covers headless Chromium on one machine only; it does not test the "—" fallback or multi-elevation systems.
+4. REPORTED BY CLAUDE CODE: tools/ui_regression.py still has an unused NOTE_TEXT constant with old asterisk wording.
+5. INFERRED BY CLAUDE: no hand values for exports 06 to 13 were ever sent by Sahil; every comparison is Claude's arithmetic against the tool.
+6. REPORTED BY CLAUDE CODE: node is still not installed.
+7. INFERRED BY CLAUDE: all open items listed in v1.48 item H remain open unless stated here.
+
+**H. Plan.** PROPOSED BY CLAUDE: 5b done. Next: 5c design question first (tuck-in boxes with blocking, and the preset form's width logic), then 5c build, then 5d (OX meeting edge, schemaVersion 6 to 7, re-capture the two sashless fixtures). Opus for 5d and the 5c design question only.
 
 ### v1.48 - 6 October 2026 - Configurator variant: step 5a merged (lone-slider edge classifier), compare_full.py and file 13 added
 
