@@ -392,3 +392,66 @@ Open, not decided:
   order in OXX and similar, any number, any export field, any stored data.
 - Display only. schemaVersion stays 6.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Tuck-in applies to sliding doors and windows only
+
+- DECIDED BY SAHIL (8 October 2026): for the AS 1288 tool only sliding doors
+  and sliding windows have tuck-in values. Casement, awning, louvre, hinged
+  door and fixed panes have none. Vertical sliders and double-hung count as
+  sliding windows.
+- Consequence: plan item 3 in "Planned changes (not yet made)" (boxes for
+  casement, awning, hinged door, louvre) is CLOSED: decided not to build.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Step 4 design decisions (planning only, nothing built)
+
+All DECIDED BY SAHIL, 8 October 2026:
+
+1. Preset tuck-in is stored per section edge on the preset marker.
+2. In OX-family rows only the two OUTER ends of the row get width tuck-in
+   boxes; interior joins are overlaps and belong to step 5d.
+3. The O gets an editable left box starting at 20 (matches today's exports);
+   no right box (the X overlaps it). The O's top and bottom have no tuck-in
+   (fixed pane, none today).
+4. Editing a tuck-in changes the made width of the section at that edge, so
+   the row rule still holds: sum of made widths - overlaps - (left end
+   tuck + right end tuck) = opening.
+5. X sashes get head/sill tuck-in boxes, starting 20 each (step 4a). Width
+   boxes are step 4b.
+6. Double-hung head/sill is deferred (baked into the tree's overlap); jamb
+   width later.
+7. Sashless presets: no boxes; sashless tuck-in is 0 and that is intended.
+8. The no-frame preset beside a mullion (today 0, rule says 20) is fixed in
+   step 4b, with safety-net file 15 saved before and after.
+9. Join rule: two X sashes sliding the same way overlap; sliding apart
+   butt; sliding towards each other overlap. Inside a preset the slide
+   direction is locked (see the "Preset slide-direction lock" entry).
+10. Order: 4a (heights), then 4b (widths), then 5d (overlap as a computed
+    value).
+
+Open (asked of Sahil, 8 October 2026, not answered): whether the overlap is
+editable per join, which section absorbs an overlap change, and the allowed
+range.
+
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Status of earlier planned items
+
+The "Planned changes (not yet made)" list above is left as written. Current
+status:
+
+- Planned item 2 (editable tuck-in) is DONE for lone and manually split
+  sliders (steps 5c-1 and 5c-2, merged) and PLANNED for presets (step 4).
+- Planned item 3 was closed (see "Tuck-in applies to sliding doors and
+  windows only").
+
+Merged since step 5b (merge commits):
+
+- 5c-1: 8f9ff11
+- Rename to Sash/Leaf size: df18c2a
+- 5c-2: 48dbc79
+- Step 4 coverage: a70d7db
+- Preset direction lock: 396bbb8
+- Drawing order fix: 90074e0
+
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
