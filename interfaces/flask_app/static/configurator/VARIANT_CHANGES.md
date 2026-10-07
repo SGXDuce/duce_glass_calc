@@ -176,6 +176,52 @@ entries are applied there at the end of this project.
     page was run in a browser test with tools/ui_regression.py (headless
     Chromium, REPORTED BY CLAUDE CODE).
 
+- **Step 5c-1:** per-edge tuck-in boxes for LONE and MANUALLY SPLIT sliders
+  only (horizontal and vertical sliders outside any assembly-preset marker,
+  not sashless). Tuck-in is how far the sash slides behind the frame or
+  mullion, so the made size is larger than the drawn size by that amount.
+  - New optional leaf fields: `tuckTopMM`, `tuckBottomMM`, `tuckLeftMM`,
+    `tuckRightMM`. null or missing = automatic; a number (0 or more) = typed.
+  - Automatic rule is exactly today's: half of the full allowance per edge,
+    only where the edge sits against the outer frame (left/right also against
+    a real mullion; top/bottom never against a transom), zero when there is
+    no outer frame, sashless uses its own figures. A typed value replaces the
+    automatic one; it is still forced to 0 when there is no outer frame, the
+    pane is sashless, or the edge is a silicone joint. New helpers:
+    `autoTuckInMM`, `effectiveTuckInMM`, `typedTuckInMM`, `validateTuckInMM`,
+    `appendTuckInRow`; `computeLoneSlidingLeafCorrections` now calls
+    `effectiveTuckInMM`.
+  - UI: a "Tuck-in (mm)" row under the sash boxes, each box tagged "(auto)"
+    or "(typed)", disabled and shown as 0 for a silicone-joint edge, a 0 sash
+    edge, or no outer frame, plus one "Reset tuck-ins to automatic" button
+    per leaf. No boxes for casement, awning, hinged door, louvre, fixed,
+    sashless or preset panes (later steps).
+  - Blocking, with the value snapping back and a one-line reason shown: a
+    typed tuck-in cannot exceed that edge's sash width; at a mullion edge it
+    is also capped at half the mullion thickness (read from the adjacent
+    split, no new plumbing); a sash edge cannot be narrowed below a TYPED
+    tuck-in on that edge ("lower the tuck-in first"). Automatic values are
+    never blocked or changed, so narrowing a sash below the automatic 20 mm
+    is still allowed, as before.
+  - The type-change handler copies the four fields. They only take effect on
+    sliders, so they are harmless on another type and come back if the pane
+    is switched back to a slider. `cloneForSplit` does NOT copy them: a split
+    pane's new halves start automatic.
+  - KNOWN GAP: when a sash edge is set to 0 on a frame edge, the box shows 0
+    (disabled) but the export still applies the automatic tuck-in, because
+    that is today's behaviour and must not change. To be decided.
+  - No export or schema change: no new export field, `schemaVersion` stays 6,
+    `RAW_STATE_SCHEMA_VERSION` not bumped. A reset leaves four null fields in
+    the saved rawState (system block unchanged).
+  - Existing-data check: in the 13 safety-net files every lone slider has
+    40 mm sashes, so no automatic tuck-in (20 mm) exceeds a sash.
+  - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+    not installed on Claude Code's machine, so no syntax check was done. Run
+    with tools/ui_regression.py (headless Chromium, REPORTED BY CLAUDE CODE):
+    the five existing files unchanged and a new typed/refused/reset scenario
+    on file 13 .L pass. Save/reload of a typed value is not covered by that
+    harness.
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes
