@@ -747,6 +747,126 @@ def run_dirlock_scenario(browser):
         ctx.close()
     return ok and clean
 
+# ---------------------------------------------------------------- drawing order (stacking) scenario
+
+# For every .pane (DOM order): its screen rectangle. Used to pick a point and ask what is on top there.
+PANE_RECTS_JS = """() => [...document.querySelectorAll('#diagram .pane')].map(e => {
+    const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; })"""
+# Index (DOM order among .pane) of the pane on top at a screen point, and whether a bar is there.
+TOP_AT_JS = """([x, y]) => {
+    const el = document.elementFromPoint(x, y);
+    const pane = el && el.closest('.pane');
+    const bar = el && el.closest('.bar');
+    const panes = [...document.querySelectorAll('#diagram .pane')];
+    return {pane: pane ? panes.indexOf(pane) : -1, bar: !!bar}; }"""
+
+
+def build_preset_framed(page, heading, label):
+    page.goto(URL)
+    page.wait_for_selector('#diagram .pane')
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, 'stack')
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, heading, label)
+    click_button(page, 'Confirm preset')
+    page.wait_for_timeout(300)
+
+
+def top_pane_at(page, x, y):
+    return page.evaluate(TOP_AT_JS, [x, y])['pane']
+
+
+def run_stack_scenario(browser):
+    """Sliders paint above fixed panes: an X keeps its overlapped right stile when an O is beside it."""
+    print('')
+    print('=== Drawing order (stacking) scenario ===')
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def strip_test(name, x_idx, o_idx):
+        # the hidden strip is the part of the O that lies inside the X's right edge; probe 3 px in from the X's right edge
+        rects = page.evaluate(PANE_RECTS_JS)
+        xr, orr = rects[x_idx], rects[o_idx]
+        px, py = xr['r'] - 3, (xr['t'] + xr['b']) / 2
+        in_strip = orr['l'] < px < xr['r']
+        got = top_pane_at(page, px, py)
+        check(name, in_strip and got == x_idx, 'probe (%.1f, %.1f), O starts at %.1f, X ends at %.1f, top pane index %d (want X = %d)'
+              % (px, py, orr['l'], xr['r'], got, x_idx))
+
+    try:
+        # a) OXXO window: second X (index 2), O on its right (index 3)
+        build_preset_framed(page, 'Sliding windows', 'OXXO')
+        strip_test('a) OXXO window, second X right stile on top of the O', 2, 3)
+        # b) XOX window: first X (index 0), O on its right (index 1)
+        build_preset_framed(page, 'Sliding windows', 'XOX')
+        strip_test('b) XOX window, first X right stile on top of the O', 0, 1)
+        # c) OX window (control): X centre is the X, O centre is the O
+        build_preset_framed(page, 'Sliding windows', 'OX')
+        rects = page.evaluate(PANE_RECTS_JS)
+
+        def centre(i):
+            return (rects[i]['l'] + rects[i]['r']) / 2, (rects[i]['t'] + rects[i]['b']) / 2
+        got_x, got_o = top_pane_at(page, *centre(1)), top_pane_at(page, *centre(0))
+        check('c) OX window: X centre is the X, O centre is the O', got_x == 1 and got_o == 0,
+              'X centre -> %d (want 1), O centre -> %d (want 0)' % (got_x, got_o))
+        # d) sliding DOORS, same as a) and b)
+        build_preset_framed(page, 'Sliding doors', 'OXXO')
+        strip_test('d) OXXO door, second X right stile on top of the O', 2, 3)
+        build_preset_framed(page, 'Sliding doors', 'XOX')
+        strip_test('d) XOX door, first X right stile on top of the O', 0, 1)
+        # e) double-hung meeting rail (file 06 layout): the bottom sash is painted last, so it stays on top
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_06(page, '06')
+        rects = page.evaluate(PANE_RECTS_JS)
+        top, bottom = rects[0], rects[1]
+        px, py = (top['l'] + top['r']) / 2, (bottom['t'] + top['b']) / 2
+        got = top_pane_at(page, px, py)
+        check('e) double-hung meeting rail overlap: top pane index is unchanged by the change (bottom sash = 1)',
+              bottom['t'] < top['b'] and got == 1, 'overlap %.1f to %.1f, probe y %.1f, top pane index %d (before the CSS change it was 1)'
+              % (bottom['t'], top['b'], py, got))
+        # f) mullion bars stay on top and clickable (file 13 and file 10 layouts)
+        for fid in ('13', '10'):
+            page.goto(URL)
+            page.wait_for_selector('#diagram .pane')
+            RECIPES[fid](page, fid)
+            page.wait_for_timeout(200)
+            box = page.locator('#diagram .bar').first.bounding_box()
+            bx, by = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+            res = page.evaluate(TOP_AT_JS, [bx, by])
+            check('f) file %s mullion centre: the bar is on top' % fid, res['bar'], 'at (%.1f, %.1f) -> %s' % (bx, by, res))
+            page.mouse.click(bx, by)
+            page.wait_for_timeout(200)
+            tb = norm(page.locator('#toolbar').inner_text())
+            check('f) file %s click on the mullion selects the bar ("Remove this split" shown)' % fid, 'Remove this split' in tb)
+        # g) OXX window: X1 / X2 overlap, the later X (index 2) is on top, as before
+        build_preset_framed(page, 'Sliding windows', 'OXX')
+        rects = page.evaluate(PANE_RECTS_JS)
+        x1, x2 = rects[1], rects[2]
+        px, py = (x2['l'] + x1['r']) / 2, (x2['t'] + x2['b']) / 2
+        got = top_pane_at(page, px, py)
+        check('g) OXX window: X1 / X2 overlap, top pane index is unchanged (X2 = 2)', x2['l'] < x1['r'] and got == 2,
+              'overlap %.1f to %.1f, top pane index %d (before the CSS change it was 2)' % (x2['l'], x1['r'], got))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
 
 def main():
     proc = None
@@ -754,6 +874,7 @@ def main():
     tuck_ok = False
     nf_ok = False
     dl_ok = False
+    st_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -764,6 +885,7 @@ def main():
             tuck_ok = run_tuck_scenario(browser)
             nf_ok = run_no_frame_mullion_scenario(browser)
             dl_ok = run_dirlock_scenario(browser)
+            st_ok = run_stack_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -777,9 +899,10 @@ def main():
     print('%-6s %s' % ('tuck', 'PASS' if tuck_ok else 'FAIL'))
     print('%-6s %s' % ('nofr', 'PASS' if nf_ok else 'FAIL'))
     print('%-6s %s' % ('dirlock', 'PASS' if dl_ok else 'FAIL'))
+    print('%-6s %s' % ('stack', 'PASS' if st_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
