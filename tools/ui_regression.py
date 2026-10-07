@@ -437,6 +437,47 @@ def run_tuck_scenario(browser):
         export_e = export_text(page, 'tuck_e.json')
         check('e) export matches saved file 13 (compare_full)', run_compare(os.path.join(SAFETY_DIR, saved_name), export_e))
 
+        # g) the tuck-in can never exceed its sash: starting from the reset state (nothing typed),
+        # the automatic left tuck-in is 20, so a left sash of 10 must be refused
+        set_number(page, '#sashEdgeInput-left', 10)
+        page.wait_for_timeout(200)
+        reason = tuck_error_text(page)
+        check('g) left sash 10 refused (automatic tuck-in is 20)', 'lower the tuck-in first' in reason, '"%s"' % reason)
+        check('g) left sash box stays 40', page.locator('#sashEdgeInput-left').input_value() == '40',
+              'box shows %s' % page.locator('#sashEdgeInput-left').input_value())
+
+        # h) typed left tuck-in 0 lets the left sash go to 0. Expected numbers are Claude's arithmetic,
+        # not hand values: made = 900 drawn + 0 left + 20 right = 920; daylight = 920 - 0 (left sash)
+        # - 40 (right sash) = 880 wide, and 2020 - 40 - 40 = 1940 high.
+        sash_zero = ('920 x 2020', '880 x 1940')
+        set_number(page, '#tuckInInput-left', 0)
+        page.wait_for_timeout(200)
+        set_number(page, '#sashEdgeInput-left', 0)
+        page.wait_for_timeout(200)
+        check('h) left sash 0 accepted', page.locator('#sashEdgeInput-left').input_value() == '0',
+              'box shows %s, "%s"' % (page.locator('#sashEdgeInput-left').input_value(), tuck_error_text(page)))
+        check('h) .L made/daylight with left tuck-in 0 and left sash 0', read_pane(page, '.L') == sash_zero,
+              '%s (want %s)' % (read_pane(page, '.L'), sash_zero))
+
+        # i) the left Tuck-in box shows 0 and the Made size column agrees with it
+        check('i) left tuck-in box shows 0', page.locator('#tuckInInput-left').input_value() == '0',
+              'shows %s' % page.locator('#tuckInInput-left').input_value())
+        check('i) made size agrees with the box', read_pane(page, '.L')[0] == sash_zero[0], str(read_pane(page, '.L')))
+
+        # j) reset with the left sash still 0: the cap holds the tuck-in at 0, so made stays 920 x 2020
+        click_button(page, 'Reset tuck-ins to automatic')
+        page.wait_for_timeout(200)
+        check('j) after reset with left sash 0, made stays 920 x 2020', read_pane(page, '.L') == sash_zero,
+              '%s (want %s)' % (read_pane(page, '.L'), sash_zero))
+        check('j) left tuck-in box still shows 0', page.locator('#tuckInInput-left').input_value() == '0')
+
+        # k) left sash back to 40: .L returns to today's values and the export matches saved file 13
+        set_number(page, '#sashEdgeInput-left', 40)
+        page.wait_for_timeout(200)
+        check('k) .L back to 940 x 2020 / 860 x 1940', read_pane(page, '.L') == start, '%s (want %s)' % (read_pane(page, '.L'), start))
+        export_k = export_text(page, 'tuck_k.json')
+        check('k) export matches saved file 13 (compare_full)', run_compare(os.path.join(SAFETY_DIR, saved_name), export_k))
+
         # f) the harness has no save/reload path, so none is built here
         print('  f not covered (no save/reload path in this harness)')
     except Exception as e:
