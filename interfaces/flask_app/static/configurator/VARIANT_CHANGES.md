@@ -371,3 +371,24 @@ Open, not decided:
 - No numbers change. No stored data is rewritten, old saved designs are
   untouched, schemaVersion stays 6.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Drawing order: sliders paint above fixed panes
+
+- The problem (REPORTED BY SAHIL from screenshots): in the OXXO and XOX
+  sliding-window presets, an X sash with an O immediately to its right did
+  not show its right-hand stile until the pane was clicked. OX was fine.
+- The cause (checked in the drawing code and in the browser by Claude
+  Code): panes are painted left to right and an unselected pane had no
+  stacking level, so a later O was painted over the earlier X's overlapped
+  edge (8.9 px on screen: a 3 px inset plus the 5.9 px stile). A selected
+  pane has a higher level, which is why the stile appeared on click.
+- The fix: one CSS rule. Every non-fixed pane (class "filled" without
+  "no-frame-band") that is not selected gets z-index 1, so sliders paint
+  above fixed panes. Their order among themselves is unchanged. A selected
+  pane keeps z-index 2. Bars are added after all panes, so they still sit
+  on top at the same level and a mullion stays clickable.
+- NOT changed: the double-hung meeting rail (the bottom sash still paints
+  over the top sash's bottom rail; the test records this), the X-over-X
+  order in OXX and similar, any number, any export field, any stored data.
+- Display only. schemaVersion stays 6.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).

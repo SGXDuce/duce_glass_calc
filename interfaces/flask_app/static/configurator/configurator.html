@@ -43,6 +43,10 @@
   .pane.empty { background: transparent; border: 2px dashed var(--empty-border); display: flex; align-items: center; justify-content: center; }
   .pane.empty span { font-size: 11px; color: var(--text-dim); }
   .pane.selected { outline: 3px solid var(--select); outline-offset: -3px; z-index: 2; }
+  /* Drawing order: an X sash slides in front of the O beside it, so its overlapped edge and stile must not be
+     painted over by a later O. Every framed (non-fixed) pane sits above fixed panes; among themselves they keep
+     their left-to-right order. Bars are added after all panes, so at the same level they stay on top. Display only. */
+  .pane.filled:not(.no-frame-band):not(.selected) { z-index: 1; }
   .sash-band { position: absolute; box-sizing: border-box; background: var(--glass); pointer-events: none; }
   .bar { position: absolute; background: var(--frame); cursor: pointer; z-index: 1; }
   .bar.selected { background: var(--select); }
