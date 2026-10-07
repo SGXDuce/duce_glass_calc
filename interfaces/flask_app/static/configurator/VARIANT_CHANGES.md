@@ -351,7 +351,7 @@ Open, not decided:
   set by the preset pattern. Choose a different preset to change it."
 - The rule behind it (DECIDED BY SAHIL): where two X sashes meet, sliding
   the same way = overlap, sliding apart = butt, sliding towards each other
-  cannot butt.
+  = overlap (see the decision below).
 - The decision to lock (DECIDED BY SAHIL): the preset code sets each join
   type from the pattern when the preset is built and never reads the
   dropdown, so changing a direction afterwards would leave the export
@@ -363,8 +363,11 @@ Open, not decided:
   double-hung direction changes only that pane's slideDirection field (one
   system difference, plus the matching rawState fields and the arrow in the
   drawing). No size, overlap or other number changes.
-- OPEN QUESTION (Sahil): sliding towards each other: overlap, or not
-  allowed?
+- DECIDED BY SAHIL (8 October 2026): sashes sliding towards each other
+  overlap. The full rule is now: same direction = overlap, sliding apart =
+  butt, sliding towards each other = overlap. The preset lock means no
+  preset can reach the towards-each-other case today; it only matters if
+  the dropdown is ever made to rebuild the joins.
 - No numbers change. No stored data is rewritten, old saved designs are
   untouched, schemaVersion stays 6.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
