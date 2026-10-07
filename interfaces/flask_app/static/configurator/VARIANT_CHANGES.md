@@ -199,17 +199,15 @@ entries are applied there at the end of this project.
   - Blocking, with the value snapping back and a one-line reason shown: a
     typed tuck-in cannot exceed that edge's sash width; at a mullion edge it
     is also capped at half the mullion thickness (read from the adjacent
-    split, no new plumbing); a sash edge cannot be narrowed below a TYPED
-    tuck-in on that edge ("lower the tuck-in first"). Automatic values are
-    never blocked or changed, so narrowing a sash below the automatic 20 mm
-    is still allowed, as before.
+    split, no new plumbing). A sash edge cannot be narrowed below the tuck-in
+    on that edge, typed or automatic ("lower the tuck-in first"); see the
+    follow-up entry below, which replaced the first version of this rule.
   - The type-change handler copies the four fields. They only take effect on
     sliders, so they are harmless on another type and come back if the pane
     is switched back to a slider. `cloneForSplit` does NOT copy them: a split
     pane's new halves start automatic.
-  - KNOWN GAP: when a sash edge is set to 0 on a frame edge, the box shows 0
-    (disabled) but the export still applies the automatic tuck-in, because
-    that is today's behaviour and must not change. To be decided.
+  - A sash edge set to 0 on a frame edge: the box shows 0 (disabled); the
+    export now agrees (see the follow-up entry below).
   - No export or schema change: no new export field, `schemaVersion` stays 6,
     `RAW_STATE_SCHEMA_VERSION` not bumped. A reset leaves four null fields in
     the saved rawState (system block unchanged).
@@ -221,6 +219,29 @@ entries are applied there at the end of this project.
     the five existing files unchanged and a new typed/refused/reset scenario
     on file 13 .L pass. Save/reload of a typed value is not covered by that
     harness.
+
+### Step 5c-1 follow-up: the tuck-in can never exceed its sash edge
+
+- The rule: on a slider edge the tuck-in can never be more than that edge's
+  sash width, automatic or typed. The tuck-in is the part of the sash that
+  slides behind the frame or mullion, so it has to fit inside the sash.
+- Fix 1: `effectiveTuckInMM` now returns min(tuck-in, sash width on that
+  edge). The old logic moved to `uncappedTuckInMM`. Silicone-joint, no-frame
+  and sashless rules are unchanged. The table, the export and the Tuck-in box
+  now agree, including a sash set to 0 (tuck-in 0).
+- Fix 2: `validateSashEdgeMM` refuses a sash value below the current tuck-in
+  on that edge, automatic or typed, for sliders only ("lower the tuck-in
+  first"). New helper `selectedEdgeTuckInMM` supplies the uncapped number; it
+  returns 0 for a non-slider, a sashless pane, a pane under an assembly-preset
+  marker, or an edge with no tuck-in, so none of those are checked.
+- Numbers that can change: only a lone slider whose sash is narrower than its
+  automatic tuck-in (for example an old saved design with a 10 mm sash). The
+  made size there now uses the smaller tuck-in. None of the 13 safety-net
+  files is affected (every non-sashless slider has 40 mm sashes; the sashless
+  ones have a 0 tuck-in).
+- No export field or schema change; `schemaVersion` stays 6.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+  not installed, so no syntax check; verified with tools/ui_regression.py.
 
 ## Planned changes (not yet made)
 

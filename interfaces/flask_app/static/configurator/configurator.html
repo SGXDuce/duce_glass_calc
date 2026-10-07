@@ -1099,14 +1099,40 @@ function autoTuckInMM(node, edge, edgeKind, ev) {
   return touches ? full / 2 : 0;
 }
 
-// The tuck-in that actually applies to a leaf edge: the typed value if there is one, otherwise the
-// automatic one. A typed value is still forced to 0 where nothing can tuck in: no outer frame, a
-// sashless pane, or a silicone-joint edge.
-function effectiveTuckInMM(node, edge, edgeKind, ev) {
+// The tuck-in this edge would have if its sash were wide enough: the typed value if there is one,
+// otherwise the automatic one. A typed value is still forced to 0 where nothing can tuck in: no
+// outer frame, a sashless pane, or a silicone-joint edge.
+function uncappedTuckInMM(node, edge, edgeKind, ev) {
   const typed = typedTuckInMM(node, edge);
   if (typed === null) return autoTuckInMM(node, edge, edgeKind, ev);
   if (!ev.hasFrame || node.sashless === true || node[SASH_EDGE_FIELD[edge].lockedField]) return 0;
   return typed;
+}
+
+// The tuck-in that actually applies to a leaf edge. The tuck-in is the part of the sash that
+// slides behind the frame or mullion, so it has to fit inside the sash: it can never be more than
+// the sash width on that edge, whether it is automatic or typed. A sash set to 0 therefore
+// tucks in 0, and the table, the export and the Tuck-in box all agree.
+function effectiveTuckInMM(node, edge, edgeKind, ev) {
+  return Math.min(uncappedTuckInMM(node, edge, edgeKind, ev), getSashEdges(node)[edge]);
+}
+
+// For the sash box check: the tuck-in on the selected leaf's edge before the sash-width cap (what
+// the Tuck-in box would show if the sash were wide enough). 0 for anything that has no tuck-in
+// row: a non-slider, a sashless pane, or a pane under an assembly-preset marker.
+function selectedEdgeTuckInMM(node, edge, ev) {
+  if (!isTuckInSlider(node) || node.sashless === true) return 0;
+  const path = ev.selected.path;
+  if (findAssemblyPresetAncestor(path)) return 0;
+  const m = getMembers(ev);
+  const openingW = getOpeningW(getOverallW(), m);
+  const openingH = getOpeningH(getOverallH(), m);
+  const leaves = [];
+  collectExportGeometry(ev.root, 0, 0, openingW, openingH, [], leaves, [], []);
+  const leaf = leaves.find(l => pathKey(l.path) === pathKey(path));
+  if (!leaf) return 0;
+  const kinds = classifyLeafEdges(leaf, ev, openingW, openingH);
+  return uncappedTuckInMM(node, edge, kinds[edge], ev);
 }
 
 // Validation for a typed tuck-in box. Returns null when fine, or a one-line reason. The tuck-in
@@ -1128,17 +1154,17 @@ function validateTuckInMM(rawValue, edge, node, mullionThicknessMM) {
 // or a short plain-language message when it is not. leafW/leafH are the same leaf width/height
 // glazedAreaM2() uses, so the glazed opening (pane size minus the sash on each side) can never
 // be validated down to zero or less.
-function validateSashEdgeMM(rawValue, edge, node, leafW, leafH) {
+function validateSashEdgeMM(rawValue, edge, node, leafW, leafH, tuckInMM) {
   const trimmed = String(rawValue).trim();
   if (trimmed === '') return 'Sash edge must be a number, 0 or more.';
   const mm = Number(trimmed);
   if (!Number.isFinite(mm)) return 'Sash edge must be a number, 0 or more.';
   if (mm < 0) return 'Sash edge must be a number, 0 or more.';
-  // Step 5c-1: a sash cannot be narrowed below a tuck-in the user typed on that edge. Automatic
-  // tuck-ins are never blocked, so only the typed value is compared.
-  const typedTuck = isTuckInSlider(node) ? typedTuckInMM(node, edge) : null;
-  if (typedTuck !== null && mm < typedTuck) {
-    return 'Sash edge cannot be less than its tuck-in (' + typedTuck + ' mm) - lower the tuck-in first.';
+  // Step 5c-1: the tuck-in is the part of the sash that slides behind the frame, so the sash
+  // cannot be made narrower than the tuck-in on that edge, automatic or typed. tuckInMM is the
+  // selected slider edge's uncapped tuck-in (0 or omitted when no tuck-in applies).
+  if (tuckInMM > 0 && mm < tuckInMM) {
+    return 'Sash edge cannot be less than its tuck-in (' + tuckInMM + ' mm) - lower the tuck-in first.';
   }
   const edges = getSashEdges(node);
   if (edge === 'left' || edge === 'right') {
@@ -3214,7 +3240,7 @@ function renderToolbar() {
         }
       });
       input.addEventListener('change', () => {
-        const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0);
+        const err = validateSashEdgeMM(input.value, edge, node, rect ? rect.w : 0, rect ? rect.h : 0, selectedEdgeTuckInMM(node, edge, ev));
         if (err) {
           input.value = locked ? 0 : edges[edge];
           sashErrDiv.textContent = err;
