@@ -37,6 +37,17 @@ FILES = [
     ('09', 'safety_net_v6_09_sashless_double_hung_1020.json',
      {'.S': ('1680 x 1020', '1650 x 1020'), '.R': ('1680 x 1020', '1650 x 1020')}, False),
 ]
+# File 14 (no outer frame, two sliders beside a mullion). The expected numbers are Claude's
+# arithmetic, NOT hand values: no frame means the opening is the full 1800 x 2100; mullion
+# centre 980, thickness 40, so .L is 960 wide and .R is 800 wide, both 2100 high; sash edges 40.
+# (An earlier draft said 780 for .R; that was the framed file 13 value, corrected by Sahil.)
+# BEFORE step 5c-2 (no tuck-in with no frame): .L 960 x 2100 / 880 x 2020, .R 800 x 2100 / 720 x 2020.
+# AFTER step 5c-2 each slider tucks 20 mm behind the mullion (left/right only): .L is 960 + 20 =
+# 980 wide, .R is 800 + 20 = 820 wide, daylight is that less the 40 mm sash edges each side:
+# .L 980 x 2100 / 900 x 2020, .R 820 x 2100 / 740 x 2020.
+FILE_14_BEFORE_NAME = 'safety_net_v6_14_no_frame_two_sliders_mullion_BEFORE_5c2.json'
+FILES.append(('14', 'safety_net_v6_14_no_frame_two_sliders_mullion_AFTER_5c2.json',
+              {'.L': ('980 x 2100', '900 x 2020'), '.R': ('820 x 2100', '740 x 2020')}, False))
 NOTE_TEXT = '* Sashless: capping deduction not applied yet.'
 
 fallback_used = []   # (file, what) pairs where a page function replaced a real click
@@ -177,6 +188,14 @@ def recipe_13(page, fid):
     select_pane(page, 1, fid); click_window_sash_type(page, 'Horizontal slider')
 
 
+def recipe_14(page, fid):
+    # same as recipe_13 minus add_frame: no outer frame
+    set_overall(page, 1800, 2100)
+    add_mullion(page, fid)
+    select_pane(page, 0, fid); click_window_sash_type(page, 'Horizontal slider')
+    select_pane(page, 1, fid); click_window_sash_type(page, 'Horizontal slider')
+
+
 def recipe_11(page, fid):
     set_overall(page, 1680, 1980)
     select_pane(page, 0, fid)
@@ -216,7 +235,7 @@ def recipe_09(page, fid):
     click_button(page, 'Confirm preset')
 
 
-RECIPES = {'13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09}
+RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09}
 
 
 # ---------------------------------------------------------------- reading and checking
@@ -347,6 +366,9 @@ def run_file(browser, fid, saved_name, expected, expect_note):
 
         if fid == '13':
             heading_info(page)
+        if fid == '14':
+            print('  Informational (not pass/fail): new export compared with the BEFORE file')
+            run_compare(os.path.join(SAFETY_DIR, FILE_14_BEFORE_NAME), new_path)
         if fid in ('08', '09'):
             info_prints(page, fid)
     except LabelNotFound as e:
@@ -523,10 +545,58 @@ def run_tuck_scenario(browser):
     return ok and clean
 
 
+def run_no_frame_mullion_scenario(browser):
+    """File 14 layout (no outer frame, mullion): typed tuck-in at the mullion edge and the opening edge (step 5c-2)."""
+    print('\n=== No-frame mullion tuck-in scenario (file 14 layout, pane .L) ===')
+    fid = '14'
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    try:
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_14(page, fid)
+        select_pane(page, 0, fid)
+        page.wait_for_timeout(200)
+        # c) typed value at the mullion edge: 10 accepted (960 + 10 = 970, Claude's arithmetic); 30 refused (half of 40 is 20)
+        set_number(page, '#tuckInInput-right', 10)
+        page.wait_for_timeout(200)
+        check('c) .L right tuck-in 10 accepted, Sash/Leaf size 970 x 2100', (read_pane(page, '.L') or ('', ''))[0] == '970 x 2100',
+              '%s, box shows %s' % (read_pane(page, '.L'), page.locator('#tuckInInput-right').input_value()))
+        set_number(page, '#tuckInInput-right', 30)
+        page.wait_for_timeout(200)
+        reason = tuck_error_text(page)
+        check('c) 30 refused, box snaps back to 10', 'half the mullion thickness' in reason and page.locator('#tuckInInput-right').input_value() == '10',
+              '"%s", box shows %s' % (reason, page.locator('#tuckInInput-right').input_value()))
+        # d) the left edge of .L is an opening edge with no frame: box disabled and shows 0
+        left = page.locator('#tuckInInput-left')
+        check('d) left tuck-in box disabled and shows 0', left.is_disabled() and left.input_value() == '0',
+              'disabled=%s, shows %s, title "%s"' % (left.is_disabled(), left.input_value(), left.get_attribute('title')))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
 def main():
     proc = None
     results = {}
     tuck_ok = False
+    nf_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -535,6 +605,7 @@ def main():
             for fid, saved_name, expected, expect_note in FILES:
                 results[fid] = run_file(browser, fid, saved_name, expected, expect_note)
             tuck_ok = run_tuck_scenario(browser)
+            nf_ok = run_no_frame_mullion_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -546,9 +617,10 @@ def main():
         r = results.get(fid, {'table': 'n/a', 'console': 'n/a', 'export': 'n/a'})
         print('%-6s %-8s %-8s %-8s' % (fid, r['table'], r['console'], r['export']))
     print('%-6s %s' % ('tuck', 'PASS' if tuck_ok else 'FAIL'))
+    print('%-6s %s' % ('nofr', 'PASS' if nf_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
