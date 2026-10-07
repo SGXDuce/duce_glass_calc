@@ -1,7 +1,7 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
 ### Version: V1.49 (Configurator variant: step 5b merged, sashless daylight uses stored capping edges, tools/ui_regression.py added)
-### Last Updated: 6 October 2026
+### Last Updated: 7 October 2026
 
 ---
 
@@ -17,7 +17,7 @@ Every update to this document is logged here. Before editing, check the latest e
 
 **C. Sashless daylight.**
 - DECIDED BY SAHIL: first built as "made size with an asterisk".
-- REPORTED BY CLAUDE CODE: it was then changed once the data showed the capping edges are already stored. Sashless panes keep their stored sash edges in the export (file 08 .S: top 15, bottom 15, left 0, right 0; file 09 both panes: left 15, right 15) and daylight now deducts them like any pane (08 .S 900 x 1950; 09 1650 x 1020). The asterisk, the note under the table, renderSizeNote and the sizeNote div were removed.
+- DECIDED BY SAHIL (Claude proposed it; Sahil accepted it by running the change): it was then changed once the data showed the capping edges are already stored. Sashless panes keep their stored sash edges in the export (file 08 .S: top 15, bottom 15, left 0, right 0; file 09 both panes: left 15, right 15) and daylight now deducts them like any pane (08 .S 900 x 1950; 09 1650 x 1020). The asterisk, the note under the table, renderSizeNote and the sizeNote div were removed.
 - INFERRED BY CLAUDE (Claude's arithmetic against the tool; not hand-verified by Sahil): this agrees with the table's existing Visible glazed area column and with the v1.47 baseline spans of 1950 and 1650.
 
 **D. tools/ui_regression.py (new).**
@@ -36,11 +36,11 @@ Every update to this document is logged here. Before editing, check the latest e
 - DECIDED BY SAHIL (to defer): the "—" fallback when the export cannot be built is a placeholder for Sahil to revisit.
 
 **G. Open items.**
-1. REPORTED BY CLAUDE CODE: Sahil has not yet confirmed the table layout looks fine with the two new columns.
+1. INFERRED BY CLAUDE: no confirmation has been received from Sahil that the table layout looks fine with the two new columns.
 2. INFERRED BY CLAUDE: not traced whether the compliance calc or System check reads the export's areaM2 (made size) or visibleGlazedAreaM2 (daylight basis); matters for the 30 September 2026 decision that daylight is the basis for span, aspect ratio and area.
 3. REPORTED BY CLAUDE CODE: the test covers headless Chromium on one machine only; it does not test the "—" fallback or multi-elevation systems.
 4. REPORTED BY CLAUDE CODE: tools/ui_regression.py still has an unused NOTE_TEXT constant with old asterisk wording.
-5. REPORTED BY SAHIL: hand values for exports 06 to 13 were never sent.
+5. INFERRED BY CLAUDE: no hand values for exports 06 to 13 were ever sent by Sahil; every comparison is Claude's arithmetic against the tool.
 6. REPORTED BY CLAUDE CODE: node is still not installed.
 7. INFERRED BY CLAUDE: all open items listed in v1.48 item H remain open unless stated here.
 
