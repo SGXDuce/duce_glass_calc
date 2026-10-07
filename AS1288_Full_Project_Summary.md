@@ -1,13 +1,87 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.49 (Configurator variant: step 5b merged, sashless daylight uses stored capping edges, tools/ui_regression.py added)
-### Last Updated: 7 October 2026
+### Version: V1.50 (Configurator variant: steps 5c-1 and 5c-2 merged, preset direction lock, drawing-order fix, step 4 design decisions)
+### Last Updated: 8 October 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.50 - 8 October 2026 - Configurator variant: steps 5c-1 and 5c-2 merged, preset slide-direction lock, drawing-order fix, tuck-in scope, step 4 design decisions
+
+Source: interfaces/flask_app/static/configurator/VARIANT_CHANGES.md and git history on master c58ce47. Tags follow the ledger.
+
+**A. Merged since v1.49.** REPORTED BY CLAUDE CODE (merge commits read from git log --merges on master):
+- Step 5c-1 (per-edge tuck-in boxes): 8f9ff11
+- Rename of the table column to "Sash/Leaf size (mm)": df18c2a
+- Step 5c-2 (no-frame sliders tuck into a mullion): 48dbc79
+- Step 4 coverage (harness extended to preset files): a70d7db
+- Preset slide-direction lock: 396bbb8
+- Drawing order fix: 90074e0
+- Docs ledger bundle: c58ce47 (PR #47)
+Also on master, not a merge commit of its own: be2b13d (comment-only fix of stale sashless tuck-in comments, see item I).
+
+**B. Per-edge tuck-in for lone and manually split sliders (step 5c-1).** REPORTED BY CLAUDE CODE (ledger; the ledger tag is "carry back", proposed by Claude, not confirmed by Sahil):
+- Scope: horizontal and vertical sliders outside any assembly-preset marker, not sashless. Tuck-in is how far the sash slides behind the frame or mullion, so the made size is larger than the drawn size by that amount.
+- New optional leaf fields: tuckTopMM, tuckBottomMM, tuckLeftMM, tuckRightMM. null or missing = automatic; a number (0 or more) = typed.
+- Automatic rule is the rule as it was before: half of the full allowance per edge, only where the edge sits against the outer frame (left and right also against a real mullion; top and bottom never against a transom), zero when there is no outer frame (changed by 5c-2, item C), sashless uses its own figures. A typed value replaces the automatic one; it is still forced to 0 when there is no outer frame (except at a mullion edge after 5c-2), the pane is sashless, or the edge is a silicone joint.
+- UI: a "Tuck-in (mm)" row under the sash boxes, each box tagged "(auto)" or "(typed)", disabled and shown as 0 for a silicone-joint edge, a 0 sash edge, or no outer frame; one "Reset tuck-ins to automatic" button per leaf resets all four to null.
+- Blocking, with the value snapping back and a one-line reason: a typed tuck-in cannot exceed that edge's sash width; at a mullion edge it is also capped at half the mullion thickness; a sash edge cannot be narrowed below the tuck-in on that edge, typed or automatic ("lower the tuck-in first").
+- The rule that a tuck-in can never exceed its sash edge (follow-up to 5c-1): effectiveTuckInMM returns min(tuck-in, sash width on that edge), automatic or typed; validateSashEdgeMM refuses a sash value below the current tuck-in, for sliders only. Only a lone slider whose sash is narrower than its automatic tuck-in can change number (for example an old saved design with a 10 mm sash). None of the 13 files that existed then is affected.
+- No export field or schema change; schemaVersion stays 6. A reset leaves four null fields in the saved rawState.
+- cloneForSplit does NOT copy the four fields: a split pane's new halves start automatic. The type-change handler does copy them (harmless on a non-slider; they return if the pane is switched back).
+
+**C. No-frame sliders tuck 20 into a real mullion (step 5c-2).** REPORTED BY CLAUDE CODE (ledger):
+- A slider with no outer frame now gets an automatic tuck-in of 20 mm (half of FRAME_TUCKIN_MM) at a real mullion edge, left and right only. A typed value follows the same gate. Still 0: an opening edge with no frame, top and bottom with no frame, sashless sliders, a silicone-joint edge. Framed systems do not change. New helper noFrameBlocksTuckIn.
+- Numbers change only for a no-frame lone slider beside a real mullion. Safety-net file 14 was saved BEFORE and AFTER (layout 1800 x 2100, no outer frame, mullion at 980 thickness 40, both panes horizontal sliders): BEFORE .L 960 x 2100, .R 800 x 2100; AFTER .L 980 x 2100, .R 820 x 2100. Between the two the system differences are the two sliders' widthMM, areaM2 and visibleGlazedAreaM2, the right slider's xMM (1000 to 980), and frameLengthMM / totalFrameLengthMM (14020 to 14100).
+- INFERRED BY CLAUDE: the expected numbers for file 14 are Claude's arithmetic, not hand values.
+
+**D. Column rename.** DECIDED BY SAHIL (label): the Assigned panes column "Made size (mm)" is now "Sash/Leaf size (mm)" on screen. REPORTED BY CLAUDE CODE: display only; the export fields widthMM and heightMM, the function name madeSizeCellText, every calculation and schemaVersion (6) are unchanged. v1.49 and earlier entries keep the word "made" as history.
+
+**E. Preset slide-direction lock and the join rule.**
+- REPORTED BY CLAUDE CODE: inside a sliding-window or sliding-door assembly preset (OX family: OX, OXX, OXXO, XOX, OXXX, OXXXX, OXXXXX, window and door ids) the "Slide direction" dropdown on a horizontal slider is shown disabled, still displaying the current value, with a tooltip saying the direction is set by the preset pattern. Not locked: lone sliders, manually built sliders, double-hung vertical sliders.
+- DECIDED BY SAHIL: the lock itself, because the preset code sets each join type from the pattern letters when the preset is built and never reads the dropdown, so changing a direction afterwards would leave the export silently wrong. To get a different arrangement the user picks a different preset.
+- DECIDED BY SAHIL (8 October 2026): the join rule. Two X sashes sliding the same way = overlap; sliding apart = butt; sliding towards each other = overlap. No preset can reach the towards-each-other case today.
+- REPORTED BY CLAUDE CODE (the finding): join type is set from the pattern letters at build time, not from the slide direction dropdown.
+- REPORTED BY CLAUDE CODE (tested in the harness on the file 09 layout, not committed): flipping a double-hung direction changes only that pane's slideDirection field (plus matching rawState fields and the drawing arrow). No size, overlap or other number changes.
+- No numbers change, no stored data rewritten, schemaVersion stays 6.
+
+**F. Drawing order fix.** REPORTED BY SAHIL (the symptom, from screenshots): in the OXXO and XOX sliding-window presets an X sash with an O immediately to its right did not show its right-hand stile until clicked. REPORTED BY CLAUDE CODE (cause and fix): unselected panes had no stacking level, so a later O painted over the earlier X's overlapped edge. One CSS rule now gives every non-fixed pane (class "filled" without "no-frame-band") that is not selected z-index 1, so sliders paint above fixed panes; a selected pane keeps z-index 2; bars are added after all panes so a mullion stays clickable. Display only. NOT changed: the double-hung meeting rail, the X-over-X order in OXX and similar. schemaVersion stays 6.
+
+**G. Tuck-in scope.** DECIDED BY SAHIL (8 October 2026): only sliding doors and sliding windows have tuck-in values. Casement, awning, louvre, hinged door and fixed panes have none. Vertical sliders and double-hung count as sliding windows. Consequence: planned item 3 in the ledger (boxes for casement, awning, hinged door, louvre) is CLOSED, decided not to build. Planned item 2 (editable tuck-in) is DONE for lone and manually split sliders and PLANNED for presets (step 4).
+
+**H. Step 4 design decisions (planning only, nothing built).** All DECIDED BY SAHIL, 8 October 2026:
+1. Preset tuck-in is stored per section edge on the preset marker.
+2. In OX-family rows only the two OUTER ends of the row get width tuck-in boxes; interior joins are overlaps and belong to step 5d.
+3. The O gets an editable left box starting at 20 (matches today's exports); no right box (the X overlaps it). The O's top and bottom have no tuck-in (fixed pane, none today).
+4. Editing a tuck-in changes the made width of the section at that edge, so the row rule still holds: sum of made widths - overlaps - (left end tuck + right end tuck) = opening.
+5. X sashes get head/sill tuck-in boxes, starting 20 each (step 4a). Width boxes are step 4b.
+6. Double-hung head/sill is deferred (baked into the tree's overlap); jamb width later.
+7. Sashless presets: no boxes; sashless tuck-in is 0 and that is intended.
+8. The no-frame preset beside a mullion (today 0, rule says 20) is fixed in step 4b, with safety-net file 15 saved before and after.
+9. Join rule as in item E; inside a preset the slide direction is locked.
+10. Order: 4a (heights), then 4b (widths), then 5d (overlap as a computed value).
+
+**I. Test harness and safety net.**
+- REPORTED BY CLAUDE CODE: tools/ui_regression.py now covers files 13, 11, 10, 08, 09, 14, 07, 02, 06 and 12, plus four scenarios: tuck (typed, refused and reset values on file 13 .L), nofr (no-frame sliders beside a mullion), dirlock (preset direction lock) and stack (stacking order of overlapped stiles). Files 01, 03, 04 and 05 are NOT covered.
+- REPORTED BY CLAUDE CODE: the safety net folder configurator_safety_net_v6 holds 15 export files: 01 to 13, plus 14 BEFORE and 14 AFTER (the folder also holds a README.md, so 16 entries in total). The "16 files" figure in the v1.50 request counts the README; there are 15 exports.
+- INFERRED BY CLAUDE: expected table values for the preset files 07, 02, 06, 12 and for file 14 are Claude's arithmetic from the saved exports, not hand values from Sahil.
+- REPORTED BY CLAUDE CODE: be2b13d corrected two stale comments that said the sashless frame tuck-in constant was 6; they now say "currently 0". Comment-only. DECIDED BY SAHIL: sashless tuck-in is 0 and that is intended (step 4 decision 7).
+
+**J. Open items.** All open items listed in v1.49 item G and v1.48 item H remain open unless stated here. New or restated:
+1. Asked of Sahil, not answered (8 October 2026): whether the overlap is editable per join, which section absorbs an overlap change, and the allowed range.
+2. The preset no-frame slider beside a mullion is still 0 until it is fixed in step 4b (decision 8), with safety-net file 15 saved before and after.
+3. Double-hung head/sill tuck-in is deferred (decision 6).
+4. Daylight for fixed panes is wrong until step 5d (DECIDED BY SAHIL to defer, v1.49 item F).
+5. The "—" fallback when the export cannot be built is a placeholder for Sahil to revisit (v1.49 item F).
+6. Hand values for exports 06 to 14 have not been written by Sahil; all expected numbers are Claude's arithmetic.
+7. Save and reload of typed tuck-in values is not covered by the harness.
+8. Node is not installed, so there is no syntax check of configurator.html.
+9. Splitting a slider drops its typed tuck-in values: the halves start automatic.
+10. STATED BY SAHIL in the v1.50 update request, NOT VERIFIED against code or ledger: room type and building type extraction from the human impact engine is planned (read-only); the bar-warning text in translation.py is an open item.
+11. The project copy of this summary is updated separately (not part of this commit).
 
 ### v1.49 - 7 October 2026 - Configurator variant: step 5b merged (made size and daylight columns), sashless daylight uses stored capping edges, tools/ui_regression.py added
 
