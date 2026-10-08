@@ -1132,13 +1132,63 @@ function effectiveTuckInMM(node, edge, edgeKind, ev) {
   return Math.min(uncappedTuckInMM(node, edge, edgeKind, ev), getSashEdges(node)[edge]);
 }
 
+// Step 4a: head/sill tuck-in of an X sash inside a sliding preset (OX family). It is kept per
+// section on the preset marker as sectionHeadSillTuckMM: one {top, bottom} entry per pattern letter,
+// each value null (automatic) or a typed number (0 or more). A missing array or entry means
+// automatic, so nothing is written to the marker until the user types or resets a value.
+// Which section of the sliding preset a leaf belongs to (-1 if none, or not a sliding preset).
+function slidingSectionIndexOfLeaf(ref, markedPath, leafPath) {
+  if (!isSlidingOverlapId(ref.id, ref.pattern)) return -1;
+  const sectionPaths = computeSlidingWinSectionPaths(ref.pattern);
+  for (let i = 0; i < sectionPaths.length; i++) {
+    if (pathStartsWith(leafPath, markedPath.concat(sectionPaths[i]))) return i;
+  }
+  return -1;
+}
+
+// The typed head or sill tuck-in for one section edge, or null when it is automatic.
+function typedPresetHeadSillMM(ref, sectionIdx, edge) {
+  const arr = ref.sectionHeadSillTuckMM;
+  const entry = Array.isArray(arr) ? arr[sectionIdx] : null;
+  const v = entry ? entry[edge] : null;
+  return (typeof v === 'number' && Number.isFinite(v) && v >= 0) ? v : null;
+}
+
+// The head or sill tuck-in this section edge would have if its sash were wide enough: the typed
+// value if there is one, otherwise half the full head/sill allowance. Nothing tucks in with no
+// outer frame or on a sashless row, typed or not.
+function uncappedPresetHeadSillMM(ref, sectionIdx, edge, hasFrame, sashless) {
+  if (!hasFrame || sashless) return 0;
+  const typed = typedPresetHeadSillMM(ref, sectionIdx, edge);
+  return typed === null ? SLIDING_HEIGHT_TUCKIN_MM / 2 : typed;
+}
+
+// A fresh copy of the marker's per-section array, one {top, bottom} entry per pattern letter, so a
+// change can be written onto a new marker object without touching the live one.
+function copyPresetHeadSillArray(ref) {
+  const old = Array.isArray(ref.sectionHeadSillTuckMM) ? ref.sectionHeadSillTuckMM : [];
+  const out = [];
+  for (let i = 0; i < ref.pattern.length; i++) {
+    out.push({ top: typedPresetHeadSillMM(ref, i, 'top'), bottom: typedPresetHeadSillMM(ref, i, 'bottom') });
+  }
+  return out;
+}
+
 // For the sash box check: the tuck-in on the selected leaf's edge before the sash-width cap (what
 // the Tuck-in box would show if the sash were wide enough). 0 for anything that has no tuck-in
 // row: a non-slider, a sashless pane, or a pane under an assembly-preset marker.
 function selectedEdgeTuckInMM(node, edge, ev) {
   if (!isTuckInSlider(node) || node.sashless === true) return 0;
   const path = ev.selected.path;
-  if (findAssemblyPresetAncestor(path)) return 0;
+  const anc = findAssemblyPresetAncestor(path);
+  if (anc) {
+    // Step 4a: a sliding preset's X sash has a head/sill tuck-in (top/bottom only). Left/right
+    // under a preset stay 0 here (step 4b).
+    if (edge !== 'top' && edge !== 'bottom') return 0;
+    const idx = slidingSectionIndexOfLeaf(anc.assemblyPresetRef, anc.path, path);
+    if (idx < 0) return 0;
+    return uncappedPresetHeadSillMM(anc.assemblyPresetRef, idx, edge, ev.hasFrame, false);
+  }
   const m = getMembers(ev);
   const openingW = getOpeningW(getOverallW(), m);
   const openingH = getOpeningH(getOverallH(), m);
@@ -3304,6 +3354,7 @@ function renderToolbar() {
     bar.appendChild(row5);
     bar.appendChild(sashErrDiv);
     appendTuckInRow(bar, node, ev);
+    appendPresetHeadSillTuckInRow(bar, node, ev);
   }
 
   // Item 2 (batch 5): louvre blade width/length — stored inputs for the AS 1288 blade-envelope
@@ -3435,6 +3486,103 @@ function appendTuckInRow(bar, node, ev) {
     setNode(path, next);
     render();
   };
+  row.appendChild(resetBtn);
+  bar.appendChild(row);
+  bar.appendChild(errDiv);
+}
+
+// Step 4a: the head/sill tuck-in row for an X sash inside a sliding preset (OX family). The two
+// values live on the preset marker, per section (sectionHeadSillTuckMM), not on the leaf. A change
+// builds a NEW marker object and writes it back with setNode, never editing the live marker. A
+// height-only change does not alter any drawn width, so the marker's stored widths stay valid.
+function appendPresetHeadSillTuckInRow(bar, node, ev) {
+  if (node.kind !== 'filled' || node.type === 'fixed' || node.sashless === true) return;
+  const path = ev.selected.path;
+  const anc = findAssemblyPresetAncestor(path);
+  if (!anc || !isSlidingOverlapId(anc.assemblyPresetRef.id, anc.assemblyPresetRef.pattern)) return;
+  const markedPath = anc.path;
+  const ref = anc.assemblyPresetRef;
+  const sectionIdx = slidingSectionIndexOfLeaf(ref, markedPath, path);
+  if (sectionIdx < 0) return;
+  const m = getMembers(ev);
+  const openingW = getOpeningW(getOverallW(), m);
+  const openingH = getOpeningH(getOverallH(), m);
+  const leaves = [];
+  const rects = {};
+  collectExportGeometry(ev.root, 0, 0, openingW, openingH, [], leaves, [], [], rects);
+  const leaf = leaves.find(l => pathKey(l.path) === pathKey(path));
+  const rowRect = rects[pathKey(markedPath)];
+  if (!leaf || !rowRect) return;
+  // A row with any sashless leaf is sashless as a whole (same test as the vertical correction).
+  if (leaves.some(l => pathStartsWith(l.path, markedPath) && l.node.sashless === true)) return;
+  const touches = {
+    top: Math.abs(leaf.y - rowRect.y) < EDGE_TOUCH_EPS_MM,
+    bottom: Math.abs(leaf.y + leaf.h - (rowRect.y + rowRect.h)) < EDGE_TOUCH_EPS_MM
+  };
+  const sashes = getSashEdges(node);
+
+  const row = document.createElement('div');
+  row.className = 'toolbar-row';
+  const label = document.createElement('span');
+  label.style.fontSize = '12px';
+  label.style.color = 'var(--text-dim)';
+  label.textContent = 'Head/sill tuck-in (mm)';
+  row.appendChild(label);
+  const errDiv = document.createElement('div');
+  errDiv.className = 'field-error';
+
+  // Writes a changed copy of this section's entry onto a new marker, then redraws.
+  function writeSection(topVal, bottomVal) {
+    const arr = copyPresetHeadSillArray(ref);
+    arr[sectionIdx] = { top: topVal, bottom: bottomVal };
+    const markedNode = getNode(markedPath);
+    setNode(markedPath, { ...markedNode, assemblyPresetRef: { ...ref, sectionHeadSillTuckMM: arr } });
+    render();
+  }
+
+  ['top', 'bottom'].forEach(edge => {
+    const typed = typedPresetHeadSillMM(ref, sectionIdx, edge);
+    let why = '';
+    if (!ev.hasFrame) why = 'No head/sill tuck-in without an outer frame (nothing to slide behind).';
+    else if (sashes[edge] === 0) why = 'No tuck-in here: the ' + edge + ' sash width is 0.';
+    else if (!touches[edge]) why = 'No tuck-in here: this pane does not sit on the ' + (edge === 'top' ? 'head' : 'sill') + ' of the row.';
+    const disabled = why !== '';
+    const shown = disabled ? 0 : Math.min(uncappedPresetHeadSillMM(ref, sectionIdx, edge, ev.hasFrame, false), sashes[edge]);
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
+    const edgeLabel = document.createElement('span');
+    edgeLabel.style.fontSize = '11px';
+    edgeLabel.style.color = 'var(--text-dim)';
+    edgeLabel.textContent = edge.charAt(0).toUpperCase() + edge.slice(1) + (typed === null ? ' (auto)' : ' (typed)');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = 'headSillTuckInput-' + edge;
+    input.value = shown;
+    input.disabled = disabled;
+    input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
+    if (disabled) input.title = why;
+    input.addEventListener('change', () => {
+      const err = validateTuckInMM(input.value, edge, node, null);
+      if (err) {
+        input.value = shown;
+        errDiv.textContent = err;
+        return;
+      }
+      const v = Number(input.value);
+      writeSection(edge === 'top' ? v : typedPresetHeadSillMM(ref, sectionIdx, 'top'),
+                   edge === 'bottom' ? v : typedPresetHeadSillMM(ref, sectionIdx, 'bottom'));
+    });
+    wrap.appendChild(edgeLabel);
+    wrap.appendChild(input);
+    row.appendChild(wrap);
+  });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.id = 'headSillTuckInResetBtn';
+  resetBtn.className = 'secondary';
+  resetBtn.textContent = 'Reset head/sill tuck-ins';
+  resetBtn.disabled = typedPresetHeadSillMM(ref, sectionIdx, 'top') === null && typedPresetHeadSillMM(ref, sectionIdx, 'bottom') === null;
+  resetBtn.onclick = () => writeSection(null, null);
   row.appendChild(resetBtn);
   bar.appendChild(row);
   bar.appendChild(errDiv);
@@ -6011,7 +6159,7 @@ function computeSlidingAssemblyVerticalCorrections(leaves, ev, nodeRects) {
   const ranges = [];
   collectSlidingAssemblyRanges(ev.root, [], ranges);
   const corrections = new Map();
-  ranges.forEach(({ path: markedPath }) => {
+  ranges.forEach(({ path: markedPath, ref }) => {
     const rowRect = nodeRects[pathKey(markedPath)];
     if (!rowRect) {
       throw new Error('computeSlidingAssemblyVerticalCorrections: a sliding assembly (marked path [' +
@@ -6020,13 +6168,18 @@ function computeSlidingAssemblyVerticalCorrections(leaves, ev, nodeRects) {
     }
     const assemblyLeaves = leaves.filter(l => pathStartsWith(l.path, markedPath));
     const sashless = assemblyLeaves.some(l => l.node.sashless === true);
-    const tuckInV = (ev.hasFrame && !sashless) ? SLIDING_HEIGHT_TUCKIN_MM : 0;
-    const topStrip = tuckInV / 2, bottomStrip = tuckInV / 2;
     assemblyLeaves.forEach(l => {
       if (l.node.type === 'fixed') {
         corrections.set(l, { y: l.y, h: l.h });
         return;
       }
+      // Step 4a: each X leaf has its own head and sill tuck-in (automatic half of the allowance, or
+      // typed per section on the marker), and a tuck-in can never be more than the sash width on
+      // that edge, the same rule as a lone slider. Defaults with a 40 mm sash give the old 20/20.
+      const sectionIdx = slidingSectionIndexOfLeaf(ref, markedPath, l.path);
+      const sash = getSashEdges(l.node);
+      const topStrip = Math.min(uncappedPresetHeadSillMM(ref, sectionIdx, 'top', ev.hasFrame, sashless), sash.top);
+      const bottomStrip = Math.min(uncappedPresetHeadSillMM(ref, sectionIdx, 'bottom', ev.hasFrame, sashless), sash.bottom);
       const touchesTop = Math.abs(l.y - rowRect.y) < EDGE_TOUCH_EPS_MM;
       const touchesBottom = Math.abs(l.y + l.h - (rowRect.y + rowRect.h)) < EDGE_TOUCH_EPS_MM;
       corrections.set(l, {
