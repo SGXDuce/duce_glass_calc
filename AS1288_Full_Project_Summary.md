@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.50 (Configurator variant: steps 5c-1 and 5c-2 merged, preset direction lock, drawing-order fix, step 4 design decisions)
+### Version: V1.51 (Configurator variant: step 4a merged, head/sill tuck-in boxes for X sashes in sliding presets, hand-value rule dropped, human impact question survey)
 ### Last Updated: 8 October 2026
 
 ---
@@ -8,6 +8,54 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.51 - 8 October 2026 - Configurator variant: step 4a merged (head/sill tuck-in boxes for X sashes in sliding presets), hand-value rule dropped, human impact question survey
+
+Source: terminal pastes by Sahil on 8 October 2026 and the pasted Claude Code and Claude in Chrome reports. Tags follow the ledger.
+
+**A. Merged.** VERIFIED BY SAHIL (his terminal paste after each merge):
+- PR #48 (summary v1.50): merge commit 06ae2ee. His git log --oneline -3 showed it on top of e588102 and 4a9678b. INFERRED BY CLAUDE: its other parent is the previous master c58ce47 (the parents were not printed).
+- PR #49 (step 4a): merge commit bae79b0, parents 06ae2ee and bb1889a. Branch commits: 7bf0c72 (the step), 8092e7e (harness covers Edit assembly widths and a two-X preset; ledger wording), bb1889a (harness covers the door family and OXXO). Master check: three files changed (configurator.html, VARIANT_CHANGES.md, tools/ui_regression.py), 596 insertions and 5 deletions; the harness exited 0 with every file and scenario PASS; pytest 208 passed; RAW_STATE_SCHEMA_VERSION still 1; the new field does not appear under engine or tests.
+- The branch step-4a-preset-head-sill-tuckin still exists locally and on GitHub (clean-up list).
+
+**B. Decisions.** DECIDED BY SAHIL (8 October 2026):
+1. Hand values for exports 06 to 14 are no longer needed. Every comparison from here is labelled "Claude's arithmetic against the tool". None of it counts as hand-verified. This closes v1.50 item J.6 as a requirement.
+2. For step 5d, worked cases are written and checked by Sahil BEFORE any code (he agreed with Claude's recommendation). The 5d worked cases are not written yet.
+
+**C. Chrome re-check of files 06, 07, 10 and 12.** REPORTED BY SAHIL (pasted from Claude in Chrome; numbers read from the Assigned panes table; Claude's arithmetic against the tool, not hand values):
+- 06: .S and .R 1720 x 1040 / 1640 x 960. 07: .R 860 x 1980 / 860 x 1980, .S 920 x 2020 / 840 x 1940. 10: .L 900 x 1980 / 900 x 1980, .R 780 x 2020 / 700 x 1940. 12 (no outer frame, elevation 1680 x 1980): .S and .R 1680 x 1020 / 1600 x 940. All agree with Claude's arithmetic and the saved exports.
+- The Configurator's mullion form asks for "Distance right of origin to mullion centre (mm)" (pre-filled 900) and "Bar width (mm)" (pre-filled 45). The distance is measured from the outer edge of the elevation, not from the inside of the frame. File 10 is a bar centre of 980 with bar width 40. Entering 920 instead gives pane widths 840 and 800 (agent run). CORRECTION: Claude had said the position was measured from the inside of the left frame member; that was INFERRED BY CLAUDE and wrong.
+- File 12 is an elevation of 1680 x 1980 with no frame. With no frame the double-hung form pre-fills Top pane height 1020. INFERRED BY CLAUDE: (1980 + 60) / 2.
+- Files 08, 09, 11, 13 and 14 were not run in Chrome; the harness builds them.
+
+**D. Human impact question survey (queue item 3).** REPORTED BY CLAUDE CODE (read-only run; the raw git grep output was pasted and read by Claude; no commit):
+- The standalone human impact page (human_impact.html) asks three questions. Building use: options Residential, School / early childhood, Aged care / nursing home, Other; sent as building_use = residential, school, aged, other; default Residential. Bathroom / ensuite / spa room: No / Yes; sent as is_bathroom. High risk of breakage area: No / Yes; sent as high_risk. All default to the first option or No and are always shown. The code reads them in engine/human_impact/location_rules.py: 'residential' (low-level rule), 'school' (sightline 1000 or less), 'aged' (sightline 1500 or less), is_bathroom (sightline 2000 or less, the code uses less-than-or-equal), high_risk (no height limit in the engine).
+- system_check.html asks none of these. It sends only ffl_height_mm. translation.py reads row.get('building_use'), row.get('is_bathroom') and row.get('high_risk'), which are None. INFERRED BY CLAUDE: with None, none of the use-based rules fire. This is the same gap recorded in v1.37; nothing is wrong today because System check runs no human impact check, but it becomes a real defect when the engine is wired in without these questions.
+- The search for "kitchen" found no match in the app code. The standalone label says only "Bathroom / ensuite / spa room?". The summary (v1.37) says kitchens count as bathrooms, so the System check wording must cover kitchens.
+- Claude Code's own account of some details is REPORTED BY CLAUDE CODE only, with no raw output pasted: the "Other" option, the scope gate before the questions appear, the low-level rule's sightline below 500 and not-a-door conditions, and the opening-type buttons.
+- Not checked: lines 139 to 150 and 152 to 235 of location_rules.py, and engine/human_impact/__init__.py and routes.py (the grep found none of the three fields there).
+
+**E. Step 4a built and merged: head/sill tuck-in boxes for X sashes in sliding presets.**
+- What it does. REPORTED BY CLAUDE CODE (the diff was pasted and read by Claude): an X sash inside an OX-family sliding preset (windows and doors, framed, not sashless) now has "Head/sill tuck-in (mm)" Top and Bottom boxes, tagged "(auto)" or "(typed)", and a "Reset head/sill tuck-ins" button. O sections, sashless rows, double-hung and every non-preset pane show no row.
+- Storage. REPORTED BY CLAUDE CODE: The values live per section on the preset marker as assemblyPresetRef.sectionHeadSillTuckMM: an array with one {top, bottom} entry per pattern letter, each null (automatic) or a number (0 or more). Nothing is written until a value is typed or reset. A change builds a new marker object and writes it with setNode. No export field, schemaVersion stays 6, RAW_STATE_SCHEMA_VERSION stays 1. VERIFIED BY SAHIL (his grep on master): sectionHeadSillTuckMM appears in configurator.html and not under engine or tests, and RAW_STATE_SCHEMA_VERSION = 1 is still the only value.
+- Rules. REPORTED BY CLAUDE CODE (what the built code does): Automatic is half of SLIDING_HEIGHT_TUCKIN_MM per edge (20 / 20) when there is an outer frame and the row is not sashless. A typed value is used only in that case. The applied value is capped at that leaf's own sash width on the edge. A typed value above the sash width is refused ("Tuck-in cannot be more than the ... sash width"); narrowing a sash edge below its tuck-in is refused ("lower the tuck-in first"). The boxes are disabled and show 0 when there is no outer frame, the edge's sash width is 0, or the pane does not sit on that edge of the row. PROPOSED BY CLAUDE: the defaults, the cap and the split-section behaviour (Sahil did not review these rules before they were built). DECIDED BY SAHIL (v1.50 item H, 8 October 2026): per-section storage on the marker, X sashes only, starting at 20 each, no boxes on sashless presets, double-hung deferred.
+- Code. REPORTED BY CLAUDE CODE (diff read by Claude): computeSlidingAssemblyVerticalCorrections uses each X leaf's own top and bottom values; selectedEdgeTuckInMM returns the preset's top/bottom value (left/right under a preset stay 0, step 4b); new helpers slidingSectionIndexOfLeaf, typedPresetHeadSillMM, uncappedPresetHeadSillMM, copyPresetHeadSillArray, appendPresetHeadSillTuckInRow.
+- Numbers. Defaults change nothing: files 13, 11, 10, 08, 09, 14, 07, 02, 06 and 12 all show system differences 0 in Sahil's own harness run (VERIFIED BY SAHIL). Typed values are Claude's arithmetic against the tool. REPORTED BY CLAUDE CODE (first harness run); the same checks passed again in Sahil's own harness run on master (VERIFIED BY SAHIL). File 07 layout, top 30 gives .S 920 x 2030 / 840 x 1950; top 30 and bottom 10 gives 920 x 2020 / 840 x 1940 with yMM 50. A top tuck-in does not move the exported yMM (yMM is measured up from the bottom, so only the bottom tuck-in moves it). REPORTED BY CLAUDE CODE: the first harness run failed on this because the expectation had assumed otherwise; the harness expectations were then corrected.
+- Tests added to tools/ui_regression.py (REPORTED BY CLAUDE CODE; Sahil's own harness run on master printed every scenario as PASS, VERIFIED BY SAHIL): headsill (file 07 layout), headsill2 (Edit assembly widths keeps the typed values, with the widths unchanged and changed to 840 / 940; OXX per-section values) and headsill3 (the OX door family, and OXXO per-section values, including after Edit assembly widths). Save and reload is checked once through window.serializeRawState() and window.restoreFromRawState() (a page-function fallback, logged by the harness).
+- Finding. REPORTED BY CLAUDE CODE (code read and printed; behaviour then tested): confirmAssemblyEdit builds its new marker by copying the old one and replaces only panelWidthsMM, so sectionHeadSillTuckMM is kept. The earlier ledger wording that a typed value "may not survive" was a guess and was replaced after the test.
+- Ledger. REPORTED BY CLAUDE CODE: step 4a entry added to VARIANT_CHANGES.md, tag carry back (tag proposed by Claude, not confirmed by Sahil).
+
+**F. Open items, new or restated.** All open items in v1.50 item J remain open unless stated here.
+1. NOT TESTED: the head/sill row appears on any non-fixed pane in a sliding preset, including a casement placed there by hand, although Sahil decided tuck-in applies to sliders only (v1.50 item G). INFERRED BY CLAUDE (a gap in Claude's prompt, which excluded only fixed panes). DECIDED BY SAHIL (8 October 2026): this stays listed as an open defect.
+2. INFERRED BY CLAUDE (read from the pasted harness code): NOT TESTED: a split X section; a row mixing sashless and framed X leaves; the preset check in selectedEdgeTuckInMM treats the row as framed and not sashless.
+3. INFERRED BY CLAUDE (read from the pasted harness code): the harness prints the exported OXXO pane heights and yMM for information; it does not assert them.
+4. REPORTED BY CLAUDE CODE: stampSectionDrawnWidths still edits the live marker in place (older code, not changed).
+5. INFERRED BY CLAUDE: Sahil has not looked at the new row in a browser himself (he did not report a look).
+6. INFERRED BY CLAUDE: unanswered since v1.50: is the overlap editable per join, which section absorbs an overlap change, and what range is allowed (needed before step 4b and 5d).
+7. v1.50 item J.12 (the project copy of this summary is updated separately) is out of date: INFERRED BY CLAUDE from reading the project copy on 8 October 2026, it was already v1.50.
+8. PROPOSED BY CLAUDE: branch clean-up now also includes step-4a-preset-head-sill-tuckin.
+
+**G. Plan.** PROPOSED BY CLAUDE: this docs commit; step 4b (outer-end width boxes, the no-frame preset beside a mullion fix with new safety-net file 15 saved before and after; Opus; a read-only survey first); then 5d (worked cases first, per item B.2; Opus).
 
 ### v1.50 - 8 October 2026 - Configurator variant: steps 5c-1 and 5c-2 merged, preset slide-direction lock, drawing-order fix, tuck-in scope, step 4 design decisions
 
