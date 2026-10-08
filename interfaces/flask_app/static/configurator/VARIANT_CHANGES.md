@@ -489,9 +489,13 @@ The "Planned changes (not yet made)" list above is left as written. Current
 status:
 
 - Planned item 2 (editable tuck-in) is DONE for lone and manually split
-  sliders (steps 5c-1 and 5c-2, merged) and PLANNED for presets (step 4).
+  sliders (steps 5c-1 and 5c-2, merged). For presets, the head/sill boxes
+  are DONE (step 4a, merged, bae79b0). The left/right width boxes (step 4b)
+  and overlap as a computed value (step 5d) are PLANNED, not built.
 - Planned item 3 was closed (see "Tuck-in applies to sliding doors and
   windows only").
+- Planned item 4 (strip Duce/NGR wording from comments) is still PROPOSED,
+  not built. Tag unchanged: AS1288-only, do not carry back.
 
 Merged since step 5b (merge commits):
 
@@ -501,5 +505,6 @@ Merged since step 5b (merge commits):
 - Step 4 coverage: a70d7db
 - Preset direction lock: 396bbb8
 - Drawing order fix: 90074e0
+- Step 4a (head/sill tuck-in boxes in presets): bae79b0 (PR #49)
 
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
