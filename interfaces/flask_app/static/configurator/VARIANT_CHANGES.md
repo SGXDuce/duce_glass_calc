@@ -317,15 +317,24 @@ entries are applied there at the end of this project.
   `typedPresetHeadSillMM`, `uncappedPresetHeadSillMM`,
   `copyPresetHeadSillArray`, `appendPresetHeadSillTuckInRow`.
 - Not touched: left/right values, O sections, double-hung, sashless rows,
-  `SLIDING_OVERLAP_MM`, `confirmAssemblyEdit` (which rebuilds the marker, so a
-  typed value may not survive "Edit assembly widths"; not checked in this step),
-  `cloneForSplit`, any constant.
+  `SLIDING_OVERLAP_MM`, `confirmAssemblyEdit`, `cloneForSplit`, any constant.
+- Checked (scenario `headsill2`, steps l and m): `confirmAssemblyEdit` builds
+  its new marker by copying the old one (`{ ...markedNode.assemblyPresetRef }`)
+  and only replaces `panelWidthsMM`, so `sectionHeadSillTuckMM` is kept. A typed
+  top of 30 survived "Edit assembly widths" with the widths unchanged and with
+  new widths (O 840, X 940). In an OXX preset each X keeps its own values (first
+  X top 30, second X bottom 10 stay separate), and the O shows no row.
 - No export field or schema change: `schemaVersion` stays 6,
   `RAW_STATE_SCHEMA_VERSION` stays 1.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
   not installed, so no syntax check. Run with tools/ui_regression.py (headless
   Chromium, REPORTED BY CLAUDE CODE): all earlier files and scenarios
   unchanged, plus a new `headsill` scenario on the file 07 layout.
+- Open (not built, not tested): the new row appears on any non-fixed pane in a
+  sliding preset, including a casement placed there by hand, although tuck-in
+  applies to sliders only; a split X section is not covered by the harness; a
+  row mixing sashless and framed X leaves is not covered; the preset check in
+  `selectedEdgeTuckInMM` treats the row as framed and not sashless.
 
 ## Planned changes (not yet made)
 

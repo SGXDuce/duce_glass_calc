@@ -1038,6 +1038,109 @@ def run_headsill_scenario(browser):
     return ok and clean
 
 
+def table_heights(page):
+    """Table rows in DOM order: (id, made height, daylight height) taken from the Sash/Leaf and Daylight columns."""
+    out = []
+    for r in read_table(page):
+        if len(r) >= 10 and r[0]:
+            out.append((r[0], int(r[8].split(' x ')[1]), int(r[9].split(' x ')[1])))
+    return out
+
+
+def run_headsill_more_scenario(browser):
+    """Step 4a follow-up: Edit assembly widths keeps typed head/sill values (l); per-section values in OXX (m)."""
+    print('\n=== Head/sill follow-up scenario (Edit assembly widths, OXX) ===')
+    fid = '07'
+    # Expected numbers are Claude's arithmetic, not hand values. Made height = 1980 + top + bottom tuck-in;
+    # daylight height = made height - 40 - 40. Width after the resize: O 840 drawn; X 940 wide made, less
+    # 40 + 40 sash edges = 860 daylight. 840 + 940 - 60 overlap - 40 tuck-in = 1680, the opening.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def box(edge):
+        return page.locator('#headSillTuckInput-' + edge)
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def state(idx):
+        select_pane(page, idx, 'headsill2'); settle()
+        return (box('top').input_value(), hs_label(page, 'top'), box('bottom').input_value(), hs_label(page, 'bottom'))
+
+    try:
+        # l) Edit assembly widths keeps the typed values
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_07(page, fid)
+        select_pane(page, 1, fid); settle()
+        set_number(page, '#headSillTuckInput-top', 30); settle()
+        check('l) before edit: .S 920 x 2030 / 840 x 1950', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+        select_pane(page, 1, fid)
+        click_button(page, 'Edit assembly widths')
+        click_button(page, 'Confirm resize'); settle()
+        s = state(1)
+        check('l) widths unchanged: top 30 typed, bottom 20 auto', s == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s))
+        check('l) widths unchanged: .S 920 x 2030 / 840 x 1950', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+        check('l) widths unchanged: .R 860 x 1980 / 860 x 1980', read_pane(page, '.R') == ('860 x 1980', '860 x 1980'), str(read_pane(page, '.R')))
+        click_button(page, 'Edit assembly widths')
+        set_number(page, '#presetWidthInput0', 840)
+        set_number(page, '#presetWidthInput1', 940)
+        click_button(page, 'Confirm resize'); settle()
+        s = state(1)
+        check('l) widths 840 / 940: top still 30 typed', s[0:2] == ('30', 'Top (typed)'), str(s))
+        check('l) widths 840 / 940: .R 840 x 1980 / 840 x 1980', read_pane(page, '.R') == ('840 x 1980', '840 x 1980'), str(read_pane(page, '.R')))
+        check('l) widths 840 / 940: .S 940 x 2030 / 860 x 1950', read_pane(page, '.S') == ('940 x 2030', '860 x 1950'), str(read_pane(page, '.S')))
+
+        # m) per-section values in OXX
+        build_preset_framed(page, 'Sliding windows', 'OXX')
+        print('  table rows (DOM order: 0 = O, 1 = first X, 2 = second X):')
+        for r in read_table(page):
+            print('    ' + ' | '.join(r))
+        check('m) three panes', len(table_heights(page)) == 3, str(table_heights(page)))
+        s = state(1)
+        set_number(page, '#headSillTuckInput-top', 30); settle()
+        s2 = state(2)
+        check('m) second X still 20 auto / 20 auto', s2 == ('20', 'Top (auto)', '20', 'Bottom (auto)'), str(s2))
+        s1 = state(1)
+        check('m) first X top 30 typed, bottom 20 auto', s1 == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s1))
+        h = table_heights(page)
+        check('m) made heights O 1980, X1 2030, X2 2020', [x[1] for x in h] == [1980, 2030, 2020], str(h))
+        check('m) daylight heights O 1980, X1 1950, X2 1940', [x[2] for x in h] == [1980, 1950, 1940], str(h))
+        state(2)
+        set_number(page, '#headSillTuckInput-bottom', 10); settle()
+        h = table_heights(page)
+        check('m) made heights O 1980, X1 2030, X2 2010', [x[1] for x in h] == [1980, 2030, 2010], str(h))
+        s1 = state(1)
+        check('m) first X still top 30 typed, bottom 20 auto', s1 == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s1))
+        s2 = state(2)
+        check('m) second X top 20 auto, bottom 10 typed', s2 == ('20', 'Top (auto)', '10', 'Bottom (typed)'), str(s2))
+        select_pane(page, 0, 'headsill2'); settle()
+        check('m) O shows no head/sill row', not hs_row_present(page))
+        exp = export_text(page, 'headsill2_m.json')
+        import json
+        with open(exp, encoding='utf-8') as f:
+            panes = json.load(f)['system']['elevations'][0]['panes']
+        print('  [info] exported panes (id, heightMM, yMM): %s' % [(p['id'], p['heightMM'], p['yMM']) for p in panes])
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
 def main():
     proc = None
     results = {}
@@ -1046,6 +1149,7 @@ def main():
     dl_ok = False
     st_ok = False
     hs_ok = False
+    hs2_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -1058,6 +1162,7 @@ def main():
             dl_ok = run_dirlock_scenario(browser)
             st_ok = run_stack_scenario(browser)
             hs_ok = run_headsill_scenario(browser)
+            hs2_ok = run_headsill_more_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -1073,9 +1178,10 @@ def main():
     print('%-6s %s' % ('dirlock', 'PASS' if dl_ok else 'FAIL'))
     print('%-6s %s' % ('stack', 'PASS' if st_ok else 'FAIL'))
     print('%-6s %s' % ('headsill', 'PASS' if hs_ok else 'FAIL'))
+    print('%-6s %s' % ('headsill2', 'PASS' if hs2_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
