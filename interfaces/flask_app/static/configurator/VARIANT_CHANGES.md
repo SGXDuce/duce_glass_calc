@@ -324,6 +324,9 @@ entries are applied there at the end of this project.
   top of 30 survived "Edit assembly widths" with the widths unchanged and with
   new widths (O 840, X 940). In an OXX preset each X keeps its own values (first
   X top 30, second X bottom 10 stay separate), and the O shows no row.
+- Also checked (scenario `headsill3`): a typed top value on the X of an OX
+  sliding door preset, and per-section values in an OXXO window preset,
+  including after Edit assembly widths with the widths unchanged.
 - No export field or schema change: `schemaVersion` stays 6,
   `RAW_STATE_SCHEMA_VERSION` stays 1.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is

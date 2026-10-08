@@ -1141,6 +1141,114 @@ def run_headsill_more_scenario(browser):
     return ok and clean
 
 
+def run_headsill_more2_scenario(browser):
+    """Step 4a follow-up 2: sliding door family (n) and OXXO window with two X sections (o)."""
+    print('\n=== Head/sill follow-up 2 scenario (OX door, OXXO window) ===')
+    # Expected numbers are Claude's arithmetic, not hand values. Made height = 1980 + top + bottom tuck-in;
+    # daylight height = made height - 40 - 40. The export's yMM is measured up from the bottom, so only a
+    # bottom tuck-in moves it (60 less the bottom tuck-in); a top tuck-in leaves it alone.
+    import json
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def box(edge):
+        return page.locator('#headSillTuckInput-' + edge)
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def state(idx):
+        select_pane(page, idx, 'headsill3'); settle()
+        return (box('top').input_value(), hs_label(page, 'top'), box('bottom').input_value(), hs_label(page, 'bottom'))
+
+    def heights():
+        return [x[1] for x in table_heights(page)]
+
+    def exported(name):
+        path = export_text(page, name)
+        with open(path, encoding='utf-8') as f:
+            panes = json.load(f)['system']['elevations'][0]['panes']
+        return [(p['id'], p['heightMM'], p['yMM']) for p in panes]
+
+    try:
+        # n) sliding DOOR family, typed value on the X
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_02(page, '02')
+        s = state(1)
+        check('n) door: both boxes 20 and auto', s == ('20', 'Top (auto)', '20', 'Bottom (auto)'), str(s))
+        set_number(page, '#headSillTuckInput-top', 30); settle()
+        s = state(1)
+        check('n) door: top 30 typed, bottom 20 auto', s == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s))
+        check('n) door: .S 920 x 2030 / 840 x 1950', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+        check('n) door: .R 860 x 1980 / 860 x 1980', read_pane(page, '.R') == ('860 x 1980', '860 x 1980'), str(read_pane(page, '.R')))
+        select_pane(page, 0, 'headsill3'); settle()
+        check('n) door: O shows no head/sill row', not hs_row_present(page))
+        ex = exported('headsill3_n.json')
+        print('  [info] door exported panes (id, heightMM, yMM): %s' % ex)
+        d = {p[0]: p for p in ex}
+        check('n) door: .S heightMM 2030 and yMM 40', d['.S'][1] == 2030 and d['.S'][2] == 40, str(d.get('.S')))
+        select_pane(page, 1, 'headsill3')
+        click_button(page, 'Edit assembly widths')
+        click_button(page, 'Confirm resize'); settle()
+        s = state(1)
+        check('n) door after Edit assembly widths: top 30 typed, bottom 20 auto', s == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s))
+        check('n) door after Edit assembly widths: .S 920 x 2030 / 840 x 1950', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+
+        # o) OXXO window: two X sections, two O sections
+        build_preset_framed(page, 'Sliding windows', 'OXXO')
+        print('  table rows (DOM order: 0 = first O, 1 = first X, 2 = second X, 3 = second O):')
+        for r in read_table(page):
+            print('    ' + ' | '.join(r))
+        check('o) four panes', len(table_heights(page)) == 4, str(table_heights(page)))
+        state(2)
+        set_number(page, '#headSillTuckInput-top', 30); settle()
+        s1 = state(1)
+        check('o) first X both 20 auto', s1 == ('20', 'Top (auto)', '20', 'Bottom (auto)'), str(s1))
+        s2 = state(2)
+        check('o) second X top 30 typed, bottom 20 auto', s2 == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s2))
+        check('o) made heights 1980, 2020, 2030, 1980', heights() == [1980, 2020, 2030, 1980], str(table_heights(page)))
+        check('o) daylight heights 1980, 1940, 1950, 1980', [x[2] for x in table_heights(page)] == [1980, 1940, 1950, 1980], str(table_heights(page)))
+        state(1)
+        set_number(page, '#headSillTuckInput-bottom', 10); settle()
+        check('o) made heights 1980, 2010, 2030, 1980', heights() == [1980, 2010, 2030, 1980], str(table_heights(page)))
+        s2 = state(2)
+        check('o) second X still top 30 typed, bottom 20 auto', s2 == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s2))
+        s1 = state(1)
+        check('o) first X top 20 auto, bottom 10 typed', s1 == ('20', 'Top (auto)', '10', 'Bottom (typed)'), str(s1))
+        select_pane(page, 0, 'headsill3'); settle()
+        no0 = not hs_row_present(page)
+        select_pane(page, 3, 'headsill3'); settle()
+        check('o) neither O shows a head/sill row', no0 and not hs_row_present(page))
+        select_pane(page, 1, 'headsill3')
+        click_button(page, 'Edit assembly widths')
+        click_button(page, 'Confirm resize'); settle()
+        s1 = state(1)
+        s2 = state(2)
+        check('o) after Edit assembly widths: first X top 20 auto, bottom 10 typed', s1 == ('20', 'Top (auto)', '10', 'Bottom (typed)'), str(s1))
+        check('o) after Edit assembly widths: second X top 30 typed, bottom 20 auto', s2 == ('30', 'Top (typed)', '20', 'Bottom (auto)'), str(s2))
+        check('o) after Edit assembly widths: made heights 1980, 2010, 2030, 1980', heights() == [1980, 2010, 2030, 1980], str(table_heights(page)))
+        print('  [info] OXXO exported panes (id, heightMM, yMM): %s' % exported('headsill3_o.json'))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
 def main():
     proc = None
     results = {}
@@ -1150,6 +1258,7 @@ def main():
     st_ok = False
     hs_ok = False
     hs2_ok = False
+    hs3_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -1163,6 +1272,7 @@ def main():
             st_ok = run_stack_scenario(browser)
             hs_ok = run_headsill_scenario(browser)
             hs2_ok = run_headsill_more_scenario(browser)
+            hs3_ok = run_headsill_more2_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -1179,9 +1289,10 @@ def main():
     print('%-6s %s' % ('stack', 'PASS' if st_ok else 'FAIL'))
     print('%-6s %s' % ('headsill', 'PASS' if hs_ok else 'FAIL'))
     print('%-6s %s' % ('headsill2', 'PASS' if hs2_ok else 'FAIL'))
+    print('%-6s %s' % ('headsill3', 'PASS' if hs3_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
