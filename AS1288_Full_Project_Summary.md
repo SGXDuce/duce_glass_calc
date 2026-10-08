@@ -41,7 +41,8 @@ Also on master, not a merge commit of its own: be2b13d (comment-only fix of stal
 **D. Column rename.** DECIDED BY SAHIL (label): the Assigned panes column "Made size (mm)" is now "Sash/Leaf size (mm)" on screen. REPORTED BY CLAUDE CODE: display only; the export fields widthMM and heightMM, the function name madeSizeCellText, every calculation and schemaVersion (6) are unchanged. v1.49 and earlier entries keep the word "made" as history.
 
 **E. Preset slide-direction lock and the join rule.**
-- REPORTED BY CLAUDE CODE: inside a sliding-window or sliding-door assembly preset (OX family: OX, OXX, OXXO, XOX, OXXX, OXXXX, OXXXXX, window and door ids) the "Slide direction" dropdown on a horizontal slider is shown disabled, still displaying the current value, with a tooltip saying the direction is set by the preset pattern. Not locked: lone sliders, manually built sliders, double-hung vertical sliders.
+- REPORTED BY CLAUDE CODE: inside a sliding-window or sliding-door assembly preset (OX family; windows: OX-win, OXX-win, OXXO-win, XOX-win, OXXX-win; doors: OX, OXX, OXXO, XOX, OXXX, OXXXX, OXXXXX; REPORTED BY CLAUDE CODE, ASSEMBLY_PRESET_CATEGORIES in configurator.html) the "Slide direction" dropdown on a horizontal slider is shown disabled, still displaying the current value, with a tooltip saying the direction is set by the preset pattern. Not locked: lone sliders, manually built sliders, double-hung vertical sliders.
+- VERIFIED BY SAHIL (browser look, 8 October 2026): the lock behaved as intended in all three cases (OX-win X greyed with tooltip, OXXO both X greyed, lone slider still works).
 - DECIDED BY SAHIL: the lock itself, because the preset code sets each join type from the pattern letters when the preset is built and never reads the dropdown, so changing a direction afterwards would leave the export silently wrong. To get a different arrangement the user picks a different preset.
 - DECIDED BY SAHIL (8 October 2026): the join rule. Two X sashes sliding the same way = overlap; sliding apart = butt; sliding towards each other = overlap. No preset can reach the towards-each-other case today.
 - REPORTED BY CLAUDE CODE (the finding): join type is set from the pattern letters at build time, not from the slide direction dropdown.
@@ -49,6 +50,7 @@ Also on master, not a merge commit of its own: be2b13d (comment-only fix of stal
 - No numbers change, no stored data rewritten, schemaVersion stays 6.
 
 **F. Drawing order fix.** REPORTED BY SAHIL (the symptom, from screenshots): in the OXXO and XOX sliding-window presets an X sash with an O immediately to its right did not show its right-hand stile until clicked. REPORTED BY CLAUDE CODE (cause and fix): unselected panes had no stacking level, so a later O painted over the earlier X's overlapped edge. One CSS rule now gives every non-fixed pane (class "filled" without "no-frame-band") that is not selected z-index 1, so sliders paint above fixed panes; a selected pane keeps z-index 2; bars are added after all panes so a mullion stays clickable. Display only. NOT changed: the double-hung meeting rail, the X-over-X order in OXX and similar. schemaVersion stays 6.
+VERIFIED BY SAHIL (browser look, 8 October 2026): all four checks passed; every X stile shows in OXXO and XOX; OX, OXX, selection and double-hung look as before.
 
 **G. Tuck-in scope.** DECIDED BY SAHIL (8 October 2026): only sliding doors and sliding windows have tuck-in values. Casement, awning, louvre, hinged door and fixed panes have none. Vertical sliders and double-hung count as sliding windows. Consequence: planned item 3 in the ledger (boxes for casement, awning, hinged door, louvre) is CLOSED, decided not to build. Planned item 2 (editable tuck-in) is DONE for lone and manually split sliders and PLANNED for presets (step 4).
 
@@ -66,7 +68,7 @@ Also on master, not a merge commit of its own: be2b13d (comment-only fix of stal
 
 **I. Test harness and safety net.**
 - REPORTED BY CLAUDE CODE: tools/ui_regression.py now covers files 13, 11, 10, 08, 09, 14, 07, 02, 06 and 12, plus four scenarios: tuck (typed, refused and reset values on file 13 .L), nofr (no-frame sliders beside a mullion), dirlock (preset direction lock) and stack (stacking order of overlapped stiles). Files 01, 03, 04 and 05 are NOT covered.
-- REPORTED BY CLAUDE CODE: the safety net folder configurator_safety_net_v6 holds 15 export files: 01 to 13, plus 14 BEFORE and 14 AFTER (the folder also holds a README.md, so 16 entries in total). The "16 files" figure in the v1.50 request counts the README; there are 15 exports.
+- REPORTED BY CLAUDE CODE: the safety net folder configurator_safety_net_v6 holds 15 export files: 01 to 13, plus 14 BEFORE and 14 AFTER (the folder also holds a README.md, so 16 entries in total).
 - INFERRED BY CLAUDE: expected table values for the preset files 07, 02, 06, 12 and for file 14 are Claude's arithmetic from the saved exports, not hand values from Sahil.
 - REPORTED BY CLAUDE CODE: be2b13d corrected two stale comments that said the sashless frame tuck-in constant was 6; they now say "currently 0". Comment-only. DECIDED BY SAHIL: sashless tuck-in is 0 and that is intended (step 4 decision 7).
 
@@ -80,8 +82,9 @@ Also on master, not a merge commit of its own: be2b13d (comment-only fix of stal
 7. Save and reload of typed tuck-in values is not covered by the harness.
 8. Node is not installed, so there is no syntax check of configurator.html.
 9. Splitting a slider drops its typed tuck-in values: the halves start automatic.
-10. STATED BY SAHIL in the v1.50 update request, NOT VERIFIED against code or ledger: room type and building type extraction from the human impact engine is planned (read-only); the bar-warning text in translation.py is an open item.
-11. The project copy of this summary is updated separately (not part of this commit).
+10. DECIDED BY SAHIL (8 October 2026, this chat): extracting the room-type and building-type questions from the human impact engine is planned as a read-only Claude Code check. Not yet run.
+11. REPORTED BY CLAUDE CODE (carried from the 7 October 2026 handover survey): the bar-warning text in translation.py (ASSUMED_BAR_TUCKIN_MM = 20) will be wrong once a transom tuck-in is editable. Open item.
+12. The project copy of this summary is updated separately (not part of this commit).
 
 ### v1.49 - 7 October 2026 - Configurator variant: step 5b merged (made size and daylight columns), sashless daylight uses stored capping edges, tools/ui_regression.py added
 
