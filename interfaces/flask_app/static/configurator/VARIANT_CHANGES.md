@@ -291,6 +291,42 @@ entries are applied there at the end of this project.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
   not installed, so no syntax check; verified with tools/ui_regression.py.
 
+### Step 4a: head/sill tuck-in boxes for X sashes in sliding presets
+
+- New: the X sash of an OX-family sliding preset (window or door, framed, not
+  sashless) now has "Head/sill tuck-in (mm)" Top and Bottom boxes, each tagged
+  "(auto)" or "(typed)", plus a "Reset head/sill tuck-ins" button. The O (fixed)
+  sections, sashless rows, double-hung and every non-preset pane show no row.
+- Stored per section on the preset marker as `assemblyPresetRef.sectionHeadSillTuckMM`:
+  an array with one `{top, bottom}` entry per pattern letter, each value null
+  (automatic) or a number (0 or more). A missing array or entry means
+  automatic, and nothing is written to the marker until a value is typed or
+  reset. A change builds a new marker object and writes it back with `setNode`.
+- Defaults unchanged: automatic is half of `SLIDING_HEIGHT_TUCKIN_MM` per edge
+  (20 / 20) when there is an outer frame and the row is not sashless. A typed
+  value is used only in that case, and the value actually applied is capped at
+  that leaf's own sash width on the edge (same rule as a lone slider).
+- Boxes are disabled and show 0 (with a short reason as the tooltip) when there
+  is no outer frame, the sash width on that edge is 0, or the pane does not sit
+  on that edge of the row. A typed value above the sash width is refused
+  ("Tuck-in cannot be more than the ... sash width"). Narrowing a sash edge
+  below its tuck-in is refused too (`selectedEdgeTuckInMM` now returns the
+  preset's top/bottom value; left/right under a preset still return 0, step 4b).
+- Code: `computeSlidingAssemblyVerticalCorrections` uses each X leaf's own
+  top/bottom values; new helpers `slidingSectionIndexOfLeaf`,
+  `typedPresetHeadSillMM`, `uncappedPresetHeadSillMM`,
+  `copyPresetHeadSillArray`, `appendPresetHeadSillTuckInRow`.
+- Not touched: left/right values, O sections, double-hung, sashless rows,
+  `SLIDING_OVERLAP_MM`, `confirmAssemblyEdit` (which rebuilds the marker, so a
+  typed value may not survive "Edit assembly widths"; not checked in this step),
+  `cloneForSplit`, any constant.
+- No export field or schema change: `schemaVersion` stays 6,
+  `RAW_STATE_SCHEMA_VERSION` stays 1.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil). Node is
+  not installed, so no syntax check. Run with tools/ui_regression.py (headless
+  Chromium, REPORTED BY CLAUDE CODE): all earlier files and scenarios
+  unchanged, plus a new `headsill` scenario on the file 07 layout.
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes

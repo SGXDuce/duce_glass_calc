@@ -867,6 +867,176 @@ def run_stack_scenario(browser):
         ctx.close()
     return ok and clean
 
+# ---------------------------------------------------------------- step 4a: head/sill tuck-in in presets
+
+def hs_label(page, edge):
+    return norm(page.locator('#headSillTuckInput-' + edge).locator('xpath=preceding-sibling::span').inner_text())
+
+
+def hs_row_present(page):
+    return page.locator('#toolbar').filter(has_text='Head/sill tuck-in (mm)').count() > 0 \
+        or page.locator('#headSillTuckInput-top').count() > 0
+
+
+def exported_pane(path, pane_id):
+    import json
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    for p in data['system']['elevations'][0]['panes']:
+        if p['id'] == pane_id:
+            return p
+    return None
+
+
+def run_headsill_scenario(browser):
+    """Head/sill tuck-in boxes for the X sash of an OX sliding preset (step 4a), file 07 layout."""
+    print('\n=== Head/sill tuck-in scenario (file 07 layout, pane .S) ===')
+    fid = '07'
+    saved = os.path.join(SAFETY_DIR, 'safety_net_v6_07_framed_OX_window_860_920.json')
+    # Expected numbers are Claude's arithmetic, not hand values. The X is drawn 1980 high. Made height =
+    # 1980 + top + bottom tuck-in; daylight height = made height - 40 - 40 (sash edges); daylight width
+    # stays 840. The export's yMM is measured up from the bottom of the elevation, so it moves with the
+    # BOTTOM tuck-in only (60 sill less the bottom tuck-in): a top tuck-in grows the sash upward and
+    # leaves yMM alone.
+    #   default 20/20:    920 x 2020, daylight 840 x 1940, yMM 40
+    #   top 30:           920 x 2030, daylight 840 x 1950, yMM 40
+    #   top 30 bottom 10: 920 x 2020, daylight 840 x 1940, yMM 50
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def box(edge):
+        return page.locator('#headSillTuckInput-' + edge)
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    try:
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_07(page, fid)
+
+        # a) the O has no head/sill row; the X shows 20 / 20, both auto, and today's sizes
+        select_pane(page, 0, fid); settle()
+        check('a) O (.R) shows no head/sill row', not hs_row_present(page))
+        select_pane(page, 1, fid); settle()
+        check('a) boxes show 20 and 20', box('top').input_value() == '20' and box('bottom').input_value() == '20',
+              'top %s bottom %s' % (box('top').input_value(), box('bottom').input_value()))
+        check('a) both tagged auto', 'auto' in hs_label(page, 'top') and 'auto' in hs_label(page, 'bottom'),
+              '"%s" "%s"' % (hs_label(page, 'top'), hs_label(page, 'bottom')))
+        check('a) .S 920 x 2020, daylight 840 x 1940', read_pane(page, '.S') == ('920 x 2020', '840 x 1940'), str(read_pane(page, '.S')))
+        check('a) .R unchanged 860 x 1980', read_pane(page, '.R') == ('860 x 1980', '860 x 1980'), str(read_pane(page, '.R')))
+        export_a = export_text(page, 'headsill_a.json')
+        check('a) .S yMM 40', exported_pane(export_a, '.S')['yMM'] == 40, str(exported_pane(export_a, '.S')['yMM']))
+
+        # b) top = 30
+        set_number(page, '#headSillTuckInput-top', 30); settle()
+        check('b) .S 920 x 2030, daylight 840 x 1950', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+        check('b) top box tagged typed, bottom still auto', 'typed' in hs_label(page, 'top') and 'auto' in hs_label(page, 'bottom'),
+              '"%s" "%s"' % (hs_label(page, 'top'), hs_label(page, 'bottom')))
+        export_b = export_text(page, 'headsill_b.json')
+        check('b) .S yMM stays 40', exported_pane(export_b, '.S')['yMM'] == 40, str(exported_pane(export_b, '.S')['yMM']))
+
+        # k) export after (b) against saved file 07: print every differing path
+        print('  k) compare of the export after (b) with the saved file 07:')
+        res = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'compare_full.py'), saved, export_b],
+                             capture_output=True, text=True, cwd=ROOT)
+        out = res.stdout + res.stderr
+        for line in out.splitlines():
+            print('    ' + line)
+        sys_lines = [l.strip() for l in out.splitlines() if l.strip().startswith('system/')]
+        allowed = ('/heightMM', '/yMM', '/areaM2', '/visibleGlazedAreaM2', '/frameLengthMM', '/totalFrameLengthMM')
+        check('k) every system difference is an expected field', len(sys_lines) > 0 and all(any(l.split(':')[0].endswith(a) for a in allowed) for l in sys_lines),
+              '%d differing path(s)' % len(sys_lines))
+        check('k) yMM unchanged', not any(l.split(':')[0].endswith('/yMM') for l in sys_lines))
+        check('k) only the .S pane (panes[1]) differs among panes', all(('/panes[' not in l) or '/panes[1]/' in l for l in sys_lines))
+        check('k) no width or x difference', not any(l.split(':')[0].endswith(('/widthMM', '/xMM')) for l in sys_lines))
+
+        # g) save and reload through the page's own functions: the typed top must survive
+        state = page.evaluate('() => JSON.stringify(window.serializeRawState())')
+        page.evaluate('(s) => window.restoreFromRawState(JSON.parse(s))', state)
+        fallback_used.append((fid, 'headsill g): reload via window.serializeRawState() / window.restoreFromRawState() (no save/reload UI)'))
+        settle()
+        select_pane(page, 1, fid); settle()
+        check('g) typed top 30 survives the reload', box('top').input_value() == '30' and 'typed' in hs_label(page, 'top'),
+              'top %s "%s"' % (box('top').input_value(), hs_label(page, 'top')))
+        check('g) .S still 920 x 2030 after the reload', read_pane(page, '.S') == ('920 x 2030', '840 x 1950'), str(read_pane(page, '.S')))
+
+        # c) then bottom = 10
+        set_number(page, '#headSillTuckInput-bottom', 10); settle()
+        check('c) .S 920 x 2020, daylight 840 x 1940', read_pane(page, '.S') == ('920 x 2020', '840 x 1940'), str(read_pane(page, '.S')))
+        export_c = export_text(page, 'headsill_c.json')
+        check('c) .S yMM 50', exported_pane(export_c, '.S')['yMM'] == 50, str(exported_pane(export_c, '.S')['yMM']))
+
+        # d) top = 50 is more than the 40 mm top sash: refused, snaps back to 30
+        set_number(page, '#headSillTuckInput-top', 50); settle()
+        reason = tuck_error_text(page)
+        check('d) top 50 refused with the reason', 'Tuck-in cannot be more than the top sash width (40 mm).' in reason, '"%s"' % reason)
+        check('d) box snaps back to 30', box('top').input_value() == '30', box('top').input_value())
+
+        # e) top sash 25 is below the typed top tuck-in 30: refused
+        set_number(page, '#sashEdgeInput-top', 25); settle()
+        reason = tuck_error_text(page)
+        check('e) top sash 25 refused', reason.startswith('Sash edge cannot be less than its tuck-in (30 mm)') or 'Sash edge cannot be less than its tuck-in (30 mm)' in reason,
+              '"%s", sash box shows %s' % (reason, page.locator('#sashEdgeInput-top').input_value()))
+        check('e) top sash stays 40', page.locator('#sashEdgeInput-top').input_value() == '40')
+
+        # f) reset: both auto, 20 / 20, back to the default sizes
+        click_button(page, 'Reset head/sill tuck-ins'); settle()
+        check('f) both boxes show 20 and are auto', box('top').input_value() == '20' and box('bottom').input_value() == '20'
+              and 'auto' in hs_label(page, 'top') and 'auto' in hs_label(page, 'bottom'))
+        check('f) .S back to 920 x 2020', read_pane(page, '.S') == ('920 x 2020', '840 x 1940'), str(read_pane(page, '.S')))
+        export_f = export_text(page, 'headsill_f.json')
+        check('f) .S yMM back to 40', exported_pane(export_f, '.S')['yMM'] == 40, str(exported_pane(export_f, '.S')['yMM']))
+        check('f) reset button is disabled again', page.locator('#headSillTuckInResetBtn').is_disabled())
+
+        # h) no outer frame: both boxes disabled and show 0
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        set_overall(page, 1800, 2100)
+        select_pane(page, 0, 'headsill-h')
+        click_button(page, 'Apply assembly preset')
+        pick_preset(page, 'Sliding windows', 'OX')
+        click_button(page, 'Confirm preset'); settle()
+        select_pane(page, 1, 'headsill-h'); settle()
+        check('h) no frame: both boxes disabled and show 0',
+              box('top').is_disabled() and box('bottom').is_disabled() and box('top').input_value() == '0' and box('bottom').input_value() == '0',
+              'top disabled=%s shows %s; bottom disabled=%s shows %s; title "%s"' % (
+                  box('top').is_disabled(), box('top').input_value(), box('bottom').is_disabled(), box('bottom').input_value(), box('top').get_attribute('title')))
+
+        # i) sashless OX: no head/sill row at all
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_08(page, '08')
+        select_pane(page, 1, '08'); settle()
+        check('i) sashless OX: X shows no head/sill row', not hs_row_present(page))
+
+        # j) double-hung: no head/sill row on either pane
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_06(page, '06')
+        select_pane(page, 0, '06'); settle()
+        no0 = not hs_row_present(page)
+        select_pane(page, 1, '06'); settle()
+        check('j) double-hung: no head/sill row on either pane', no0 and not hs_row_present(page))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
 
 def main():
     proc = None
@@ -875,6 +1045,7 @@ def main():
     nf_ok = False
     dl_ok = False
     st_ok = False
+    hs_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -886,6 +1057,7 @@ def main():
             nf_ok = run_no_frame_mullion_scenario(browser)
             dl_ok = run_dirlock_scenario(browser)
             st_ok = run_stack_scenario(browser)
+            hs_ok = run_headsill_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -900,9 +1072,10 @@ def main():
     print('%-6s %s' % ('nofr', 'PASS' if nf_ok else 'FAIL'))
     print('%-6s %s' % ('dirlock', 'PASS' if dl_ok else 'FAIL'))
     print('%-6s %s' % ('stack', 'PASS' if st_ok else 'FAIL'))
+    print('%-6s %s' % ('headsill', 'PASS' if hs_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
