@@ -64,3 +64,21 @@ These files contain only window dimensions and no confidential data.
 | safety_net_v6_14_no_frame_two_sliders_mullion_AFTER_5c2.json | Same layout as the BEFORE file, built with the step 5c-2 code (a no-frame slider tucks 20 mm behind a real mullion; opening edges stay 0). Exported by the harness, 7 October 2026 | .L 980 x 2100 at x 0 and .R 820 x 2100 at x 980; table daylight .L 900 x 2020, .R 740 x 2020 |
 
 Real Configurator exports, schemaVersion 6, supplied by Sahil on 6 October 2026 (REPORTED BY SAHIL). No hand values were written before these exports were made. The key numbers above were read from the files and checked by Claude's arithmetic against the tool, not hand-calculated by Sahil. Files 11 and 12 have no outer frame. The older fixture tests/fixtures/sashless_double_hung.json appears to use a 1680-high opening, while file 09 uses a 1980-high opening (INFERRED BY CLAUDE from the fixture's heights in the summary; not checked in the fixture itself).
+
+## Extra exports added 9 October 2026
+
+| File | What was built | Key numbers (read from the file) |
+|---|---|---|
+| safety_net_v6_16_framed_OXX_window_1680.json | Framed OXX window (preset id OXX-win), overall 1800 x 2100, frame members 60, opening 1680 | Section widths are the form's own prefill: 573.3333333333334 / 633.3333333333334 / 633.3333333333334. Panes: .R.R fixed 573.33 x 1980 at x 40, y 60; .R.S slider 633.33 x 2020 at x 553.33, y 40; .S slider 633.33 x 2020 at x 1126.67, y 40; sash edges 40 on sliders. Drawn section widths 533.33 / 633.33 / 633.33 |
+| safety_net_v6_17_framed_OXXO_window_1680.json | Framed OXXO window (OXXO-win), overall 1800 x 2100, opening 1680 | Widths 430 / 490 / 490 / 430. Panes: .L.R fixed 430 x 1980 at x 40; .L.S slider 490 x 2020 at x 410; .R.S slider 490 x 2020 at x 900; .R.R fixed 430 x 1980 at x 1330; sliders y 40, edges 40. Drawn section widths 430 / 490 / 490 / 390 |
+| safety_net_v6_18_no_frame_OXX_window_1800.json | NO outer frame, OXX window (OXX-win) across the whole 1800 x 2100 region, no mullion | Widths 600 / 660 / 660. Panes: .R.R fixed 600 x 2100 at x 0, y 0; .R.S slider 660 x 2100 at x 540; .S slider 660 x 2100 at x 1140; sash edges 40 on sliders. Drawn section widths 600 / 660 / 660 |
+
+Made by the harness (tools/ui_regression.py, recipes 16, 17 and 18) from master commit a6d222d, BEFORE step 4b. They are harness exports, not browser exports by hand. The key numbers above were read from the files and checked by Claude's arithmetic against the tool, not hand values.
+
+Row rule (Claude's arithmetic against the tool): sum of widths - overlaps - end tuck-ins = opening. File 16: 1840 - 120 - 40 = 1680. File 17: 1840 - 120 - 40 = 1680. File 18: 1920 - 120 = 1800 (no frame, no tuck-in deduction today).
+
+File 16 note: the first plan typed 573.3 / 633.3 / 633.3, which sum to 1839.9 and the form refused it (0.1 mm short). Sahil chose to use the form's own prefill instead.
+
+File 18 is a control: the later fix applies to a no-frame preset BESIDE A MULLION only, and must leave this file unchanged.
+
+File number 15 is RESERVED for the no-frame preset beside a mullion (BEFORE and AFTER the step 4b fix).

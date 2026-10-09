@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 6,
+  "system": {
+    "elevationCount": 1,
+    "totalFrameLengthMM": 11040,
+    "angledJoinAngleDeg": null,
+    "angledJoinType": null,
+    "elevations": [
+      {
+        "name": "Elevation 1",
+        "overallWidthMM": 1800,
+        "overallHeightMM": 2100,
+        "hasFrame": false,
+        "frameMembersMM": {
+          "head": 0,
+          "sill": 0,
+          "jambL": 0,
+          "jambR": 0
+        },
+        "meetingEdges": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "frameLengthMM": 11040,
+        "panes": [
+          {
+            "id": ".R.R",
+            "productClass": "window",
+            "type": "fixed",
+            "hingeEdge": null,
+            "slideDirection": null,
+            "bladeWidthMM": null,
+            "bladeLengthMM": null,
+            "xMM": 0,
+            "yMM": 0,
+            "widthMM": 600,
+            "heightMM": 2100,
+            "areaM2": 1.26,
+            "visibleGlazedAreaM2": 1.26,
+            "sashEdgesMM": {
+              "top": 0,
+              "bottom": 0,
+              "left": 0,
+              "right": 0
+            },
+            "unframedEdgeCount": 3,
+            "unframedEdges": {
+              "top": true,
+              "bottom": true,
+              "left": true,
+              "right": false
+            },
+            "unframedEdgeReasons": {
+              "top": "frame-off",
+              "bottom": "frame-off",
+              "left": "frame-off",
+              "right": null
+            },
+            "linkedPaneId": null,
+            "sashless": false
+          },
+          {
+            "id": ".R.S",
+            "productClass": "window",
+            "type": "horizontal-slider",
+            "hingeEdge": null,
+            "slideDirection": "left",
+            "bladeWidthMM": null,
+            "bladeLengthMM": null,
+            "xMM": 540,
+            "yMM": 0,
+            "widthMM": 660,
+            "heightMM": 2100,
+            "areaM2": 1.386,
+            "visibleGlazedAreaM2": 1.1716,
+            "sashEdgesMM": {
+              "top": 40,
+              "bottom": 40,
+              "left": 40,
+              "right": 40
+            },
+            "unframedEdgeCount": 0,
+            "unframedEdges": {
+              "top": false,
+              "bottom": false,
+              "left": false,
+              "right": false
+            },
+            "unframedEdgeReasons": {
+              "top": null,
+              "bottom": null,
+              "left": null,
+              "right": null
+            },
+            "linkedPaneId": null,
+            "sashless": false
+          },
+          {
+            "id": ".S",
+            "productClass": "window",
+            "type": "horizontal-slider",
+            "hingeEdge": null,
+            "slideDirection": "left",
+            "bladeWidthMM": null,
+            "bladeLengthMM": null,
+            "xMM": 1140,
+            "yMM": 0,
+            "widthMM": 660,
+            "heightMM": 2100,
+            "areaM2": 1.386,
+            "visibleGlazedAreaM2": 1.1716,
+            "sashEdgesMM": {
+              "top": 40,
+              "bottom": 40,
+              "left": 40,
+              "right": 40
+            },
+            "unframedEdgeCount": 0,
+            "unframedEdges": {
+              "top": false,
+              "bottom": false,
+              "left": false,
+              "right": false
+            },
+            "unframedEdgeReasons": {
+              "top": null,
+              "bottom": null,
+              "left": null,
+              "right": null
+            },
+            "linkedPaneId": null,
+            "sashless": false
+          }
+        ]
+      }
+    ]
+  },
+  "rawState": {
+    "rawStateSchemaVersion": 1,
+    "elevations": [
+      {
+        "name": "Elevation 1",
+        "overallW": 1800,
+        "overallH": 2100,
+        "root": {
+          "kind": "sashSplit",
+          "axis": "v",
+          "fromEdge": "end",
+          "sashSizeMM": 660,
+          "overlapMM": 60,
+          "children": [
+            {
+              "kind": "sashSplit",
+              "axis": "v",
+              "fromEdge": "end",
+              "sashSizeMM": 660,
+              "overlapMM": 60,
+              "children": [
+                {
+                  "kind": "filled",
+                  "type": "fixed",
+                  "productClass": "window",
+                  "sashTopMM": 40,
+                  "sashBottomMM": 40,
+                  "sashLeftMM": 40,
+                  "sashRightMM": 40
+                },
+                {
+                  "kind": "filled",
+                  "type": "horizontal-slider",
+                  "productClass": "window",
+                  "sashTopMM": 40,
+                  "sashBottomMM": 40,
+                  "sashLeftMM": 40,
+                  "sashRightMM": 40,
+                  "slideDirection": "left"
+                }
+              ]
+            },
+            {
+              "kind": "filled",
+              "type": "horizontal-slider",
+              "productClass": "window",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40,
+              "slideDirection": "left"
+            }
+          ],
+          "assemblyPresetRef": {
+            "pattern": "OXX",
+            "productClass": "window",
+            "id": "OXX-win",
+            "panelWidthsMM": [
+              600,
+              660,
+              660
+            ],
+            "sectionDrawnWidthsMM": [
+              600,
+              660,
+              660
+            ]
+          }
+        },
+        "selected": null,
+        "pendingSplit": null,
+        "lastLeafRects": {
+          "1": {
+            "x": 1140,
+            "y": 0,
+            "w": 660,
+            "h": 2100
+          },
+          "0.0": {
+            "x": 0,
+            "y": 0,
+            "w": 600,
+            "h": 2100
+          },
+          "0.1": {
+            "x": 540,
+            "y": 0,
+            "w": 660,
+            "h": 2100
+          }
+        },
+        "lastLeaves": [
+          {
+            "path": [
+              0,
+              0
+            ],
+            "x": 0,
+            "y": 0,
+            "w": 600,
+            "h": 2100,
+            "label": ".R.R",
+            "node": {
+              "kind": "filled",
+              "type": "fixed",
+              "productClass": "window",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40
+            }
+          },
+          {
+            "path": [
+              0,
+              1
+            ],
+            "x": 540,
+            "y": 0,
+            "w": 660,
+            "h": 2100,
+            "label": ".R.S",
+            "node": {
+              "kind": "filled",
+              "type": "horizontal-slider",
+              "productClass": "window",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40,
+              "slideDirection": "left"
+            }
+          },
+          {
+            "path": [
+              1
+            ],
+            "x": 1140,
+            "y": 0,
+            "w": 660,
+            "h": 2100,
+            "label": ".S",
+            "node": {
+              "kind": "filled",
+              "type": "horizontal-slider",
+              "productClass": "window",
+              "sashTopMM": 40,
+              "sashBottomMM": 40,
+              "sashLeftMM": 40,
+              "sashRightMM": 40,
+              "slideDirection": "left"
+            }
+          }
+        ],
+        "lastBars": [],
+        "lastNodeRects": {
+          "0": {
+            "x": 0,
+            "y": 0,
+            "w": 1200,
+            "h": 2100
+          },
+          "1": {
+            "x": 1140,
+            "y": 0,
+            "w": 660,
+            "h": 2100
+          },
+          "": {
+            "x": 0,
+            "y": 0,
+            "w": 1800,
+            "h": 2100
+          },
+          "0.0": {
+            "x": 0,
+            "y": 0,
+            "w": 600,
+            "h": 2100
+          },
+          "0.1": {
+            "x": 540,
+            "y": 0,
+            "w": 660,
+            "h": 2100
+          }
+        },
+        "lastGeom": {
+          "left": 60,
+          "top": 46,
+          "right": 327.08571428571423,
+          "bottom": 357.59999999999997,
+          "contentLeft": 60,
+          "contentTop": 46,
+          "contentRight": 327.08571428571423,
+          "contentBottom": 357.59999999999997,
+          "headPx": 0,
+          "sillPx": 0,
+          "jambLPx": 0,
+          "jambRPx": 0,
+          "extraRight": 0
+        },
+        "customOrigin": null,
+        "placingOrigin": false,
+        "hasFrame": false,
+        "frameMembers": {
+          "head": 60,
+          "sill": 60,
+          "jambL": 60,
+          "jambR": 60
+        },
+        "meetingEdges": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "meetingLink": {
+          "head": null,
+          "sill": null,
+          "jambL": null,
+          "jambR": null
+        },
+        "lastValidOverallW": 1800,
+        "lastValidOverallH": 2100
+      }
+    ],
+    "activeElevationIndex": 0,
+    "angledJoinAngleDeg": null,
+    "angledJoinType": null
+  }
+}
