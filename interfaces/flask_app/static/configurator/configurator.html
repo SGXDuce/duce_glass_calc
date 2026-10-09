@@ -1163,14 +1163,80 @@ function uncappedPresetHeadSillMM(ref, sectionIdx, edge, hasFrame, sashless) {
   return typed === null ? SLIDING_HEIGHT_TUCKIN_MM / 2 : typed;
 }
 
+// Step 4b: the typed width tuck-in for one outer end ('left' or 'right') of an OX-family preset row,
+// kept on the preset marker as endTuckInMM = { left, right }. null when it is automatic: the field or
+// the end is missing, null, or not a number 0 or more (so older saved files read as automatic).
+function typedPresetEndTuckInMM(ref, end) {
+  const ends = ref ? ref.endTuckInMM : null;
+  const v = ends ? ends[end] : null;
+  return (typeof v === 'number' && Number.isFinite(v) && v >= 0) ? v : null;
+}
+
 // Step 4b: the width tuck-in at each END of an OX-family preset row. A width tuck-in is how far the
 // sash or panel end goes behind the frame or mullion beside it, and the two ends of a row can differ.
-// Today's rule only: with an outer frame and a sash it is half the flat figure at each end (20 left,
-// 20 right); with no frame, or a sashless row, it is 0 at both ends. The marker (ref) is not read yet;
-// it will later hold typed end values. Not used by any formula yet.
+// Every preset-row width formula reads it from here (form prefill, total check, stale prefill, export
+// correction). Automatic: with an outer frame and a sash it is half the flat figure at each end (20
+// left, 20 right); with no frame, or a sashless row, it is 0 at both ends. A typed end value on the
+// marker replaces the automatic one, except where the end is forced to 0 (no frame, or sashless):
+// there a stored typed value is ignored. Not capped here; the row-end box refuses a value too large.
 function presetEndTuckInMM(ref, ev, sashless) {
-  if (ev.hasFrame && sashless !== true) return { left: FRAME_TUCKIN_MM / 2, right: FRAME_TUCKIN_MM / 2 };
-  return { left: 0, right: 0 };
+  if (!ev.hasFrame || sashless === true) return { left: 0, right: 0 };
+  const auto = FRAME_TUCKIN_MM / 2;
+  const left = typedPresetEndTuckInMM(ref, 'left');
+  const right = typedPresetEndTuckInMM(ref, 'right');
+  return { left: left === null ? auto : left, right: right === null ? auto : right };
+}
+
+// Step 4b: where a leaf sits in its sliding preset row, for the row-end width tuck-in. null when the
+// leaf is not inside an OX-family preset; otherwise the marker and its path, the row's drawn leaves
+// and rect, whether the row is sashless, and which outer row end(s) the leaf touches (the left end
+// only from the first section, the right end only from the last section).
+function presetRowEndsOfLeaf(path, ev) {
+  const anc = findAssemblyPresetAncestor(path);
+  if (!anc || !isSlidingOverlapId(anc.assemblyPresetRef.id, anc.assemblyPresetRef.pattern)) return null;
+  const ref = anc.assemblyPresetRef;
+  const markedPath = anc.path;
+  const sectionIdx = slidingSectionIndexOfLeaf(ref, markedPath, path);
+  if (sectionIdx < 0) return null;
+  const m = getMembers(ev);
+  const openingW = getOpeningW(getOverallW(), m);
+  const openingH = getOpeningH(getOverallH(), m);
+  const leaves = [];
+  const rects = {};
+  collectExportGeometry(ev.root, 0, 0, openingW, openingH, [], leaves, [], [], rects);
+  const leaf = leaves.find(l => pathKey(l.path) === pathKey(path));
+  const rowRect = rects[pathKey(markedPath)];
+  if (!leaf || !rowRect) return null;
+  const rowLeaves = leaves.filter(l => pathStartsWith(l.path, markedPath));
+  const last = ref.pattern.length - 1;
+  return {
+    markedPath, ref, rowLeaves, rowRect,
+    sashless: rowLeaves.some(l => l.node.sashless === true),
+    left: sectionIdx === 0 && Math.abs(leaf.x - rowRect.x) < EDGE_TOUCH_EPS_MM,
+    right: sectionIdx === last && Math.abs(leaf.x + leaf.w - (rowRect.x + rowRect.w)) < EDGE_TOUCH_EPS_MM
+  };
+}
+
+// Step 4b: the largest width tuck-in one row end may take (the smallest is 0). An X end is capped by
+// its own sash width on that side (the sash pane touching that row end; the narrowest one if the end
+// section has been split). An O end has no sash of its own, so it is capped by the narrowest left or
+// right sash of any X in the row. Returns { mm, reason }, reason being the refusal for a larger value.
+function presetEndTuckInCapMM(info, end) {
+  const pattern = info.ref.pattern;
+  const sectionIdx = end === 'left' ? 0 : pattern.length - 1;
+  const sectionPath = info.markedPath.concat(computeSlidingWinSectionPaths(pattern)[sectionIdx]);
+  const edgeX = end === 'left' ? info.rowRect.x : info.rowRect.x + info.rowRect.w;
+  const xLeaves = info.rowLeaves.filter(l => l.node.type === 'horizontal-slider');
+  if (pattern[sectionIdx] === 'X') {
+    const atEnd = xLeaves.filter(l => pathStartsWith(l.path, sectionPath) &&
+      Math.abs((end === 'left' ? l.x : l.x + l.w) - edgeX) < EDGE_TOUCH_EPS_MM);
+    if (atEnd.length) {
+      const mm = Math.min(...atEnd.map(l => getSashEdges(l.node)[end]));
+      return { mm, reason: 'Tuck-in cannot be more than the ' + end + ' sash width (' + mm + ' mm).' };
+    }
+  }
+  const mm = xLeaves.length ? Math.min(...xLeaves.map(l => Math.min(getSashEdges(l.node).left, getSashEdges(l.node).right))) : 0;
+  return { mm, reason: 'Tuck-in at a fixed end cannot be more than the narrowest left or right sash in this row (' + mm + ' mm).' };
 }
 
 // A fresh copy of the marker's per-section array, one {top, bottom} entry per pattern letter, so a
@@ -1192,9 +1258,15 @@ function selectedEdgeTuckInMM(node, edge, ev) {
   const path = ev.selected.path;
   const anc = findAssemblyPresetAncestor(path);
   if (anc) {
-    // Step 4a: a sliding preset's X sash has a head/sill tuck-in (top/bottom only). Left/right
-    // under a preset stay 0 here (step 4b).
-    if (edge !== 'top' && edge !== 'bottom') return 0;
+    // Step 4b: an X sash at an outer end of a sliding preset row tucks in sideways by that row end's
+    // width tuck-in (typed or automatic), so its stile there cannot be narrowed below it. Left/right
+    // anywhere else in a preset stay 0 here (interior joins are overlaps, not tuck-ins).
+    if (edge === 'left' || edge === 'right') {
+      const info = presetRowEndsOfLeaf(path, ev);
+      if (!info || info.sashless || !info[edge]) return 0;
+      return presetEndTuckInMM(info.ref, ev, false)[edge];
+    }
+    // Step 4a: a sliding preset's X sash has a head/sill tuck-in (top/bottom).
     const idx = slidingSectionIndexOfLeaf(anc.assemblyPresetRef, anc.path, path);
     if (idx < 0) return 0;
     return uncappedPresetHeadSillMM(anc.assemblyPresetRef, idx, edge, ev.hasFrame, false);
@@ -1841,7 +1913,9 @@ function getAssemblyPresetCurrentState(markedPath, sectionCount, pattern, id) {
     if (ref && sectionRects.every(r => r != null) && isPanelWidthsStale(ref, sectionRects, sashless)) {
       const ends = presetEndTuckInMM(ref, activeElevation(), sashless);
       prefillWidths = widths.slice();
-      // Both ends' tuck-in go on the last O: today's behaviour kept; revisit in step 4b-3.
+      // Both ends' tuck-in (typed or automatic) go on the last O: its entered width does not change
+      // the drawing, and the drawn widths less the overlaps already equal the opening, so the total
+      // check (which subtracts the same two ends) still balances when the two ends differ.
       prefillWidths[pattern.lastIndexOf('O')] += ends.left + ends.right;
     } else {
       prefillWidths = resolveSlidingRealWidths(ref, widths);
@@ -3367,6 +3441,9 @@ function renderToolbar() {
     appendTuckInRow(bar, node, ev);
     appendPresetHeadSillTuckInRow(bar, node, ev);
   }
+  // Step 4b: outside the sash block above, because a fixed O at a row end has no sash boxes but
+  // still gets its row-end tuck-in box.
+  appendPresetEndTuckInRow(bar, node, ev);
 
   // Item 2 (batch 5): louvre blade width/length — stored inputs for the AS 1288 blade-envelope
   // check later (blade width <=230mm, length <=1000mm). Same UI pattern as the sash-frame-width
@@ -3597,6 +3674,114 @@ function appendPresetHeadSillTuckInRow(bar, node, ev) {
   row.appendChild(resetBtn);
   bar.appendChild(row);
   bar.appendChild(errDiv);
+}
+
+// Step 4b: the row-end width tuck-in boxes for an OX-family sliding preset (windows and doors). One box
+// per outer row end the selected pane touches: the first section's left end and the last section's
+// right end, whatever their letter. Shown only on an X sash or a fixed O pane (not on any other type
+// placed in the row), and never on a sashless row. With no outer frame the box is disabled at 0.
+function appendPresetEndTuckInRow(bar, node, ev) {
+  if (node.kind !== 'filled' || (node.type !== 'horizontal-slider' && node.type !== 'fixed')) return;
+  const info = presetRowEndsOfLeaf(ev.selected.path, ev);
+  if (!info || info.sashless || (!info.left && !info.right)) return;
+
+  const row = document.createElement('div');
+  row.className = 'toolbar-row';
+  const label = document.createElement('span');
+  label.style.fontSize = '12px';
+  label.style.color = 'var(--text-dim)';
+  label.textContent = 'Row end tuck-in (mm)';
+  row.appendChild(label);
+  const errDiv = document.createElement('div');
+  errDiv.className = 'field-error';
+
+  ['left', 'right'].filter(end => info[end]).forEach(end => {
+    const typed = typedPresetEndTuckInMM(info.ref, end);
+    const why = ev.hasFrame ? '' : 'No row-end tuck-in without an outer frame (nothing to slide behind).';
+    const disabled = why !== '';
+    const shown = disabled ? 0 : presetEndTuckInMM(info.ref, ev, false)[end];
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;flex-direction:column;align-items:flex-start;margin-right:8px;';
+    const endLabel = document.createElement('span');
+    endLabel.style.fontSize = '11px';
+    endLabel.style.color = 'var(--text-dim)';
+    endLabel.textContent = end.charAt(0).toUpperCase() + end.slice(1) + (typed === null ? ' (auto)' : ' (typed)');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = 'presetEndTuckInput-' + end;
+    input.value = shown;
+    input.disabled = disabled;
+    input.style.cssText = 'width:70px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:13px;';
+    if (disabled) input.title = why;
+    input.addEventListener('change', () => {
+      const trimmed = String(input.value).trim();
+      const mm = Number(trimmed);
+      let err = (trimmed === '' || !Number.isFinite(mm) || mm < 0) ? 'Tuck-in must be a number, 0 or more.' : null;
+      if (!err) {
+        const cap = presetEndTuckInCapMM(info, end);
+        if (mm > cap.mm) err = cap.reason;
+      }
+      if (!err) err = writePresetEndTuckIn(info.markedPath, end, mm);
+      if (err) {
+        input.value = shown;
+        errDiv.textContent = err;
+      }
+    });
+    wrap.appendChild(endLabel);
+    wrap.appendChild(input);
+    row.appendChild(wrap);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.id = 'presetEndTuckReset-' + end;
+    resetBtn.className = 'secondary';
+    resetBtn.textContent = 'Reset ' + end + ' end';
+    resetBtn.disabled = disabled || typed === null;
+    resetBtn.onclick = () => {
+      const err = writePresetEndTuckIn(info.markedPath, end, null);
+      if (err) errDiv.textContent = err;
+    };
+    row.appendChild(resetBtn);
+  });
+
+  bar.appendChild(row);
+  bar.appendChild(errDiv);
+}
+
+// Step 4b: writes one row end's width tuck-in (a number, or null for automatic) and rebuilds the row.
+// Only the section at that end changes, by the full change in that end's tuck-in, so the row still
+// fits its opening: sum of panel widths - overlaps - (left end + right end) = opening. The change goes
+// onto a NEW marker object; the live one is never edited. Refused (nothing written) when the row was
+// resized on the drawing since its widths were last confirmed, or the rebuilt row would not fit.
+// Returns null when written, or a one-line reason.
+function writePresetEndTuckIn(markedPath, end, typedValue) {
+  const ev = activeElevation();
+  const ref = getNode(markedPath).assemblyPresetRef;
+  const pattern = ref.pattern;
+  const n = pattern.length;
+  const rowRect = ev.lastNodeRects[pathKey(markedPath)];
+  const sectionRects = computeSlidingWinSectionPaths(pattern).map(rel => ev.lastNodeRects[pathKey(markedPath.concat(rel))]);
+  if (!rowRect || sectionRects.some(r => r == null)) return 'Could not read this row’s current size — try reselecting it.';
+  const existingLeaves = getAssemblyLeafNodesInOrder(markedPath, n, pattern, ref.id);
+  const sashless = existingLeaves.some(l => findAnySashlessLeaf(l));
+  if (isPanelWidthsStale(ref, sectionRects, sashless)) {
+    return 'This row was resized on the drawing. Reopen "Edit assembly widths" and confirm it first.';
+  }
+  const endTuckInMM = { left: typedPresetEndTuckInMM(ref, 'left'), right: typedPresetEndTuckInMM(ref, 'right') };
+  endTuckInMM[end] = typedValue;
+  const newRef = { ...ref, endTuckInMM };
+  const change = presetEndTuckInMM(newRef, ev, sashless)[end] - presetEndTuckInMM(ref, ev, sashless)[end];
+  const widths = resolveSlidingRealWidths(ref, sectionRects.map(r => r.w));
+  widths[end === 'left' ? 0 : n - 1] += change;
+  newRef.panelWidthsMM = widths.slice();
+  const node = buildSlidingWinOverlapTree(pattern, widths, existingLeaves);
+  const err = commitAssemblyRowRebuild(markedPath, node, newRef, rowRect.w);
+  if (err) return err;
+  render();
+  stampSectionDrawnWidths(markedPath, pattern);
+  // When the end section is a sash its drawn width changes, so the first redraw still compared
+  // against the old drawn-width snapshot and could not size the row; redraw with the new one.
+  render();
+  return null;
 }
 
 function appendEditAssemblyWidthsButton(bar, markedPath, assemblyPresetRef) {
@@ -4381,6 +4566,35 @@ function findAnySashlessLeaf(node) {
 // Batch 17: takes `id` too — a -win id rebuilds via buildSlidingWinOverlapTree, and has no
 // mullion input at all (its joins are overlap/flush, never a separate mullion member), so its
 // entered-total check uses computeSlidingWinTotalWidth instead of sectionWidths+mullions.
+// Step 4b: the shared last part of rebuilding an assembly row in place, used by confirmAssemblyEdit and
+// by the row-end tuck-in boxes (writePresetEndTuckIn). Carries the door marker over, puts the given
+// NEW marker object on the rebuilt node, checks the rebuilt tree still fits, then writes it. Returns
+// null when written, or a one-line reason with the live tree left untouched. The caller renders.
+function commitAssemblyRowRebuild(markedPath, node, newAssemblyPresetRef, availableWidth) {
+  const ev = activeElevation();
+  const markedNode = getNode(markedPath);
+  if (markedNode.hingedDoorRef) node.hingedDoorRef = markedNode.hingedDoorRef;
+  node.assemblyPresetRef = newAssemblyPresetRef;
+
+  // Validate every nested descendant — including anything subdivided further inside a section
+  // after the original preset was placed — still fits at >= MIN_PANE_MM under the new widths.
+  // Height doesn't change in this edit; read it straight off the marked split's OWN rect
+  // (lastNodeRects covers every node, not just leaves, so this works regardless of whether any
+  // individual section has since been subdivided further).
+  const markedRect = ev.lastNodeRects[pathKey(markedPath)];
+  const currentHeight = markedRect ? markedRect.h : null;
+  if (currentHeight == null) {
+    // No live leaf found under the marked split at all (shouldn't happen for a valid marker,
+    // but don't silently skip validation if it does) — fail safe rather than apply unchecked.
+    return 'Could not determine this assembly’s current height — try reselecting it.';
+  }
+  const sizeErr = validateTreeAgainstSize(node, availableWidth, currentHeight);
+  if (sizeErr) return sizeErr;
+
+  setNode(markedPath, node);
+  return null;
+}
+
 function confirmAssemblyEdit(markedPath, pattern, availableWidth, sectionCount, id) {
   const ev = activeElevation();
   const errDiv = document.getElementById('presetWidthError');
@@ -4415,8 +4629,9 @@ function confirmAssemblyEdit(markedPath, pattern, availableWidth, sectionCount, 
   // wrong (non-sashless) tuck-in figure for the total check below once a sashless section had
   // been subdivided. Byte-identical to before for an unsplit section.
   const sashless = existingLeaves.some(l => findAnySashlessLeaf(l));
+  // Step 4b: the marker is passed so typed row-end tuck-ins are subtracted, not the automatic ones.
   const enteredTotal = isSlidingOverlapId(id, pattern)
-    ? computeSlidingWinTotalWidth(pattern, sectionWidths, sashless)
+    ? computeSlidingWinTotalWidth(pattern, sectionWidths, sashless, getNode(markedPath).assemblyPresetRef)
     : sectionWidths.reduce((a, b) => a + b, 0) + (sectionCount - 1) * mullionThickness;
   // Same convention as confirmSplit's own error message and confirmAssemblyPreset above: state
   // the entered total against the available width, don't auto-resize the region — the marked
@@ -4444,34 +4659,16 @@ function confirmAssemblyEdit(markedPath, pattern, availableWidth, sectionCount, 
     }
   }
   const markedNode = getNode(markedPath);
-  if (markedNode.hingedDoorRef) node.hingedDoorRef = markedNode.hingedDoorRef;
   // Batch 51 — a NEW marker object, never the existing one: a rejected edit (the size-validation
-  // check just below can still fail after this point) must leave the LIVE tree's own marker
-  // untouched, and this function's own `node` isn't committed via setNode until validation passes.
+  // check can still fail after this point) must leave the LIVE tree's own marker untouched, and
+  // this function's own `node` isn't committed via setNode until validation passes.
   // Sliding-overlap ids get freshly-entered `panelWidthsMM` on the new marker, replacing whatever
-  // was stored before — every other family's marker is carried over unchanged (spread only).
+  // was stored before — every other field (typed head/sill and row-end tuck-ins included) is
+  // carried over unchanged (spread only).
   const newAssemblyPresetRef = { ...markedNode.assemblyPresetRef };
   if (isSlidingOverlapId(id, pattern)) newAssemblyPresetRef.panelWidthsMM = sectionWidths.slice();
-  node.assemblyPresetRef = newAssemblyPresetRef;
-
-  // Validate every nested descendant — including anything subdivided further inside a section
-  // after the original preset was placed — still fits at >= MIN_PANE_MM under the new widths.
-  // Height doesn't change in this edit; read it straight off the marked split's OWN rect
-  // (lastNodeRects covers every node, not just leaves, so this works regardless of whether any
-  // individual section has since been subdivided further).
-  const markedRect = ev.lastNodeRects[pathKey(markedPath)];
-  const currentHeight = markedRect ? markedRect.h : null;
-  if (currentHeight != null) {
-    const sizeErr = validateTreeAgainstSize(node, availableWidth, currentHeight);
-    if (sizeErr) { errDiv.textContent = sizeErr; return; }
-  } else {
-    // No live leaf found under the marked split at all (shouldn't happen for a valid marker,
-    // but don't silently skip validation if it does) — fail safe rather than apply unchecked.
-    errDiv.textContent = 'Could not determine this assembly’s current height — try reselecting it.';
-    return;
-  }
-
-  setNode(markedPath, node);
+  const commitErr = commitAssemblyRowRebuild(markedPath, node, newAssemblyPresetRef, availableWidth);
+  if (commitErr) { errDiv.textContent = commitErr; return; }
   ev.pendingSplit = null;
   ev.selected = null;
   render();
@@ -5176,14 +5373,16 @@ function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sas
 // sectionWidths-plus-mullions.
 // Batch 42 — `sashless` (default false) swaps in SASHLESS_FRAME_TUCKIN_MM (currently 0) for the tuck-in
 // term, same as the prefill function above; overlap accounting is unaffected by sashless-ness.
-function computeSlidingWinTotalWidth(pattern, sectionWidthsMM, sashless) {
+// Step 4b — `ref` (optional) is the preset marker, so a typed row-end tuck-in is subtracted in place
+// of the automatic one. A fresh preset has no marker yet and passes nothing.
+function computeSlidingWinTotalWidth(pattern, sectionWidthsMM, sashless, ref) {
   const slideDirections = computeDefaultSlideDirections(pattern);
   let total = sectionWidthsMM.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pattern.length - 1; i++) {
     if (classifySlidingWinJoin(pattern, i, slideDirections).type === 'overlap') total -= SLIDING_OVERLAP_MM;
   }
   // Both ends' tuck-in come off the total; the helper already gives 0 at each end with no frame.
-  const ends = presetEndTuckInMM(null, activeElevation(), sashless);
+  const ends = presetEndTuckInMM(ref || null, activeElevation(), sashless);
   total -= ends.left + ends.right;
   return total;
 }

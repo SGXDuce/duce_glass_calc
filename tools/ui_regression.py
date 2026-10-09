@@ -1356,6 +1356,196 @@ def run_endtuck_scenario(browser):
     return ok and clean
 
 
+# ---------------------------------------------------------------- step 4b-3: row-end width tuck-in boxes
+
+def end_label(page, end):
+    return norm(page.locator('#presetEndTuckInput-' + end).locator('xpath=preceding-sibling::span').inner_text())
+
+
+def near(a, b):
+    return a is not None and abs(a - b) < 0.01
+
+
+def run_endbox_scenario(browser):
+    """Row-end width tuck-in boxes on sliding presets (step 4b-3): worked cases 1-8."""
+    print('\n=== Row-end tuck-in box scenario (files 16, 17, 18 layouts, XOX) ===')
+    # Expected numbers are Claude's arithmetic against the tool, checked by Sahil (frame 60, opening x 60
+    # to 1740). Row rule: sum(panel widths) - overlaps - (left end + right end) = opening 1680. Editing one
+    # end changes only the section at that end, by the full change. Export xMM is the panel's real left
+    # edge: the first section starts at 60 less the left end's tuck-in.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def box(end):
+        return page.locator('#presetEndTuckInput-' + end)
+
+    def panes(name):
+        import json
+        path = export_text(page, name)
+        with open(path, encoding='utf-8') as f:
+            return {p['id']: p for p in json.load(f)['system']['elevations'][0]['panes']}
+
+    def wx(p):
+        return (p['widthMM'], p['xMM'])
+
+    def fresh(recipe, fid):
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe(page, fid)
+        settle()
+
+    try:
+        # 1. File 16 layout (framed OXX), LEFT end 30 on the O
+        fresh(recipe_16, '16')
+        select_pane(page, 0, 'endbox'); settle()
+        check('1) O shows the left box only', box('left').count() == 1 and box('right').count() == 0)
+        check('1) left box starts at 20 (auto)', box('left').input_value() == '20' and end_label(page, 'left') == 'Left (auto)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        set_number(page, '#presetEndTuckInput-left', 30); settle()
+        # The fixed O's daylight equals its made width (a fixed pane deducts nothing), so the wider O shows
+        # 583.33 in BOTH columns. This is a KNOWN WRONG value, kept on purpose until step 5d.
+        check('1) O table 583.33 x 1980 in both columns', read_pane(page, '.R.R') == ('583.33 x 1980', '583.33 x 1980'), str(read_pane(page, '.R.R')))
+        p = panes('endbox_1.json')
+        check('1) O widthMM 583.33.., xMM 30', near(p['.R.R']['widthMM'], 583.3333333) and near(p['.R.R']['xMM'], 30), str(wx(p['.R.R'])))
+        check('1) X1 xMM 553.33..', near(p['.R.S']['xMM'], 553.3333333), str(wx(p['.R.S'])))
+        check('1) X2 xMM 1126.66.. unchanged', near(p['.S']['xMM'], 1126.6666667), str(wx(p['.S'])))
+        pw = page.evaluate('() => activeElevation().root.assemblyPresetRef.panelWidthsMM')
+        check('1) marker panelWidthsMM [583.33.., 633.33.., 633.33..]',
+              len(pw) == 3 and near(pw[0], 583.3333333) and near(pw[1], 633.3333333) and near(pw[2], 633.3333333), str(pw))
+        select_pane(page, 0, 'endbox'); settle()
+        check('1) box shows 30 (typed)', box('left').input_value() == '30' and end_label(page, 'left') == 'Left (typed)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+
+        # 8. save and reload through the page's own functions, straight after case 1
+        state = page.evaluate('() => JSON.stringify(window.serializeRawState())')
+        page.evaluate('(s) => window.restoreFromRawState(JSON.parse(s))', state)
+        fallback_used.append(('endbox', '8) reload via window.serializeRawState() / window.restoreFromRawState() (no save/reload UI)'))
+        settle()
+        select_pane(page, 0, 'endbox'); settle()
+        check('8) after reload: left box still 30 (typed)', box('left').input_value() == '30' and end_label(page, 'left') == 'Left (typed)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        check('8) after reload: O still 583.33 x 1980', read_pane(page, '.R.R') == ('583.33 x 1980', '583.33 x 1980'), str(read_pane(page, '.R.R')))
+
+        # 6. from case 1: Edit assembly widths
+        click_button(page, 'Edit assembly widths'); settle()
+        shown = [page.locator('#presetWidthInput%d' % i).input_value() for i in range(3)]
+        print('    form showed %s' % shown)
+        check('6a) prefill 583.33.. / 633.33.. / 633.33..',
+              near(float(shown[0]), 583.3333333) and near(float(shown[1]), 633.3333333) and near(float(shown[2]), 633.3333333), str(shown))
+        click_button(page, 'Confirm resize'); settle()
+        check('6a) confirm unchanged passes (form closed)', page.locator('#presetWidthError').count() == 0)
+        select_pane(page, 0, 'endbox'); settle()
+        check('6a) left box still 30 (typed)', box('left').input_value() == '30' and end_label(page, 'left') == 'Left (typed)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        click_button(page, 'Edit assembly widths'); settle()
+        set_number(page, '#presetWidthInput0', 573.3333333333334)
+        set_number(page, '#presetWidthInput1', 633.3333333333334)
+        set_number(page, '#presetWidthInput2', 633.3333333333334)
+        click_button(page, 'Confirm resize'); settle()
+        msg = norm(page.locator('#presetWidthError').inner_text()) if page.locator('#presetWidthError').count() else ''
+        check('6b) 573.33.. / 633.33.. / 633.33.. refused, message total 1670', 'total 1670mm' in msg, '"%s"' % msg)
+        click_button(page, 'Cancel'); settle()
+        select_pane(page, 0, 'endbox'); settle()
+        page.locator('#presetEndTuckReset-left').click(); settle()
+        select_pane(page, 0, 'endbox'); settle()
+        check('6c) after reset: 20 (auto)', box('left').input_value() == '20' and end_label(page, 'left') == 'Left (auto)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        p = panes('endbox_6c.json')
+        check('6c) O back to widthMM 573.33.., xMM 40', near(p['.R.R']['widthMM'], 573.3333333) and near(p['.R.R']['xMM'], 40), str(wx(p['.R.R'])))
+
+        # 2. File 16 layout, RIGHT end 30 on X2
+        fresh(recipe_16, '16')
+        before = panes('endbox_2_before.json')
+        select_pane(page, 2, 'endbox'); settle()
+        check('2) X2 shows the right box only', box('right').count() == 1 and box('left').count() == 0)
+        set_number(page, '#presetEndTuckInput-right', 30); settle()
+        p = panes('endbox_2.json')
+        check('2) X2 widthMM 643.33.., xMM 1126.66..', near(p['.S']['widthMM'], 643.3333333) and near(p['.S']['xMM'], 1126.6666667), str(wx(p['.S'])))
+        check('2) X2 table 643.33 x 2020 / 563.33 x 1940', read_pane(page, '.S') == ('643.33 x 2020', '563.33 x 1940'), str(read_pane(page, '.S')))
+        check('2) O and X1 unchanged', wx(p['.R.R']) == wx(before['.R.R']) and wx(p['.R.S']) == wx(before['.R.S']),
+              'O %s X1 %s' % (wx(p['.R.R']), wx(p['.R.S'])))
+
+        # 7. same layout, right end 30 typed: X2's right sash edge cannot go below it
+        set_number(page, '#sashEdgeInput-right', 20); settle()
+        reason = tuck_error_text(page)
+        check('7) X2 right sash 20 refused', 'Sash edge cannot be less than its tuck-in (30 mm) - lower the tuck-in first.' in reason, '"%s"' % reason)
+        check('7) X2 right sash stays 40', page.locator('#sashEdgeInput-right').input_value() == '40', page.locator('#sashEdgeInput-right').input_value())
+
+        # 3. File 17 layout (framed OXXO), RIGHT end 30 on O2, then LEFT end 50 refused
+        fresh(recipe_17, '17')
+        before = panes('endbox_3_before.json')
+        select_pane(page, 3, 'endbox'); settle()
+        set_number(page, '#presetEndTuckInput-right', 30); settle()
+        p = panes('endbox_3.json')
+        check('3) O2 widthMM 440, xMM 1330', near(p['.R.R']['widthMM'], 440) and near(p['.R.R']['xMM'], 1330), str(wx(p['.R.R'])))
+        check('3) O2 table 440 x 1980 in both columns', read_pane(page, '.R.R') == ('440 x 1980', '440 x 1980'), str(read_pane(page, '.R.R')))
+        check('3) other panes unchanged', all(wx(p[k]) == wx(before[k]) for k in ('.L.R', '.L.S', '.R.S')),
+              str([(k, wx(p[k])) for k in ('.L.R', '.L.S', '.R.S')]))
+        select_pane(page, 0, 'endbox'); settle()
+        set_number(page, '#presetEndTuckInput-left', 50); settle()
+        reason = tuck_error_text(page)
+        check('3) left end 50 refused (O end cap 40)', '(40 mm)' in reason and 'cannot be more than' in reason, '"%s"' % reason)
+        check('3) left box keeps 20 (auto)', box('left').input_value() == '20' and end_label(page, 'left') == 'Left (auto)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        p2 = panes('endbox_3b.json')
+        check('3) no number changes after the refusal', all(wx(p2[k]) == wx(p[k]) for k in p))
+
+        # 4. Framed XOX window 1800 x 2100, the form's own prefill, LEFT end 30 on X1 then 45 refused
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        set_overall(page, 1800, 2100)
+        add_frame(page)
+        select_pane(page, 0, 'endbox')
+        click_button(page, 'Apply assembly preset')
+        pick_preset(page, 'Sliding windows', 'XOX')
+        ensure_value(page, '#presetWidthInput0', 633.3333333333334, 'Section 1 (X) width')
+        ensure_value(page, '#presetWidthInput1', 573.3333333333334, 'Section 2 (O) width')
+        ensure_value(page, '#presetWidthInput2', 633.3333333333334, 'Section 3 (X) width')
+        click_button(page, 'Confirm preset'); settle()
+        x1 = [r for r in read_table(page) if len(r) >= 10 and r[0]][0][0]
+        print('    [info] XOX table rows: %s' % [r[0] for r in read_table(page) if len(r) >= 10 and r[0]])
+        select_pane(page, 0, 'endbox'); settle()
+        set_number(page, '#presetEndTuckInput-left', 30); settle()
+        p = panes('endbox_4.json')
+        check('4) X1 widthMM 643.33.., xMM 30', near(p[x1]['widthMM'], 643.3333333) and near(p[x1]['xMM'], 30), '%s %s' % (x1, wx(p[x1])))
+        check('4) X1 table 643.33 x 2020 / 563.33 x 1940', read_pane(page, x1) == ('643.33 x 2020', '563.33 x 1940'), str(read_pane(page, x1)))
+        select_pane(page, 0, 'endbox'); settle()
+        set_number(page, '#presetEndTuckInput-left', 45); settle()
+        reason = tuck_error_text(page)
+        check('4) left end 45 refused (X end cap = left stile 40)', 'Tuck-in cannot be more than the left sash width (40 mm).' in reason, '"%s"' % reason)
+        check('4) box keeps 30', box('left').input_value() == '30', box('left').input_value())
+
+        # 5. File 18 layout (no frame OXX): both end boxes disabled, showing 0
+        fresh(recipe_18, '18')
+        select_pane(page, 0, 'endbox'); settle()
+        l_ok = box('left').count() == 1 and box('left').is_disabled() and box('left').input_value() == '0'
+        l_title = box('left').get_attribute('title') if box('left').count() else None
+        select_pane(page, 2, 'endbox'); settle()
+        r_ok = box('right').count() == 1 and box('right').is_disabled() and box('right').input_value() == '0'
+        check('5) no frame: left and right end boxes disabled, showing 0', l_ok and r_ok, 'left %s, right %s, title "%s"' % (l_ok, r_ok, l_title))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
 def main():
     proc = None
     results = {}
@@ -1367,6 +1557,7 @@ def main():
     hs2_ok = False
     hs3_ok = False
     et_ok = False
+    eb_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -1382,6 +1573,7 @@ def main():
             hs2_ok = run_headsill_more_scenario(browser)
             hs3_ok = run_headsill_more2_scenario(browser)
             et_ok = run_endtuck_scenario(browser)
+            eb_ok = run_endbox_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -1400,9 +1592,10 @@ def main():
     print('%-6s %s' % ('headsill2', 'PASS' if hs2_ok else 'FAIL'))
     print('%-6s %s' % ('headsill3', 'PASS' if hs3_ok else 'FAIL'))
     print('%-6s %s' % ('endtuck', 'PASS' if et_ok else 'FAIL'))
+    print('%-6s %s' % ('endbox', 'PASS' if eb_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or not et_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or not et_ok or not eb_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
