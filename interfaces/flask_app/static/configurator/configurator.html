@@ -1839,9 +1839,10 @@ function getAssemblyPresetCurrentState(markedPath, sectionCount, pattern, id) {
     // the correct made widths themselves; confirming re-stamps panelWidthsMM afresh either way,
     // bringing it back in sync now that item 1 makes the total check honest again.
     if (ref && sectionRects.every(r => r != null) && isPanelWidthsStale(ref, sectionRects, sashless)) {
-      const tuckIn = activeElevation().hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
+      const ends = presetEndTuckInMM(ref, activeElevation(), sashless);
       prefillWidths = widths.slice();
-      prefillWidths[pattern.lastIndexOf('O')] += tuckIn;
+      // Both ends' tuck-in go on the last O: today's behaviour kept; revisit in step 4b-3.
+      prefillWidths[pattern.lastIndexOf('O')] += ends.left + ends.right;
     } else {
       prefillWidths = resolveSlidingRealWidths(ref, widths);
     }
@@ -5157,8 +5158,10 @@ function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sas
   }
   const nO = pattern.split('').filter(c => c === 'O').length;
   const nX = n - nO;
-  const tuckIn = useFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
-  const O = (totalWidthMM - SLIDING_OVERLAP_MM * nX + SLIDING_OVERLAP_MM * overlapJoins + tuckIn) / (nO + nX);
+  // Uses this function's own frame flag (useFrame), not activeElevation(), because the caller passes
+  // it in; no marker exists yet when the form first opens, so ref is null.
+  const ends = presetEndTuckInMM(null, { hasFrame: useFrame }, sashless);
+  const O = (totalWidthMM - SLIDING_OVERLAP_MM * nX + SLIDING_OVERLAP_MM * overlapJoins + ends.left + ends.right) / (nO + nX);
   const X = O + SLIDING_OVERLAP_MM;
   return pattern.split('').map(c => c === 'O' ? O : X);
 }
@@ -5179,7 +5182,9 @@ function computeSlidingWinTotalWidth(pattern, sectionWidthsMM, sashless) {
   for (let i = 0; i < pattern.length - 1; i++) {
     if (classifySlidingWinJoin(pattern, i, slideDirections).type === 'overlap') total -= SLIDING_OVERLAP_MM;
   }
-  if (activeElevation().hasFrame) total -= (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM);
+  // Both ends' tuck-in come off the total; the helper already gives 0 at each end with no frame.
+  const ends = presetEndTuckInMM(null, activeElevation(), sashless);
+  total -= ends.left + ends.right;
   return total;
 }
 
@@ -6111,9 +6116,10 @@ function computeSlidingAssemblyLeafCorrections(leaves, ev, nodeRects) {
         'on-drawing edit (a moved flush-join bar, or a changed overall width/height) has resized this row ' +
         'without going through "Confirm resize". Reopen "Edit assembly widths" and confirm to fix it.');
     }
-    const tuckIn = ev.hasFrame ? (sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM) : 0;
+    const ends = presetEndTuckInMM(ref, ev, sashless);
     const realW = resolveSlidingRealWidths(ref, sectionRects.map(r => r.w));
-    const realXs = [sectionRects[0].x - tuckIn / 2];
+    // The row's real left edge sits behind the frame by the left end's tuck-in.
+    const realXs = [sectionRects[0].x - ends.left];
     for (let i = 1; i < n; i++) {
       const prevDrawnEnd = sectionRects[i - 1].x + sectionRects[i - 1].w;
       const isOverlapJoin = Math.abs(sectionRects[i].x - prevDrawnEnd) > EDGE_TOUCH_EPS_MM;
