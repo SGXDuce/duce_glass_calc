@@ -62,6 +62,24 @@ FILES.append(('06', 'safety_net_v6_06_framed_double_hung_1680x1980.json',
               {'.S': ('1720 x 1040', '1640 x 960'), '.R': ('1720 x 1040', '1640 x 960')}, False))
 FILES.append(('12', 'safety_net_v6_12_no_frame_double_hung_1680x1980.json',
               {'.S': ('1680 x 1020', '1600 x 940'), '.R': ('1680 x 1020', '1600 x 940')}, False))
+# Files 16, 17, 18 (sliding-window presets with more than one slider; saved BEFORE step 4b, harness exports
+# from master a6d222d). Expected table values are read from the saved exports, Claude's arithmetic, not hand
+# values: sash/leaf size = widthMM x heightMM (the table shows two decimals); daylight = those less sashEdgesMM.
+#   16 (framed OXX, 1800 x 2100, opening 1680, widths are the form's own prefill 1840/3 etc.):
+#      .R.R fixed 573.33 x 1980; .R.S and .S sliders 633.33 x 2020, edges 40 -> 553.33 x 1940.
+#   17 (framed OXXO, widths 430 / 490 / 490 / 430): O panes 430 x 1980; X panes 490 x 2020, edges 40 -> 410 x 1940.
+#   18 (NO outer frame, OXX across 1800 x 2100, widths 600 / 660 / 660, no mullion; control for the later
+#      no-frame-beside-a-mullion fix): .R.R fixed 600 x 2100; .R.S and .S sliders 660 x 2100 -> 580 x 2020.
+# File number 15 is RESERVED for the no-frame preset beside a mullion (BEFORE and AFTER).
+FILES.append(('16', 'safety_net_v6_16_framed_OXX_window_1680.json',
+              {'.R.R': ('573.33 x 1980', '573.33 x 1980'), '.R.S': ('633.33 x 2020', '553.33 x 1940'),
+               '.S': ('633.33 x 2020', '553.33 x 1940')}, False))
+FILES.append(('17', 'safety_net_v6_17_framed_OXXO_window_1680.json',
+              {'.L.R': ('430 x 1980', '430 x 1980'), '.L.S': ('490 x 2020', '410 x 1940'),
+               '.R.S': ('490 x 2020', '410 x 1940'), '.R.R': ('430 x 1980', '430 x 1980')}, False))
+FILES.append(('18', 'safety_net_v6_18_no_frame_OXX_window_1800.json',
+              {'.R.R': ('600 x 2100', '600 x 2100'), '.R.S': ('660 x 2100', '580 x 2020'),
+               '.S': ('660 x 2100', '580 x 2020')}, False))
 NOTE_TEXT = '* Sashless: capping deduction not applied yet.'
 
 fallback_used = []   # (file, what) pairs where a page function replaced a real click
@@ -296,8 +314,48 @@ def recipe_12(page, fid):
     click_button(page, 'Confirm preset')
 
 
+def recipe_16(page, fid):
+    # framed OXX sliding window, overall 1800 x 2100 (opening 1680), section widths are the form's own prefill (1840/3 = 573.333.. / 633.333.. / 633.333..), nothing typed
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding windows', 'OXX')
+    ensure_value(page, '#presetWidthInput0', 573.3333333333334, 'Section 1 (O) width')
+    ensure_value(page, '#presetWidthInput1', 633.3333333333334, 'Section 2 (X) width')
+    ensure_value(page, '#presetWidthInput2', 633.3333333333334, 'Section 3 (X) width')
+    click_button(page, 'Confirm preset')
+
+
+def recipe_17(page, fid):
+    # framed OXXO sliding window, overall 1800 x 2100 (opening 1680), widths 430 / 490 / 490 / 430
+    set_overall(page, 1800, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding windows', 'OXXO')
+    ensure_value(page, '#presetWidthInput0', 430, 'Section 1 (O) width')
+    ensure_value(page, '#presetWidthInput1', 490, 'Section 2 (X) width')
+    ensure_value(page, '#presetWidthInput2', 490, 'Section 3 (X) width')
+    ensure_value(page, '#presetWidthInput3', 430, 'Section 4 (O) width')
+    click_button(page, 'Confirm preset')
+
+
+def recipe_18(page, fid):
+    # NO outer frame, OXX sliding window across the whole 1800 x 2100 region, no mullion (control for step 4b)
+    set_overall(page, 1800, 2100)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding windows', 'OXX')
+    ensure_value(page, '#presetWidthInput0', 600, 'Section 1 (O) width')
+    ensure_value(page, '#presetWidthInput1', 660, 'Section 2 (X) width')
+    ensure_value(page, '#presetWidthInput2', 660, 'Section 3 (X) width')
+    click_button(page, 'Confirm preset')
+
+
 RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09,
-           '07': recipe_07, '02': recipe_02, '06': recipe_06, '12': recipe_12}
+           '07': recipe_07, '02': recipe_02, '06': recipe_06, '12': recipe_12,
+           '16': recipe_16, '17': recipe_17, '18': recipe_18}
 
 
 # ---------------------------------------------------------------- reading and checking
