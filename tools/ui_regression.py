@@ -1307,6 +1307,55 @@ def run_headsill_more2_scenario(browser):
     return ok and clean
 
 
+# ---------------------------------------------------------------- step 4b-1: end tuck-in helper
+
+def run_endtuck_scenario(browser):
+    """presetEndTuckInMM (step 4b-1, not used by any formula yet) returns today's flat rule split per end."""
+    print('\n=== End tuck-in helper scenario (files 16, 17, 18, 08 layouts) ===')
+    # Expected values are Claude's reading of today's flat rule (20 + 20 = 40 with a frame and a sash), not hand values.
+    cases = [('a) framed OXX (file 16 layout)', recipe_16, '16', {'left': 20, 'right': 20}),
+             ('b) framed OXXO (file 17 layout)', recipe_17, '17', {'left': 20, 'right': 20}),
+             ('c) no frame OXX (file 18 layout)', recipe_18, '18', {'left': 0, 'right': 0}),
+             ('d) sashless OX (file 08 layout)', recipe_08, '08', {'left': 0, 'right': 0})]
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    try:
+        for name, recipe, fid, want in cases:
+            page.goto(URL)
+            page.wait_for_selector('#diagram .pane')
+            recipe(page, fid)
+            page.wait_for_timeout(300)
+            # the marker sits on the root of the elevation; sashless is worked out the way getAssemblyPresetCurrentState does
+            res = page.evaluate("""() => {
+                const ev = activeElevation();
+                const ref = ev.root.assemblyPresetRef;
+                const sashless = getAssemblyLeafNodesInOrder([], ref.pattern.length, ref.pattern, ref.id).some(l => findAnySashlessLeaf(l));
+                return {id: ref.id, hasFrame: ev.hasFrame, sashless: sashless, ends: presetEndTuckInMM(ref, ev, sashless)};
+            }""")
+            print('    [info] id %s, hasFrame %s, sashless %s (from getAssemblyLeafNodesInOrder + findAnySashlessLeaf, as getAssemblyPresetCurrentState does)'
+                  % (res['id'], res['hasFrame'], res['sashless']))
+            check(name, res['ends'] == want, 'got %s, want %s' % (res['ends'], want))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
 def main():
     proc = None
     results = {}
@@ -1317,6 +1366,7 @@ def main():
     hs_ok = False
     hs2_ok = False
     hs3_ok = False
+    et_ok = False
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -1331,6 +1381,7 @@ def main():
             hs_ok = run_headsill_scenario(browser)
             hs2_ok = run_headsill_more_scenario(browser)
             hs3_ok = run_headsill_more2_scenario(browser)
+            et_ok = run_endtuck_scenario(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -1348,9 +1399,10 @@ def main():
     print('%-6s %s' % ('headsill', 'PASS' if hs_ok else 'FAIL'))
     print('%-6s %s' % ('headsill2', 'PASS' if hs2_ok else 'FAIL'))
     print('%-6s %s' % ('headsill3', 'PASS' if hs3_ok else 'FAIL'))
+    print('%-6s %s' % ('endtuck', 'PASS' if et_ok else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or not et_ok or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':

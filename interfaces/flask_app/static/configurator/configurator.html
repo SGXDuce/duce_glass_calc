@@ -1163,6 +1163,16 @@ function uncappedPresetHeadSillMM(ref, sectionIdx, edge, hasFrame, sashless) {
   return typed === null ? SLIDING_HEIGHT_TUCKIN_MM / 2 : typed;
 }
 
+// Step 4b: the width tuck-in at each END of an OX-family preset row. A width tuck-in is how far the
+// sash or panel end goes behind the frame or mullion beside it, and the two ends of a row can differ.
+// Today's rule only: with an outer frame and a sash it is half the flat figure at each end (20 left,
+// 20 right); with no frame, or a sashless row, it is 0 at both ends. The marker (ref) is not read yet;
+// it will later hold typed end values. Not used by any formula yet.
+function presetEndTuckInMM(ref, ev, sashless) {
+  if (ev.hasFrame && sashless !== true) return { left: FRAME_TUCKIN_MM / 2, right: FRAME_TUCKIN_MM / 2 };
+  return { left: 0, right: 0 };
+}
+
 // A fresh copy of the marker's per-section array, one {top, bottom} entry per pattern letter, so a
 // change can be written onto a new marker object without touching the live one.
 function copyPresetHeadSillArray(ref) {
