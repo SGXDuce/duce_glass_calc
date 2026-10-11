@@ -1546,6 +1546,413 @@ def run_endbox_scenario(browser):
     return ok and clean
 
 
+# ---------------------------------------------------------------- step 4b-4: more row-end tuck-in box scenarios
+#
+# A row-end width tuck-in is how far the first or last panel of a sliding row slides in behind the outer
+# frame jamb beside it. That part is hidden, so the panel is made wider than the gap it fills on the drawing.
+# Every expected number below is Claude's arithmetic from the code formulas, not a hand value. Row rule:
+#   sum(section widths) - 60 per overlap join - (left end + right end) = opening width.
+# The automatic end is 20 at each end with an outer frame. Every row here is built at overall 1820 x 2100
+# with the default 60 mm frame members, so the opening is 1700 wide and runs from x = 60 to x = 1760 in the
+# export: a row tucked in 30 at the left starts at xMM 30, one tucked in 15 at the right ends at 1775.
+
+OPENING_LEFT_X = 60
+OPENING_RIGHT_X = 1760
+
+# drawn width of each section of the preset row on the root, in pattern order
+SECTION_DRAWN_JS = """() => {
+    const ev = activeElevation();
+    const ref = ev.root.assemblyPresetRef;
+    return computeSlidingWinSectionPaths(ref.pattern).map(p => ev.lastNodeRects[pathKey(p)].w);
+}"""
+
+MARKER_JS = """() => {
+    const ref = activeElevation().root.assemblyPresetRef;
+    return {panelWidthsMM: ref.panelWidthsMM || null, endTuckInMM: ref.endTuckInMM || null};
+}"""
+
+# index of the drawn pane that reaches furthest left or right (the pane at that row end)
+END_LEAF_JS = """(end) => {
+    const leaves = activeElevation().lastLeaves;
+    let best = 0;
+    for (let i = 1; i < leaves.length; i++) {
+        const a = leaves[i], b = leaves[best];
+        if (end === 'left' ? a.x < b.x - 0.01 : a.x + a.w > b.x + b.w + 0.01) best = i;
+    }
+    return best;
+}"""
+
+
+def near_list(got, want):
+    return got is not None and len(got) == len(want) and all(near(g, w) for g, w in zip(got, want))
+
+
+def build_row_1700(page, heading, label, prefill, check, fid):
+    """Framed preset across the whole 1700 mm opening: checks the form's own prefill, confirms it unchanged."""
+    page.goto(URL)
+    page.wait_for_selector('#diagram .pane')
+    set_overall(page, 1820, 2100)
+    add_frame(page)
+    select_pane(page, 0, fid)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, heading, label)
+    shown = [float(page.locator('#presetWidthInput%d' % i).input_value()) for i in range(len(prefill))]
+    check('%s %s: form prefill %s' % (heading, label, prefill), near_list(shown, prefill), 'form showed %s' % shown)
+    click_button(page, 'Confirm preset')
+    page.wait_for_timeout(300)
+
+
+def select_end_pane(page, end, fid):
+    select_pane(page, page.evaluate(END_LEAF_JS, end), fid)
+    page.wait_for_timeout(200)
+
+
+def export_row(page, name):
+    """Exported panes as (xMM, widthMM) left to right, one entry per section (transom halves share one); and the pane count."""
+    import json
+    path = export_text(page, name)
+    with open(path, encoding='utf-8') as f:
+        panes = json.load(f)['system']['elevations'][0]['panes']
+    out = []
+    for p in sorted(panes, key=lambda q: (q['xMM'], q['widthMM'])):
+        if not out or not (near(p['xMM'], out[-1][0]) and near(p['widthMM'], out[-1][1])):
+            out.append((p['xMM'], p['widthMM']))
+    return out, len(panes)
+
+
+def check_export_row(check, tag, row, widths, left_out, right_out):
+    got_left = OPENING_LEFT_X - row[0][0]
+    got_right = max(x + w for x, w in row) - OPENING_RIGHT_X
+    check('%s export real widths %s' % (tag, widths), near_list([w for _, w in row], widths), str(row))
+    check('%s real left edge %s mm outside the opening' % (tag, left_out), near(got_left, left_out), 'first xMM %s' % row[0][0])
+    check('%s real right edge %s mm outside the opening' % (tag, right_out), near(got_right, right_out),
+          'right edge %s' % (got_right + OPENING_RIGHT_X))
+
+
+def run_end_s1_scenario(browser):
+    """S1 (step 4b-4): framed XOX, row ends typed on the two X sashes."""
+    print('\n=== Row-end tuck-in S1: framed XOX, ends typed on the X sashes ===')
+    # Both ends of an XOX row are X sashes. A sash is drawn at its entered width, so a typed end changes the
+    # X at that end on the drawing too, and the middle O (it fills whatever is left) takes up the difference.
+    # Automatic: O = (1700 - 60 x 2 + 60 x 2 + 40) / 3 = 580, X = 640; drawn O = 1700 + 120 - 640 - 640 = 540.
+    # Left 30 is 10 more than automatic, so X1 640 -> 650; right 15 is 5 less, so X2 640 -> 635.
+    # Row rule: 650 + 580 + 635 - 120 - (30 + 15) = 1700. Drawn: 650, 1700 + 120 - 650 - 635 = 535, 635.
+    # 30 + 15 = 45, not 40, so a flat 40 anywhere in the export would fail this scenario.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    try:
+        build_row_1700(page, 'Sliding windows', 'XOX', [640, 580, 640], check, 'endS1')
+        m = page.evaluate(MARKER_JS)
+        check('a) automatic: panelWidthsMM [640, 580, 640]', near_list(m['panelWidthsMM'], [640, 580, 640]), str(m['panelWidthsMM']))
+        check('a) automatic: no typed ends on the marker', m['endTuckInMM'] is None, str(m['endTuckInMM']))
+        drawn = page.evaluate(SECTION_DRAWN_JS)
+        check('a) automatic: drawn widths [640, 540, 640]', near_list(drawn, [640, 540, 640]), str(drawn))
+        row, _ = export_row(page, 'endS1_a.json')
+        check_export_row(check, 'a) automatic:', row, [640, 580, 640], 20, 20)
+
+        select_end_pane(page, 'left', 'endS1')
+        set_number(page, '#presetEndTuckInput-left', 30); settle()
+        select_end_pane(page, 'right', 'endS1')
+        set_number(page, '#presetEndTuckInput-right', 15); settle()
+        m = page.evaluate(MARKER_JS)
+        check('b) endTuckInMM {left: 30, right: 15}', m['endTuckInMM'] == {'left': 30, 'right': 15}, str(m['endTuckInMM']))
+        pw = m['panelWidthsMM']
+        check('b) panelWidthsMM [650, 580, 635]', near_list(pw, [650, 580, 635]), str(pw))
+        check('b) row rule: sum - 120 - (30 + 15) = 1700', pw is not None and near(sum(pw) - 120 - 45, 1700), 'sum %s' % (sum(pw) if pw else None))
+        drawn = page.evaluate(SECTION_DRAWN_JS)
+        check('b) drawn widths [650, 535, 635]', near_list(drawn, [650, 535, 635]), str(drawn))
+        check('b) drawn sum - 120 = 1700', near(sum(drawn) - 120, 1700), 'drawn sum %s' % sum(drawn))
+        row, _ = export_row(page, 'endS1_b.json')
+        check_export_row(check, 'b)', row, [650, 580, 635], 30, 15)
+        span = max(x + w for x, w in row) - row[0][0]
+        check('b) real span 1745 = 1700 + 30 + 15', near(span, 1745), str(span))
+        less = sum(w for _, w in row) - 120
+        check('b) real widths minus overlaps 1745', near(less, 1745), str(less))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
+def run_end_s2_scenario(browser):
+    """S2 (step 4b-4): framed OX window and OX door, row ends typed on the O (left) and the X (right)."""
+    print('\n=== Row-end tuck-in S2: framed OX window and OX door, typed ends ===')
+    # Automatic: O = (1700 - 60 + 60 + 40) / 2 = 870, X = 930; 870 + 930 - 60 - 40 = 1700.
+    # Left 30 (10 more than automatic) widens the O to 880; right 15 (5 less) narrows the X to 925.
+    # 880 + 925 - 60 - (30 + 15) = 1700. The O is drawn in whatever the X leaves, so its entered width does
+    # not move the drawing: drawn O = 1700 + 60 - X, so 830 before and 835 after.
+    # The door preset is built by the same code as the window (the letter alone picks fixed or slider, and
+    # the end tuck-in rule never reads the product class), so it is expected to give the same numbers.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    try:
+        for tag, heading in (('window', 'Sliding windows'), ('door', 'Sliding doors')):
+            build_row_1700(page, heading, 'OX', [870, 930], check, 'endS2')
+            m = page.evaluate(MARKER_JS)
+            check('%s a) automatic: panelWidthsMM [870, 930]' % tag, near_list(m['panelWidthsMM'], [870, 930]), str(m['panelWidthsMM']))
+            drawn = page.evaluate(SECTION_DRAWN_JS)
+            check('%s a) automatic: drawn widths [830, 930]' % tag, near_list(drawn, [830, 930]), str(drawn))
+            row, _ = export_row(page, 'endS2_%s_a.json' % tag)
+            check_export_row(check, '%s a) automatic:' % tag, row, [870, 930], 20, 20)
+
+            select_end_pane(page, 'left', 'endS2')
+            set_number(page, '#presetEndTuckInput-left', 30); settle()
+            select_end_pane(page, 'right', 'endS2')
+            set_number(page, '#presetEndTuckInput-right', 15); settle()
+            m = page.evaluate(MARKER_JS)
+            check('%s b) endTuckInMM {left: 30, right: 15}' % tag, m['endTuckInMM'] == {'left': 30, 'right': 15}, str(m['endTuckInMM']))
+            pw = m['panelWidthsMM']
+            check('%s b) panelWidthsMM [880, 925]' % tag, near_list(pw, [880, 925]), str(pw))
+            check('%s b) row rule: sum - 60 - (30 + 15) = 1700' % tag, pw is not None and near(sum(pw) - 60 - 45, 1700),
+                  'sum %s' % (sum(pw) if pw else None))
+            drawn = page.evaluate(SECTION_DRAWN_JS)
+            check('%s b) drawn widths [835, 925]' % tag, near_list(drawn, [835, 925]), str(drawn))
+            row, _ = export_row(page, 'endS2_%s_b.json' % tag)
+            check_export_row(check, '%s b)' % tag, row, [880, 925], 30, 15)
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
+def run_end_s3_scenario(browser):
+    """S3 (step 4b-4): framed OXX, last section split by a transom, then the right end typed."""
+    print('\n=== Row-end tuck-in S3: framed OXX, split end section ===')
+    # Automatic: O = (1700 - 120 + 120 + 40) / 3 = 580, X = 640. A transom splits the last X into a top and a
+    # bottom sash. It changes heights only, so the row's widths stay the same, and both halves still reach the
+    # row's right end, so each keeps the full section width and still shows the right end box.
+    # Right 15 (5 less than automatic) narrows the last section to 635: 580 + 640 + 635 - 120 - (20 + 15) = 1700.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def box(end):
+        return page.locator('#presetEndTuckInput-' + end)
+
+    try:
+        build_row_1700(page, 'Sliding windows', 'OXX', [580, 640, 640], check, 'endS3')
+        before, n_before = export_row(page, 'endS3_a.json')
+        check_export_row(check, 'a) unsplit:', before, [580, 640, 640], 20, 20)
+
+        # transom at the form's own suggested centre of the last section, bar 40 (as add_mullion uses)
+        select_end_pane(page, 'right', 'endS3')
+        click_button(page, 'Add transom (split —)')
+        set_number(page, '#thickInput', 40)
+        click_button(page, 'Confirm split'); settle()
+        n = page.locator('#diagram .pane').count()
+        check('b) transom split the last section: 4 panes drawn', n == 4, str(n))
+        after, n_after = export_row(page, 'endS3_b.json')
+        check('b) 4 panes exported', n_after == 4, str(n_after))
+        check('b) export real widths and x unchanged by the split',
+              len(after) == len(before) and all(near(a[0], b[0]) and near(a[1], b[1]) for a, b in zip(after, before)),
+              'before %s after %s' % (before, after))
+
+        select_end_pane(page, 'right', 'endS3')
+        check('c) the split end pane shows the right box at 20 (auto)',
+              box('right').count() == 1 and not box('right').is_disabled() and box('right').input_value() == '20'
+              and end_label(page, 'right') == 'Right (auto)',
+              '%s "%s"' % (box('right').input_value() if box('right').count() else None,
+                           end_label(page, 'right') if box('right').count() else None))
+        set_number(page, '#presetEndTuckInput-right', 15); settle()
+        m = page.evaluate(MARKER_JS)
+        ends = m['endTuckInMM'] or {}
+        check('d) endTuckInMM right 15, left still automatic', ends.get('right') == 15 and ends.get('left') is None, str(m['endTuckInMM']))
+        check('d) panelWidthsMM [580, 640, 635]', near_list(m['panelWidthsMM'], [580, 640, 635]), str(m['panelWidthsMM']))
+        row, n_row = export_row(page, 'endS3_d.json')
+        check('d) export ran with no error and has 4 panes', n_row == 4, str(n_row))
+        check_export_row(check, 'd)', row, [580, 640, 635], 20, 15)
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
+def run_end_s4_scenario(browser):
+    """S4 (step 4b-4): no row-end box where there is no row end to tuck in."""
+    print('\n=== Row-end tuck-in S4: no boxes where they should not be ===')
+    # a) Sashless OX (file 08 layout): appendPresetEndTuckInRow returns before drawing the row when the row is
+    #    sashless (a sashless row has no sideways tuck-in), so NO end box exists on either pane, not even a
+    #    disabled one. Asserted as zero boxes.
+    # b) Double-hung (file 06 layout): its D pattern is not an O/X sliding row, so no end box on either pane.
+    # c) Framed OXX (file 16 layout): the middle X has an overlap join on both sides and touches neither row
+    #    end, so it shows no end box; the O shows only the left box and the last X only the right box.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def boxes():
+        return (page.locator('#presetEndTuckInput-left').count(), page.locator('#presetEndTuckInput-right').count(),
+                page.locator('#toolbar').filter(has_text='Row end tuck-in (mm)').count())
+
+    try:
+        for name, recipe, fid, n in (('a) sashless OX', recipe_08, '08', 2), ('b) double-hung', recipe_06, '06', 2)):
+            page.goto(URL)
+            page.wait_for_selector('#diagram .pane')
+            recipe(page, fid)
+            settle()
+            for i in range(n):
+                select_pane(page, i, 'endS4'); settle()
+                got = boxes()
+                check('%s pane %d: no end boxes and no row-end row' % (name, i), got == (0, 0, 0), '(left, right, row) = %s' % (got,))
+
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_16(page, '16')
+        settle()
+        for i, want in ((0, (1, 0, 1)), (1, (0, 0, 0)), (2, (0, 1, 1))):
+            select_pane(page, i, 'endS4'); settle()
+            got = boxes()
+            check('c) framed OXX pane %d: (left, right, row) = %s' % (i, want), got == want, str(got))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
+def run_end_s5_scenario(browser):
+    """S5 (step 4b-4): S1's typed ends survive save and reload; then the left end is reset."""
+    print('\n=== Row-end tuck-in S5: save and reload, then reset the left end ===')
+    # Rebuilds S1 (framed XOX at 1700, left 30, right 15): [650, 580, 635], drawn [650, 535, 635].
+    # Reset puts the left end back to automatic 20, 10 less than 30, so X1 goes 650 -> 640; the right end
+    # stays typed 15. 640 + 580 + 635 - 120 - (20 + 15) = 1700. Drawn after the reset: 640, 1820 - 640 - 635 = 545, 635.
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = True
+
+    def check(name, good, detail=''):
+        nonlocal ok
+        ok = ok and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    def settle():
+        page.wait_for_timeout(200)
+
+    def box(end):
+        return page.locator('#presetEndTuckInput-' + end)
+
+    try:
+        build_row_1700(page, 'Sliding windows', 'XOX', [640, 580, 640], check, 'endS5')
+        select_end_pane(page, 'left', 'endS5')
+        set_number(page, '#presetEndTuckInput-left', 30); settle()
+        select_end_pane(page, 'right', 'endS5')
+        set_number(page, '#presetEndTuckInput-right', 15); settle()
+
+        # save and reload through the page's own functions, as the endbox scenario does
+        state = page.evaluate('() => JSON.stringify(window.serializeRawState())')
+        page.evaluate('(s) => window.restoreFromRawState(JSON.parse(s))', state)
+        fallback_used.append(('endS5', 'reload via window.serializeRawState() / window.restoreFromRawState() (no save/reload UI)'))
+        settle()
+        m = page.evaluate(MARKER_JS)
+        check('a) after reload: endTuckInMM {left: 30, right: 15}', m['endTuckInMM'] == {'left': 30, 'right': 15}, str(m['endTuckInMM']))
+        check('a) after reload: panelWidthsMM [650, 580, 635]', near_list(m['panelWidthsMM'], [650, 580, 635]), str(m['panelWidthsMM']))
+        drawn = page.evaluate(SECTION_DRAWN_JS)
+        check('a) after reload: drawn widths [650, 535, 635]', near_list(drawn, [650, 535, 635]), str(drawn))
+        select_end_pane(page, 'left', 'endS5')
+        check('a) after reload: left box shows 30 (typed)', box('left').input_value() == '30' and end_label(page, 'left') == 'Left (typed)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+        select_end_pane(page, 'right', 'endS5')
+        check('a) after reload: right box shows 15 (typed)', box('right').input_value() == '15' and end_label(page, 'right') == 'Right (typed)',
+              '%s "%s"' % (box('right').input_value(), end_label(page, 'right')))
+
+        select_end_pane(page, 'left', 'endS5')
+        page.locator('#presetEndTuckReset-left').click(); settle()
+        m = page.evaluate(MARKER_JS)
+        ends = m['endTuckInMM'] or {}
+        check('b) after reset: left automatic (null), right still 15', ends.get('left') is None and ends.get('right') == 15, str(m['endTuckInMM']))
+        pw = m['panelWidthsMM']
+        check('b) after reset: panelWidthsMM [640, 580, 635]', near_list(pw, [640, 580, 635]), str(pw))
+        check('b) row rule: sum - 120 - (20 + 15) = 1700', pw is not None and near(sum(pw) - 120 - 35, 1700), 'sum %s' % (sum(pw) if pw else None))
+        drawn = page.evaluate(SECTION_DRAWN_JS)
+        check('b) after reset: drawn widths [640, 545, 635]', near_list(drawn, [640, 545, 635]), str(drawn))
+        select_end_pane(page, 'left', 'endS5')
+        check('b) after reset: left box shows 20 (auto)', box('left').input_value() == '20' and end_label(page, 'left') == 'Left (auto)',
+              '%s "%s"' % (box('left').input_value(), end_label(page, 'left')))
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok and clean
+
+
+END_MORE_SCENARIOS = [('endS1', run_end_s1_scenario), ('endS2', run_end_s2_scenario), ('endS3', run_end_s3_scenario),
+                      ('endS4', run_end_s4_scenario), ('endS5', run_end_s5_scenario)]
+
+
 def main():
     proc = None
     results = {}
@@ -1558,6 +1965,7 @@ def main():
     hs3_ok = False
     et_ok = False
     eb_ok = False
+    s_ok = {}
     try:
         proc = start_server()
         print('Server up on port %d (SYSTEM_CHECK_ENABLED set at run time only)' % PORT)
@@ -1574,6 +1982,8 @@ def main():
             hs3_ok = run_headsill_more2_scenario(browser)
             et_ok = run_endtuck_scenario(browser)
             eb_ok = run_endbox_scenario(browser)
+            for key, fn in END_MORE_SCENARIOS:
+                s_ok[key] = fn(browser)
             browser.close()
     finally:
         stop_server(proc)
@@ -1593,9 +2003,11 @@ def main():
     print('%-6s %s' % ('headsill3', 'PASS' if hs3_ok else 'FAIL'))
     print('%-6s %s' % ('endtuck', 'PASS' if et_ok else 'FAIL'))
     print('%-6s %s' % ('endbox', 'PASS' if eb_ok else 'FAIL'))
+    for key, _ in END_MORE_SCENARIOS:
+        print('%-6s %s' % (key, 'PASS' if s_ok.get(key) else 'FAIL'))
     print('\nFallbacks to page functions: %s' % (fallback_used if fallback_used else 'none (all selections were real clicks)'))
     failed = any(v != 'PASS' for r in results.values() for v in r.values())
-    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or not et_ok or not eb_ok or len(results) != len(FILES) else 0)
+    sys.exit(1 if failed or not tuck_ok or not nf_ok or not dl_ok or not st_ok or not hs_ok or not hs2_ok or not hs3_ok or not et_ok or not eb_ok or not all(s_ok.get(k) for k, _ in END_MORE_SCENARIOS) or len(results) != len(FILES) else 0)
 
 
 if __name__ == '__main__':
