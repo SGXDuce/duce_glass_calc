@@ -81,4 +81,11 @@ File 16 note: the first plan typed 573.3 / 633.3 / 633.3, which sum to 1839.9 an
 
 File 18 is a control: the later fix applies to a no-frame preset BESIDE A MULLION only, and must leave this file unchanged.
 
-File number 15 is RESERVED for the no-frame preset beside a mullion (BEFORE and AFTER the step 4b fix).
+## Extra exports added 12 October 2026
+
+| File | What was built | Key numbers (read from the file) |
+|---|---|---|
+| safety_net_v6_15_no_frame_OX_beside_mullion_BEFORE.json | NO outer frame, 1800 x 2100, mullion centre 980 thickness 40, a sliding-window OX preset (OX-win) in each cell with the form's own prefill. Saved from master 01e05fc BEFORE step 4b-5, by a throwaway script using the harness helpers (REPORTED BY CLAUDE CODE). A fresh build no longer matches it by design; the harness compares to it for information only | .L.R fixed 480 x 2100 at x 0; .L.S slider 540 x 2100 at x 420; .R.R fixed 400 x 2100 at x 1000; .R.S slider 460 x 2100 at x 1340; panelWidthsMM [480, 540] and [400, 460] |
+| safety_net_v6_15_no_frame_OX_beside_mullion_AFTER.json | Same layout built with the step 4b-5 code (a no-frame preset row tucks 20 into a real mullion end; opening edges stay 0). Exported by the harness (recipe 15). It is the live check: the files table in tools/ui_regression.py compares to it | .L.R fixed 490 x 2100 at x 0; .L.S slider 550 x 2100 at x 430; .R.R fixed 410 x 2100 at x 980; .R.S slider 470 x 2100 at x 1330; panelWidthsMM [490, 550] and [410, 470]; sectionDrawnWidthsMM [470, 550] and [390, 470] |
+
+Row rule (Claude's arithmetic against the tool): left row 1040 - 60 - 20 = 960, right row 880 - 60 - 20 = 800. The key numbers above were checked by Claude's arithmetic against the tool, not hand values.
