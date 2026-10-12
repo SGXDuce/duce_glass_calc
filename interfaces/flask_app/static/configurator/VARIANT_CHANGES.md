@@ -584,3 +584,30 @@ Merged since step 5b (merge commits):
 - Step 4a (head/sill tuck-in boxes in presets): bae79b0 (PR #49)
 
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Status update, 12 October 2026 (after step 4b)
+
+This section replaces the status lines above where they differ; the lines above are left as written.
+
+- Step 4a, width boxes: the left/right width boxes (step 4b) are DONE and
+  merged: 4b-1 helper (b362ca0), 4b-2 four width sites use the helper
+  (d4d6598), 4b-3 editable row-end boxes (bac70aa), 4b-4 harness scenarios
+  (01e05fc), 4b-5 no-frame preset row tucks 20 into a real mullion end
+  (908bca2; file 15 BEFORE was 4f3b414). See the Step 4b-1 to 4b-5 entries
+  above.
+- NOT BUILT: step 4b-5b (the bar-clash rule, DECIDED BY SAHIL, 12 October
+  2026): the tuck-in from the left side of a mullion plus the tuck-in from the
+  right side must be no more than the mullion thickness; a typed value that
+  breaks it is refused; an existing clash blocks export; a mullion thickness
+  change that causes a clash is refused; it replaces the
+  half-the-mullion-thickness cap everywhere, including the lone-slider boxes
+  of step 5c-1. Do not ship between 4b-5 and 4b-5b: on a mullion thinner than
+  40 the automatic 20 + 20 can still clash.
+- NOT BUILT: step 5d (overlap as a computed value, schemaVersion 6 to 7).
+  Design decisions are in summary v1.52 section B; at a flush (butt) join
+  there is no overlap box (DECIDED BY SAHIL, 12 October 2026).
+- Merged since step 4a (merge commits): 4b-1 b362ca0 (PR #53), 4b-2 d4d6598
+  (PR #54), 4b-3 bac70aa (PR #55), 4b-4 01e05fc (PR #56), file 15 BEFORE
+  4f3b414 (PR #57), 4b-5 908bca2 (PR #58). The ledger for these steps is
+  above; the summary entry is v1.52.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).

@@ -34,7 +34,7 @@ Source: master and git history, the terminal pastes by Sahil, the Claude Code re
 8. PROPOSED BY CLAUDE: none of the overlap boxes are built in 4b.
 
 Open 5d design questions:
-- (1) DECIDED BY SAHIL (12 October 2026): at a flush (butt) join (for example the middle join of OXXO: overlap 0, join type locked by the preset) there is no overlap box; the join shows "flush, 0" as plain text. This amends item 1 above: item 1 applies to overlap joins only. REPORTED BY CLAUDE (Claude's arithmetic for the rejected option, a typeable box at that join, typing 60 on OXXO 430/490/490/430 in a 1680 opening): 430/520/520/430, and 1900 - 180 - 40 = 1680.
+- (1) DECIDED BY SAHIL (12 October 2026): at a flush (butt) join (for example the middle join of OXXO: overlap 0, join type locked by the preset) there is no overlap box; the join shows "flush, 0" as plain text. This amends item 1 above: item 1 applies to overlap joins only. INFERRED BY CLAUDE (Claude's arithmetic for the rejected option, a typeable box at that join, typing 60 on OXXO 430/490/490/430 in a 1680 opening): 430/520/520/430, and 1900 - 180 - 40 = 1680.
 - Open product question, not answered: do real OXXO centre sashes only butt, or is there a small interlock overlap? If they overlap, the decision above would hide it. PROPOSED BY CLAUDE (a question raised in chat, 12 October 2026).
 - (2) What happens to a typed overlap when the opening or an end tuck-in changes, and which sections move. REPORTED BY SAHIL (12 October 2026, pasted from another chat; the 9 October handover text in this chat ends mid-sentence at "What happens to a typed", so the wording was not checked against the original).
 - Any further 5d questions in the original handover are still to be supplied by Sahil. They are not invented here.

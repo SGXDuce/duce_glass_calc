@@ -5281,6 +5281,9 @@ function renderIconForPreset(pattern, family) {
 //      OXXXXX). `OXXX-win` (previously left on the old plain-split path, an open question after
 //      batch 17) is folded into this same treatment too, as a consistency call — flagged, not
 //      independently re-confirmed.
+//   Step 4b note (12 October 2026): point 1 above is history. The flat 40mm is no longer one figure: the row's two end
+//   tuck-ins now come from presetEndTuckInMM, one value per end (framed: typed value or automatic 20; no frame: 20 only at a
+//   real mullion end, else 0; sashless: 0), and the gating on `hasFrame` described above is per end since step 4b-5.
 const SLIDING_OVERLAP_MM = 60;
 // Batch 18: flat, once-per-row addition — never per-panel or per-join. See the tuck-in
 // explanation in the block comment above. Batch 20 (Part D): renamed from SLIDING_TUCKIN_MM —
@@ -5370,11 +5373,9 @@ function isSlidingOverlapId(id, pattern) {
 // computeSlidingWinTotalWidth's own exact-match check when d happens to be 0. Whenever rounding
 // actually changed O, the form prefilled widths it then rejected on an unmodified Confirm. No
 // fallback exists any more; the exact formula is trusted as-is.
-// Batch 20: `hasFrameFlag` is now an explicit parameter (defaults to the global `hasFrame` when
-// omitted, so every pre-existing call site that relied on the implicit global read keeps working
-// unchanged) rather than only ever reading the global directly — makes the tuck-in gating
-// testable/traceable against an explicit value without depending on global state, and matches
-// this batch's own call site, which passes it explicitly.
+// `hasFrameFlag` is kept as a parameter so existing call sites still work (Batch 20 made it explicit).
+// Since step 4b-5 it is only a consistency check: the function throws if it differs from the active
+// elevation's own hasFrame, and the row-end tuck-in is decided by presetEndTuckInMM from the elevation itself.
 // Batch 42 — `sashless` (default false) makes both row-end tuck-ins 0 (presetEndTuckInMM); every other
 // part of this formula (panel sizing, overlap accounting) is unaffected by sashless-ness, per the
 // batch prompt's own instruction.
