@@ -5308,13 +5308,12 @@ const SASHLESS_DH_CAPPING_MM = 15;
 // row. Batch 63 — person-confirmed permanent figure: sideways tuck-in for a sashless row is 0mm
 // (flush with the frame, no hidden material at the jamb) — was 6mm (a placeholder, 3mm/edge,
 // batch 42/61). Kept as a real, separately-named constant (not deleted) rather than inlining 0 at
-// every call site: every one of its use sites (computeSlidingWinPrefillWidths,
-// computeSlidingWinTotalWidth, computeSlidingAssemblyLeafCorrections, computeLoneSlidingLeafCorrections,
-// and the assembly-widths-prefill block near line 1651) also handles the NON-sashless case in the
-// same expression (`sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM`), so removing the
-// constant would mean rewriting each of those conditionals rather than deleting a single
-// definition — keeping it as a 0-valued constant is the smaller, safer change and preserves the
-// existing "which tuck-in figure applies" branch structure exactly.
+// every call site. Since step 4b the preset-row sites (computeSlidingWinPrefillWidths,
+// computeSlidingWinTotalWidth, computeSlidingAssemblyLeafCorrections and the stale-widths prefill)
+// no longer read it: they go through presetEndTuckInMM, which returns 0 at both ends of a sashless
+// row. Its remaining use is the `sashless ? SASHLESS_FRAME_TUCKIN_MM : FRAME_TUCKIN_MM` expression in
+// autoTuckInMM (lone sliders). Keeping it as a 0-valued constant is the smaller, safer change and
+// preserves the existing "which tuck-in figure applies" branch structure there exactly.
 const SASHLESS_FRAME_TUCKIN_MM = 0;
 
 // SLIDING_HEIGHT_TUCKIN_MM — person-confirmed (Duce): a framed, non-sashless sliding-window/door
@@ -5360,10 +5359,11 @@ function isSlidingOverlapId(id, pattern) {
 // data point for OX-win/OXX-win/OXXO-win, no rounding needed in any case): every O is the same
 // solved width, every X is exactly 60mm more, and `joins` counts only real OVERLAP joins (a
 // flush join contributes nothing to the total, so it must be excluded from the join count that
-// the 60mm-per-join term corrects for). Batch 18 adds the flat +40mm tuck-in term, gated on
-// hasFrame (see the block comment above) — with no outer frame, T alone (no tuck-in) is the
-// right target, matching the original batch-17 formula exactly in that case:
-//   O = (T − 60·n_X + 60·joins [+ 40 if hasFrame]) / (n_O + n_X),  X = O + 60
+// the 60mm-per-join term corrects for). Batch 18 added a flat +40mm tuck-in term; since step 4b it is
+// the row's two end tuck-ins from presetEndTuckInMM (framed: 20 per end, or a typed value; no frame:
+// 20 only at a real mullion end, 0 at any other end; sashless: 0), so with no frame and no mullion
+// at either end T alone is the target, matching the original batch-17 formula in that case:
+//   O = (T − 60·n_X + 60·joins + left end + right end) / (n_O + n_X),  X = O + 60
 // Prefills the exact solved value, full precision, even when it isn't a multiple of 5mm — see
 // batch 50: a prior version here rounded O to the nearest 5mm, but every panel width moves by the
 // same delta d and the entered total then moves by n·d, so the rounded set only ever passes
@@ -5375,9 +5375,9 @@ function isSlidingOverlapId(id, pattern) {
 // unchanged) rather than only ever reading the global directly — makes the tuck-in gating
 // testable/traceable against an explicit value without depending on global state, and matches
 // this batch's own call site, which passes it explicitly.
-// Batch 42 — `sashless` (default false) selects SASHLESS_FRAME_TUCKIN_MM (currently 0) instead of
-// FRAME_TUCKIN_MM (40) for the tuck-in term only; every other part of this formula (panel sizing,
-// overlap accounting) is unaffected by sashless-ness, per the batch prompt's own instruction.
+// Batch 42 — `sashless` (default false) makes both row-end tuck-ins 0 (presetEndTuckInMM); every other
+// part of this formula (panel sizing, overlap accounting) is unaffected by sashless-ness, per the
+// batch prompt's own instruction.
 function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sashless, rowPath) {
   // Step 4b-5: the real elevation is passed to the end helper (it needs the tree to find a mullion
   // at a no-frame end), so a frame flag that disagrees with the elevation's own is refused loudly.
@@ -5403,9 +5403,10 @@ function computeSlidingWinPrefillWidths(pattern, totalWidthMM, hasFrameFlag, sas
 // The real total width (the content/opening width the row must fit inside — i.e. T, not
 // sum(panel widths)) that a sliding preset's entered section widths correspond to: sum of the
 // individual panel widths, minus 60mm for every real OVERLAP join (a flush join contributes
-// nothing to subtract, since flush panels don't overlap at all), minus the flat 40mm frame
-// tuck-in (batch 18, gated on hasFrame — see the block comment above; with no outer frame there
-// is no tuck-in to subtract, so T equals the overlap-only reduction, matching batch 17). There
+// nothing to subtract, since flush panels don't overlap at all), minus the row's two end tuck-ins
+// (left end + right end), each from presetEndTuckInMM (step 4b): framed, the typed value or the
+// automatic 20 per end; no frame, 20 only at a real mullion end (typed value or automatic) and 0 at
+// any other end; sashless, 0. The old flat 40mm term (batch 18) is gone. There
 // is no mullion at any sliding-overlap join, so unlike every other family this total is never
 // sectionWidths-plus-mullions.
 // Batch 42 — `sashless` (default false) swaps in SASHLESS_FRAME_TUCKIN_MM (currently 0) for the tuck-in
