@@ -1,13 +1,86 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.51 (Configurator variant: step 4a merged, head/sill tuck-in boxes for X sashes in sliding presets, hand-value rule dropped, human impact question survey)
-### Last Updated: 8 October 2026
+### Version: V1.52 (Configurator variant: step 4b merged, row-end width tuck-in boxes, no-frame preset beside a mullion, overlap design and bar-clash rule decided)
+### Last Updated: 12 October 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.52 - 12 October 2026 - Configurator variant: step 4b merged (row-end width tuck-in boxes, no-frame preset beside a mullion), overlap design and bar-clash rule decided
+
+Source: master and git history, the terminal pastes by Sahil, the Claude Code reports and the Claude in Chrome check pasted in chat, 12 October 2026. Tags follow the ledger.
+
+**A. Merged since v1.51.** Source: master and git history. Merge commits:
+- PR #51, a6d222d: the ledger fix. REPORTED BY CLAUDE CODE (git log and git show --stat): it merges commit e92fbbf "Docs: ledger status section (step 4a merged, planned items 2 and 4 restated)", which changed only VARIANT_CHANGES.md (6 insertions, 1 deletion).
+- PR #52, aebdc07: safety-net files 16, 17 and 18, harness exports made from a6d222d before step 4b. REPORTED BY CLAUDE CODE.
+- PR #53, b362ca0: step 4b-1 (commit 8a035fa). REPORTED BY CLAUDE CODE (git log line).
+- PR #54, d4d6598: step 4b-2 (commit af3e6bc). REPORTED BY CLAUDE CODE (git log line).
+- PR #55, bac70aa: step 4b-3 (commit 7889aa2). VERIFIED BY SAHIL (his terminal pasted the log line).
+- PR #56, 01e05fc: step 4b-4 (commit b146671). VERIFIED BY SAHIL.
+- PR #57, 4f3b414: file 15 BEFORE (commit 983d76b). VERIFIED BY SAHIL.
+- 908bca2 (PR #58): step 4b-5 (commit 27a43f4). VERIFIED BY SAHIL, parents 4f3b414 and 27a43f4.
+
+**B. Overlap design for step 5d.** DECIDED BY SAHIL (9 October 2026), items 1 to 6:
+1. Each join shows a computed overlap in a box you can type over. (Amended 12 October 2026, see the open questions below: this applies to overlap joins only.)
+2. Typing never changes stile widths; the box shows it was typed, with a "reset to computed" button.
+3. An overlap change is split half-and-half between the two sections at that join; the opening stays the same.
+4. Range: 0 up to the narrower of the two sections at that join. No extra left+right rule on a middle section (the right sash sits in front of the left, so the two overlaps are in different layers).
+5. Out of range: refused, old value kept, short message.
+6. Row rule always holds: sum of widths - overlaps - (left end tuck + right end tuck) = opening.
+7. PROPOSED BY CLAUDE: a typed overlap is stored per join; schemaVersion 6 -> 7 in step 5d.
+8. PROPOSED BY CLAUDE: none of the overlap boxes are built in 4b.
+
+Open 5d design questions:
+- (1) DECIDED BY SAHIL (12 October 2026): at a flush (butt) join (for example the middle join of OXXO: overlap 0, join type locked by the preset) there is no overlap box; the join shows "flush, 0" as plain text. This amends item 1 above: item 1 applies to overlap joins only. INFERRED BY CLAUDE (Claude's arithmetic for the rejected option, a typeable box at that join, typing 60 on OXXO 430/490/490/430 in a 1680 opening): 430/520/520/430, and 1900 - 180 - 40 = 1680.
+- Open product question, not answered: do real OXXO centre sashes only butt, or is there a small interlock overlap? If they overlap, the decision above would hide it. PROPOSED BY CLAUDE (a question raised in chat, 12 October 2026).
+- (2) What happens to a typed overlap when the opening or an end tuck-in changes, and which sections move. REPORTED BY SAHIL (12 October 2026, pasted from another chat; the 9 October handover text in this chat ends mid-sentence at "What happens to a typed", so the wording was not checked against the original).
+- Any further 5d questions in the original handover are still to be supplied by Sahil. They are not invented here.
+- Step 5d: DECIDED BY SAHIL (8 October 2026, v1.51 item B.2) worked cases are written by Claude and checked by Sahil BEFORE any code. PROPOSED BY CLAUDE: Opus.
+
+**C. Step 4b decisions.** All DECIDED BY SAHIL (9 October 2026) unless marked:
+- Built as a sequence of small commits, one Claude Code prompt each, with Sahil's check between.
+- End boxes go on the FIRST and LAST section of an OX-family row, whatever their letter. None at interior joins, none on sashless rows, none on double-hung. Shown only on fixed (O) and horizontal-slider (X) leaves.
+- Automatic end value: outer frame 20; real mullion end with no frame 20 (built in 4b-5); opening edge with no frame 0; silicone joint 0; sashless 0.
+- Caps: an X end is capped by its own stile on that side; an O end by the system's X stile. PROPOSED BY CLAUDE (how it was implemented): the smallest left or right stile of any X in the row. Out of range is refused. An X end's stile cannot be narrowed below that end's tuck-in.
+- An end edit changes only the section at that end, by the full amount; panelWidthsMM is rewritten.
+- The harness locks in the WRONG O daylight (fixed panes deduct nothing) until 5d, with a comment saying so.
+- Files 16, 17 and 18 were saved before 4b; file 15 BEFORE and AFTER around the 4b-5 fix. REPORTED BY CLAUDE CODE (numbers read from the files): file 16 framed OXX widths = form prefill 573.333.. / 633.333.. / 633.333..; file 17 framed OXXO 430/490/490/430 (its middle X-X join is a flush join, overlap 0); file 18 no-frame OXX 600/660/660, no mullion, control.
+
+**D. Decisions of 12 October 2026.** All DECIDED BY SAHIL unless marked:
+1. The automatic tuck-in at a mullion stays 20 and is editable.
+2. NEW RULE, NOT YET BUILT (step 4b-5b): the tuck-in from the left side of a mullion plus the tuck-in from the right side of the same mullion must be no more than the mullion thickness (compare with "no more than", with a small tolerance, because files 13 and 14 sit exactly at 20 + 20 = 40). A typed value that breaks the rule is refused, old value kept, one-line reason. A clash that already exists (for example the automatic 20 + 20 on a mullion thinner than 40) blocks export with a message saying lower a tuck-in or make the mullion thicker. A mullion thickness change that causes a clash is refused. This REPLACES the half-the-mullion-thickness cap everywhere, including the lone-slider boxes of step 5c-1 (validateTuckInMM), so lone sliders and preset rows behave the same.
+3. Old saved designs do not matter for this work (no need to trace how an old saved no-frame row beside a mullion reopens).
+4. A typed value at a no-frame OPENING edge is forced to 0 and its box is disabled.
+5. Adding or removing a mullion beside an existing row later flips that end between 0 and 20 without re-confirming widths; accepted (same as when the overall width changes today).
+6. The disabled end box wording stays "Left (auto)" / "Right (auto)".
+7. The five worked cases for 4b-5 were approved; the check "typing 25 beside a 40 mm bar is refused" moved to 4b-5b because the half-mullion cap is REPLACED.
+8. PROPOSED BY CLAUDE: split the bar-clash rule off as step 4b-5b, after the docs commit, with its own worked cases checked by Sahil before code. Do not ship between 4b-5 and 4b-5b: on a mullion thinner than 40 the automatic 20 + 20 can still clash.
+9. At a flush (butt) join there is no overlap box (step 5d); see section B, open question (1).
+
+**E. Findings.**
+- REPORTED BY CLAUDE CODE (read-only review of commit 7889aa2, code read, nothing run): XOX has two overlap joins of 60 mm each (X-O and O-X); OXX has two overlap joins of 60; OXXO is overlap, flush (0), overlap. The end tuck-in code picks the section by position and does not read the join type. The stale-widths prefill, traced by hand for four cases (OXX 20/20, 30/10, 0/20 and XOX 30/10, opening 1800), gives [680,640,640], [690,640,630], [660,640,640], [650,680,630] and each balances to 1800; it reads each end separately and no flat 40 is used in any preset-row width formula.
+- INFERRED BY CLAUDE: the balance in the previous item relies on the drawn remainder not being clamped to 0; not proven for every edit path.
+- REPORTED BY CLAUDE CODE (read-only survey, code read): the end helper had no knowledge of the row's position (six of eight call sites held the path; the prefill and the total did not). classifyLeafEdges works on a cell path before a row exists (INFERRED BY CLAUDE at the time, then confirmed by 4b-5). There is no existing function that finds the pane or row on the other side of a bar. findAdjacentSplit ignores sashSplit, so a nested sash edge can be misread as a mullion. Preset end boxes have no half-mullion cap (only lone sliders do: validateTuckInMM). autoTuckInMM gives 20 at a mullion of any thickness. cloneForSplit does not copy tuck values (a split slider's halves start automatic). There is no thickness edit for an existing standalone bar, and sliding presets have no mullion box, so a thickness refusal can only fire where a thickness is entered (a new bar via confirmSplit, the casement/awning/double-hung preset forms and confirmAssemblyEdit for non-sliding families). Export blocking can reuse the existing exportError box; no schema change is expected. The double-hung tuck-in at a mullion outside a preset was not traced.
+- REPORTED BY CLAUDE CODE: harness at 4b-5: 400 PASS lines, exit 0, pytest 208 passed; the same figures were produced again on the comment-only commit 4b-6a (Claude Code's own run, 12 October 2026: exit 0, 400 PASS, 208 passed, system differences 0 except 9, 17, 1 and 5). Scenarios endS1 to endS5 (4b-4) and M1 to M4 (4b-5) were added.
+- VERIFIED BY SAHIL (his own run at 4b-5): exit 0, 400 PASS, 208 passed.
+- REPORTED BY CLAUDE (Claude in Chrome browser check, 18 steps, no differences): no-frame OX in each cell beside a 40 mm mullion at 980; prefill 490/550 and 410/470; "Edit assembly widths" then confirm unchanged accepted both before and after typing right end 10; typed 45 refused (right sash width 40), -5 refused; end box states as expected. Caveats: the console was only recorded after step 17; step 7's hover text was read from the field's title attribute.
+- INFERRED BY CLAUDE: in the pane table the Width column shows the drawn width, which is why .L.R reads 470 (480 after typing right end 10) while its Sash/Leaf size stays 490.
+
+**F. Open items, new or restated.** All open items in v1.51 item F and v1.50 item J remain open unless stated here.
+1. NOT BUILT: step 4b-5b (decision D.2). REPORTED BY CLAUDE CODE (git log shows no such commit).
+2. v1.51 F.6 (unanswered: is the overlap editable per join, which section absorbs an overlap change, and what range is allowed) is ANSWERED for design purposes by the 9 October decisions in section B (DECIDED BY SAHIL). Step 5d is not built (REPORTED BY CLAUDE CODE, git log).
+3. v1.51 F.7 / v1.50 J.12 said the project copy of this summary is updated separately and was out of date. This REPLACES that note: Sahil replaces the project-knowledge copy with the repo copy after this commit merges (INFERRED BY CLAUDE: Claude Code cannot update the project copy).
+4. NOT TESTED by any harness scenario or browser check (INFERRED BY CLAUDE): the sliding door family beside a mullion with no frame; a silicone joint at a no-frame row end; a no-frame row in a cell with a transom above it. Reopening "Edit assembly widths" on a no-frame row beside a mullion is covered by the browser check only, not by the harness.
+5. The automatic 20 + 20 at a mullion thinner than 40 already clashes today for lone sliders (autoTuckInMM gives 20 at any mullion); it becomes an export block under decision D.2. REPORTED BY CLAUDE CODE (code read).
+6. findAdjacentSplit ignores sashSplit (a nested sash edge can be misclassified as a mullion); cloneForSplit drops typed tuck values; both left as they are. REPORTED BY CLAUDE CODE (code read).
+7. Stale comments about the flat 40 were updated in commit 4b-6a (cf93f08, comment-only). REPORTED BY CLAUDE CODE (git diff: 18 insertions, 17 deletions, comment lines only).
+8. The 4b-5 commit changed the hover text of a disabled end box to "No row-end tuck-in here: no outer frame and no mullion at this end (nothing to slide behind)." REPORTED BY CLAUDE CODE (the string was found in configurator.html by grep).
+9. Open product question for 5d: do real OXXO centre sashes only butt, or have a small interlock overlap (section B). PROPOSED BY CLAUDE (a question, unanswered).
+
+**G. Plan.** PROPOSED BY CLAUDE: worked cases for 4b-5b checked by Sahil first, then one Claude Code prompt (Opus) with a read-only trace of the neighbour lookup; then 5d (worked cases first, Opus).
 
 ### v1.51 - 8 October 2026 - Configurator variant: step 4a merged (head/sill tuck-in boxes for X sashes in sliding presets), hand-value rule dropped, human impact question survey
 

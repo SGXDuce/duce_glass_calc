@@ -339,6 +339,82 @@ entries are applied there at the end of this project.
   row mixing sashless and framed X leaves is not covered; the preset check in
   `selectedEdgeTuckInMM` treats the row as framed and not sashless.
 
+### Step 4b-1: row-end tuck-in helper (not used yet)
+
+- New helper `presetEndTuckInMM(ref, ev, sashless)`: returns today's flat rule
+  split per end of an OX-family preset row (framed: 20 per end; no frame: 0;
+  sashless: 0). New `typedPresetEndTuckInMM` reads a typed end value from the
+  marker. No formula calls the helper yet.
+- Source: PR #53, merge b362ca0, commit 8a035fa (REPORTED BY CLAUDE CODE, git log).
+- Numbers do not change. No export field or schema change: `schemaVersion`
+  stays 6, `RAW_STATE_SCHEMA_VERSION` stays 1.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+### Step 4b-2: the four preset-row width sites use the helper
+
+- The four places that work out a preset row's widths now read the end
+  tuck-ins from `presetEndTuckInMM`: the form prefill
+  (`computeSlidingWinPrefillWidths`), the total (`computeSlidingWinTotalWidth`),
+  the stale-widths prefill (`getAssemblyPresetCurrentState`) and the export leaf
+  corrections (`computeSlidingAssemblyLeafCorrections`).
+- Source: PR #54, merge d4d6598, commit af3e6bc (REPORTED BY CLAUDE CODE, git log).
+- Numbers do not change (defaults only). No export field or schema change:
+  `schemaVersion` stays 6, `RAW_STATE_SCHEMA_VERSION` stays 1.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+### Step 4b-3: editable row-end width tuck-in boxes
+
+- New: the first and last section of an OX-family row get width tuck-in boxes
+  (left end, right end). The section's letter does not matter: XOX has an X at
+  both ends. Shown only on fixed (O) and horizontal-slider (X) leaves. No boxes
+  at interior joins, none on sashless rows, none on double-hung.
+- Stored on the preset marker as `assemblyPresetRef.endTuckInMM = {left, right}`
+  (null or missing = automatic). New writer `writePresetEndTuckIn`. An end edit
+  changes only the section at that end, by the full change; `panelWidthsMM` is
+  rewritten.
+- Caps: an X end cannot exceed its own stile on that side; an O end cannot
+  exceed the narrowest left or right stile of any X in the row. An X end's
+  stile cannot be narrowed below that end's tuck-in.
+- Source: PR #55, merge bac70aa, commit 7889aa2 (REPORTED BY CLAUDE CODE, git log).
+- Numbers do not change: automatic values are as before (framed 20 per end).
+  No export field or schema change: `schemaVersion` stays 6,
+  `RAW_STATE_SCHEMA_VERSION` stays 1.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+### Step 4b-4: harness scenarios (harness only, no app change)
+
+- `tools/ui_regression.py` only: scenarios endS1 to endS5 (framed XOX with typed
+  ends 30 and 15, OX window and door, split end section, no-box cases, save and
+  reload with reset). PR #56, merge 01e05fc, commit b146671 (REPORTED BY CLAUDE
+  CODE, git log). Harness only, no app change.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+### Step 4b-5: no-frame preset row tucks into a real mullion end
+
+- The rule: with no outer frame and not sashless, each preset-row end is now
+  decided on its own. An end against a real mullion (a split with thickness
+  above 0 that is not a silicone joint) gets the typed value or the automatic
+  20; any other end is 0 and a stored typed value there is ignored.
+- Code: `presetEndTuckInMM` has a new last parameter `rowPath` (the marked
+  path, or the target cell's path when the form first opens). New helper
+  `presetRowEndKinds` uses `classifyLeafEdges` on a stand-in leaf.
+  `computeSlidingWinPrefillWidths` and `computeSlidingWinTotalWidth` take
+  `rowPath`; the prefill now passes the real elevation and throws if its frame
+  flag differs from the elevation's. The opening size comes from
+  `resolveOverallDims`.
+- Boxes: on a no-frame row the end boxes are enabled only at a mullion end; the
+  disabled box shows 0 with the hover text "No row-end tuck-in here: no outer
+  frame and no mullion at this end (nothing to slide behind)."
+- Safety net: file 15 saved BEFORE (PR #57, merge 4f3b414, commit 983d76b, made
+  from master 01e05fc) and AFTER (this step). Source: merge 908bca2, commit
+  27a43f4 (REPORTED BY CLAUDE CODE, git log).
+- Numbers that change: only a no-frame preset row beside a real mullion (0 to
+  20 at that end). File 15 layout: left row [480, 540] -> [490, 550], right row
+  [400, 460] -> [410, 470]. Files 02, 07, 08, 16, 17 and 18 are unchanged.
+- No export field or schema change: `schemaVersion` stays 6,
+  `RAW_STATE_SCHEMA_VERSION` stays 1.
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
 ## Planned changes (not yet made)
 
 1. ~~Replace the single "Sash frame width" box with four per-edge boxes
@@ -507,4 +583,31 @@ Merged since step 5b (merge commits):
 - Drawing order fix: 90074e0
 - Step 4a (head/sill tuck-in boxes in presets): bae79b0 (PR #49)
 
+- Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
+
+## Status update, 12 October 2026 (after step 4b)
+
+This section replaces the status lines above where they differ; the lines above are left as written.
+
+- Step 4a, width boxes: the left/right width boxes (step 4b) are DONE and
+  merged: 4b-1 helper (b362ca0), 4b-2 four width sites use the helper
+  (d4d6598), 4b-3 editable row-end boxes (bac70aa), 4b-4 harness scenarios
+  (01e05fc), 4b-5 no-frame preset row tucks 20 into a real mullion end
+  (908bca2; file 15 BEFORE was 4f3b414). See the Step 4b-1 to 4b-5 entries
+  above.
+- NOT BUILT: step 4b-5b (the bar-clash rule, DECIDED BY SAHIL, 12 October
+  2026): the tuck-in from the left side of a mullion plus the tuck-in from the
+  right side must be no more than the mullion thickness; a typed value that
+  breaks it is refused; an existing clash blocks export; a mullion thickness
+  change that causes a clash is refused; it replaces the
+  half-the-mullion-thickness cap everywhere, including the lone-slider boxes
+  of step 5c-1. Do not ship between 4b-5 and 4b-5b: on a mullion thinner than
+  40 the automatic 20 + 20 can still clash.
+- NOT BUILT: step 5d (overlap as a computed value, schemaVersion 6 to 7).
+  Design decisions are in summary v1.52 section B; at a flush (butt) join
+  there is no overlap box (DECIDED BY SAHIL, 12 October 2026).
+- Merged since step 4a (merge commits): 4b-1 b362ca0 (PR #53), 4b-2 d4d6598
+  (PR #54), 4b-3 bac70aa (PR #55), 4b-4 01e05fc (PR #56), file 15 BEFORE
+  4f3b414 (PR #57), 4b-5 908bca2 (PR #58). The ledger for these steps is
+  above; the summary entry is v1.52.
 - Tag: carry back (tag proposed by Claude, not confirmed by Sahil).
