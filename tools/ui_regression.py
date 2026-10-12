@@ -80,6 +80,19 @@ FILES.append(('17', 'safety_net_v6_17_framed_OXXO_window_1680.json',
 FILES.append(('18', 'safety_net_v6_18_no_frame_OXX_window_1800.json',
               {'.R.R': ('600 x 2100', '600 x 2100'), '.R.S': ('660 x 2100', '580 x 2020'),
                '.S': ('660 x 2100', '580 x 2020')}, False))
+# File 15 (step 4b-5): NO outer frame, 1800 x 2100, mullion centre 980, thickness 40; a sliding-window OX
+# preset in each cell, built with the form's own prefill. With no frame, a row end tucks in 20 only where
+# it sits against a real mullion; the opening edges stay 0. Expected values are Claude's arithmetic, not
+# hand values. Left row (cell 960 wide, mullion on its right): O = (960 + 20) / 2 = 490, X = 550, and
+# 490 + 550 - 60 - 20 = 960. Right row (cell 800 wide, mullion on its left): O = (800 + 20) / 2 = 410,
+# X = 470, and 410 + 470 - 60 - 20 = 800. Daylight = size less the 40 mm sash edges on a slider; a fixed
+# O deducts nothing (as file 18's O pane). The BEFORE file (made before step 4b-5) is compared for
+# information only, the same way as file 14's BEFORE file.
+FILE_15_BEFORE_NAME = 'safety_net_v6_15_no_frame_OX_beside_mullion_BEFORE.json'
+FILE_15_AFTER_NAME = 'safety_net_v6_15_no_frame_OX_beside_mullion_AFTER.json'
+FILES.append(('15', FILE_15_AFTER_NAME,
+              {'.L.R': ('490 x 2100', '490 x 2100'), '.L.S': ('550 x 2100', '470 x 2020'),
+               '.R.R': ('410 x 2100', '410 x 2100'), '.R.S': ('470 x 2100', '390 x 2020')}, False))
 NOTE_TEXT = '* Sashless: capping deduction not applied yet.'
 
 fallback_used = []   # (file, what) pairs where a page function replaced a real click
@@ -208,6 +221,16 @@ def ensure_value(page, selector, target, what):
     if float(shown) != float(target):
         print('    -> typing %s' % target)
         set_number(page, selector, target)
+
+
+def assert_value(page, selector, target, what):
+    """Like ensure_value, but never types: a form value that differs from target stops the recipe."""
+    box = page.locator(selector)
+    need(page, box, what)
+    shown = box.input_value()
+    print('    form showed %s = %s (wanted %s)' % (what, shown, target))
+    if abs(float(shown) - float(target)) > 0.01:
+        raise AssertionError('%s: form showed %s, wanted %s (not typed over)' % (what, shown, target))
 
 
 # ---------------------------------------------------------------- recipes
@@ -353,9 +376,25 @@ def recipe_18(page, fid):
     click_button(page, 'Confirm preset')
 
 
+def recipe_15(page, fid):
+    # NO outer frame, 1800 x 2100, mullion at 980 (40 thick): left cell 0 to 960, right cell 1000 to 1800.
+    # A sliding-window OX preset in each cell with the form's own prefill (checked, never typed over).
+    # After the left row is built it has two panes, so the right cell is pane index 2.
+    set_overall(page, 1800, 2100)
+    add_mullion(page, fid)
+    for idx, (o_w, x_w) in ((0, (490, 550)), (2, (410, 470))):
+        select_pane(page, idx, fid)
+        click_button(page, 'Apply assembly preset')
+        pick_preset(page, 'Sliding windows', 'OX')
+        assert_value(page, '#presetWidthInput0', o_w, 'Section 1 (O) width')
+        assert_value(page, '#presetWidthInput1', x_w, 'Section 2 (X) width')
+        click_button(page, 'Confirm preset')
+        page.wait_for_timeout(300)
+
+
 RECIPES = {'14': recipe_14, '13': recipe_13, '11': recipe_11, '10': recipe_10, '08': recipe_08, '09': recipe_09,
            '07': recipe_07, '02': recipe_02, '06': recipe_06, '12': recipe_12,
-           '16': recipe_16, '17': recipe_17, '18': recipe_18}
+           '16': recipe_16, '17': recipe_17, '18': recipe_18, '15': recipe_15}
 
 
 # ---------------------------------------------------------------- reading and checking
@@ -489,6 +528,9 @@ def run_file(browser, fid, saved_name, expected, expect_note):
         if fid == '14':
             print('  Informational (not pass/fail): new export compared with the BEFORE file')
             run_compare(os.path.join(SAFETY_DIR, FILE_14_BEFORE_NAME), new_path)
+        if fid == '15':
+            print('  Informational (not pass/fail): new export compared with the BEFORE file')
+            run_compare(os.path.join(SAFETY_DIR, FILE_15_BEFORE_NAME), new_path)
         if fid in ('08', '09'):
             info_prints(page, fid)
     except LabelNotFound as e:
@@ -1341,7 +1383,7 @@ def run_endtuck_scenario(browser):
                 const ev = activeElevation();
                 const ref = ev.root.assemblyPresetRef;
                 const sashless = getAssemblyLeafNodesInOrder([], ref.pattern.length, ref.pattern, ref.id).some(l => findAnySashlessLeaf(l));
-                return {id: ref.id, hasFrame: ev.hasFrame, sashless: sashless, ends: presetEndTuckInMM(ref, ev, sashless)};
+                return {id: ref.id, hasFrame: ev.hasFrame, sashless: sashless, ends: presetEndTuckInMM(ref, ev, sashless, [])};
             }""")
             print('    [info] id %s, hasFrame %s, sashless %s (from getAssemblyLeafNodesInOrder + findAnySashlessLeaf, as getAssemblyPresetCurrentState does)'
                   % (res['id'], res['hasFrame'], res['sashless']))
@@ -1949,8 +1991,249 @@ def run_end_s5_scenario(browser):
     return ok and clean
 
 
+# ---------------------------------------------------------------- step 4b-5: no-frame preset row beside a mullion
+#
+# A row-end width tuck-in is how far the end panel of a sliding row slides in behind the member beside
+# it, so the panel is made wider than the gap it fills on the drawing. With no outer frame there is
+# nothing to slide behind at an opening edge (0), but a real mullion is a solid member, so a row end
+# against one tucks in like a framed end (automatic 20). Every number below is Claude's arithmetic from
+# the code formulas, not a hand value. Layout: no frame, 1800 x 2100, mullion at 980, 40 thick, so the
+# left cell is 0 to 960 (960 wide) and the right cell is 1000 to 1800 (800 wide). Row rule:
+#   sum(section widths) - 60 per overlap - (left end + right end) = cell width.
+# Automatic O = (cell - 60 + 60 + left end + right end) / 2 for OX, X = O + 60.
+
+ROW_MARKER_JS = """(p) => {
+    let n = activeElevation().root;
+    for (const i of p) n = n.children[i];
+    const ref = n.assemblyPresetRef;
+    return {panelWidthsMM: ref.panelWidthsMM || null, sectionDrawnWidthsMM: ref.sectionDrawnWidthsMM || null,
+            endTuckInMM: ('endTuckInMM' in ref) ? ref.endTuckInMM : 'absent'};
+}"""
+
+# index (in drawing order) of the drawn pane at a path
+LEAF_INDEX_JS = """(p) => activeElevation().lastLeaves.findIndex(l => pathKey(l.path) === pathKey(p))"""
+
+
+def run_mullion_scenario(browser, title, body):
+    """Shared wrapper: fresh page, console/page error watch, PASS/FAIL lines like every other scenario."""
+    print('\n=== %s ===' % title)
+    ctx = browser.new_context(accept_downloads=True)
+    page = ctx.new_page()
+    console_errors, page_errors = [], []
+    page.on('console', lambda msg: console_errors.append(msg.text)
+            if msg.type == 'error' and 'favicon' not in (msg.location or {}).get('url', '') else None)
+    page.on('pageerror', lambda e: page_errors.append(str(e)))
+    ok = [True]
+
+    def check(name, good, detail=''):
+        ok[0] = ok[0] and good
+        print('  %s %s %s' % ('PASS' if good else 'FAIL', name, detail))
+
+    try:
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        body(page, check)
+    except Exception as e:
+        print('  ERROR: %r' % e)
+        ok[0] = False
+    finally:
+        clean = not console_errors and not page_errors
+        print('  %s console errors: %s | page errors: %s' % ('PASS' if clean else 'FAIL', console_errors, page_errors))
+        ctx.close()
+    return ok[0] and clean
+
+
+def build_ox_in_cell(page, check, tag, pane_index, prefill, sashless=False):
+    """OX sliding-window preset in one cell: checks the form's own prefill and confirms it unchanged."""
+    select_pane(page, pane_index, tag)
+    click_button(page, 'Apply assembly preset')
+    pick_preset(page, 'Sliding windows', 'OX')
+    if sashless:
+        cb = page.locator('#toolbar label').filter(has_text='Build sashless').locator('input[type=checkbox]')
+        need(page, cb, 'sashless checkbox')
+        cb.check()
+        page.wait_for_timeout(200)
+    shown = [float(page.locator('#presetWidthInput%d' % i).input_value()) for i in (0, 1)]
+    if prefill is not None:
+        check('%s form prefill %s' % (tag, prefill), near_list(shown, prefill), 'form showed %s' % shown)
+    click_button(page, 'Confirm preset')
+    page.wait_for_timeout(300)
+    return shown
+
+
+def select_leaf_at(page, path, tag):
+    select_pane(page, page.evaluate(LEAF_INDEX_JS, path), tag)
+    page.wait_for_timeout(200)
+
+
+def end_box_state(page, end):
+    box = page.locator('#presetEndTuckInput-' + end)
+    if box.count() == 0:
+        return None
+    return {'value': box.input_value(), 'disabled': box.is_disabled(), 'label': end_label(page, end)}
+
+
+def exported_panes(page, name):
+    import json
+    path = export_text(page, name)
+    with open(path, encoding='utf-8') as f:
+        return {p['id']: p for p in json.load(f)['system']['elevations'][0]['panes']}
+
+
+def run_m1_scenario(browser):
+    # M1: OX in the LEFT cell only. Its right end sits on the mullion (automatic 20); its left end is the
+    # opening edge with no frame (0). O = (960 + 0 + 20) / 2 = 490, X = 550; 490 + 550 - 60 - 20 = 960.
+    def body(page, check):
+        set_overall(page, 1800, 2100)
+        add_mullion(page, 'M1')
+        build_ox_in_cell(page, check, 'M1', 0, [490, 550])
+        m = page.evaluate(ROW_MARKER_JS, [0])
+        print('    [info] marker %s' % m)
+        check('M1 marker panelWidthsMM [490, 550]', near_list(m['panelWidthsMM'], [490, 550]), str(m['panelWidthsMM']))
+        pw = m['panelWidthsMM'] or [0, 0]
+        check('M1 row rule sum - 60 - 20 = 960', near(sum(pw) - 60 - 20, 960), 'sum %s' % sum(pw))
+        check('M1 no endTuckInMM field', m['endTuckInMM'] == 'absent', str(m['endTuckInMM']))
+        select_leaf_at(page, [0, 1], 'M1')     # the X, at the row's right end (against the mullion)
+        s = end_box_state(page, 'right')
+        check('M1 right end box enabled, shows 20, auto', s is not None and not s['disabled'] and s['value'] == '20' and s['label'] == 'Right (auto)', str(s))
+        select_leaf_at(page, [0, 0], 'M1')     # the O, at the row's left end (opening edge, no frame)
+        s = end_box_state(page, 'left')
+        check('M1 left end box disabled, shows 0', s is not None and s['disabled'] and s['value'] == '0' and s['label'] == 'Left (auto)', str(s))
+    return run_mullion_scenario(browser, 'Step 4b-5 M1: no-frame OX, left cell, mullion on its right', body)
+
+
+def run_m2_scenario(browser):
+    # M2: OX in the RIGHT cell only. Its left end sits on the mullion (automatic 20); its right end is the
+    # opening edge (0). O = (800 + 20 + 0) / 2 = 410, X = 470; 410 + 470 - 60 - 20 = 800.
+    def body(page, check):
+        set_overall(page, 1800, 2100)
+        add_mullion(page, 'M2')
+        build_ox_in_cell(page, check, 'M2', 1, [410, 470])
+        m = page.evaluate(ROW_MARKER_JS, [1])
+        print('    [info] marker %s' % m)
+        check('M2 marker panelWidthsMM [410, 470]', near_list(m['panelWidthsMM'], [410, 470]), str(m['panelWidthsMM']))
+        pw = m['panelWidthsMM'] or [0, 0]
+        check('M2 row rule sum - 60 - 20 = 800', near(sum(pw) - 60 - 20, 800), 'sum %s' % sum(pw))
+        check('M2 no endTuckInMM field', m['endTuckInMM'] == 'absent', str(m['endTuckInMM']))
+        select_leaf_at(page, [1, 0], 'M2')     # the O, at the row's left end (against the mullion)
+        s = end_box_state(page, 'left')
+        check('M2 left end box enabled, shows 20, auto', s is not None and not s['disabled'] and s['value'] == '20' and s['label'] == 'Left (auto)', str(s))
+        select_leaf_at(page, [1, 1], 'M2')     # the X, at the row's right end (opening edge, no frame)
+        s = end_box_state(page, 'right')
+        check('M2 right end box disabled, shows 0', s is not None and s['disabled'] and s['value'] == '0' and s['label'] == 'Right (auto)', str(s))
+    return run_mullion_scenario(browser, 'Step 4b-5 M2: no-frame OX, right cell, mullion on its left', body)
+
+
+def run_m3_scenario(browser):
+    # M3: left-cell row as M1, then the right end (at the mullion) typed 10. The end section (the X) is
+    # narrowed by the change, 20 -> 10, so X 550 -> 540; 490 + 540 - 60 - 10 = 960. Export: the O starts at
+    # the opening edge (x 0, no tuck-in there), the X at 490 - 60 = 430 and ends at 970 (10 behind the
+    # mullion's left face at 960). 45 is more than the X's right sash (40): refused, own-stile reason.
+    # -5 is refused as not a number 0 or more. 25 and 40 are not tested (the bar rule is step 4b-5b).
+    def body(page, check):
+        set_overall(page, 1800, 2100)
+        add_mullion(page, 'M3')
+        build_ox_in_cell(page, check, 'M3', 0, [490, 550])
+        select_leaf_at(page, [0, 1], 'M3')
+        set_number(page, '#presetEndTuckInput-right', 10)
+        page.wait_for_timeout(300)
+        m = page.evaluate(ROW_MARKER_JS, [0])
+        print('    [info] marker %s' % m)
+        check('M3 endTuckInMM {left: null, right: 10}', m['endTuckInMM'] == {'left': None, 'right': 10}, str(m['endTuckInMM']))
+        check('M3 panelWidthsMM [490, 540]', near_list(m['panelWidthsMM'], [490, 540]), str(m['panelWidthsMM']))
+        pw = m['panelWidthsMM'] or [0, 0]
+        check('M3 row rule sum - 60 - 10 = 960', near(sum(pw) - 60 - 10, 960), 'sum %s' % sum(pw))
+        p = exported_panes(page, 'M3_typed10.json')
+        lr, ls = p.get('.L.R'), p.get('.L.S')
+        print('    [info] exported .L.R %s, .L.S %s' % ((lr or {}).get('xMM'), (ls or {}).get('xMM')))
+        check('M3 export .L.R x 0 w 490', lr is not None and near(lr['xMM'], 0) and near(lr['widthMM'], 490), str(lr and (lr['xMM'], lr['widthMM'])))
+        check('M3 export .L.S x 430 w 540 (real right edge 970)', ls is not None and near(ls['xMM'], 430) and near(ls['widthMM'], 540),
+              str(ls and (ls['xMM'], ls['widthMM'])))
+        select_leaf_at(page, [0, 1], 'M3')
+        set_number(page, '#presetEndTuckInput-right', 45)
+        page.wait_for_timeout(300)
+        reason = tuck_error_text(page)
+        check('M3 45 refused with the own-stile reason, box back to 10',
+              'Tuck-in cannot be more than the right sash width (40 mm).' in reason and page.locator('#presetEndTuckInput-right').input_value() == '10',
+              '"%s", box shows %s' % (reason, page.locator('#presetEndTuckInput-right').input_value()))
+        set_number(page, '#presetEndTuckInput-right', -5)
+        page.wait_for_timeout(300)
+        reason = tuck_error_text(page)
+        check('M3 -5 refused (must be a number, 0 or more), box back to 10',
+              'must be a number, 0 or more' in reason and page.locator('#presetEndTuckInput-right').input_value() == '10',
+              '"%s", box shows %s' % (reason, page.locator('#presetEndTuckInput-right').input_value()))
+        m = page.evaluate(ROW_MARKER_JS, [0])
+        check('M3 marker unchanged after the refusals', m['endTuckInMM'] == {'left': None, 'right': 10} and near_list(m['panelWidthsMM'], [490, 540]), str(m))
+    return run_mullion_scenario(browser, 'Step 4b-5 M3: no-frame OX, typed end at the mullion', body)
+
+
+def run_m4_scenario(browser):
+    # M4: controls that must not change. a) A FRAMED row tucks 20 in at both ends whatever is beside it, so
+    # O = (W + 40) / 2 from the form's own available width W, X = O + 60, and both end boxes are enabled.
+    # b) A sashless row has no tuck-in at all, frame or mullion: prefill (960 + 60 - 60) / 2 = 480, X 540,
+    # and no end boxes. c) The helper on its own: file 18 layout (no frame, no mullion) is 0 at both ends;
+    # the file 15 layout gives 0 at the opening edge and 20 at the mullion for each row; and a no-frame
+    # call that forgets the row path throws instead of quietly giving 0.
+    import re
+
+    def body(page, check):
+        # a) framed
+        set_overall(page, 1800, 2100)
+        add_frame(page)
+        add_mullion(page, 'M4a')
+        select_pane(page, 0, 'M4a')
+        click_button(page, 'Apply assembly preset')
+        pick_preset(page, 'Sliding windows', 'OX')
+        mt = re.search(r'Available width here: (\d+)mm', norm(page.locator('#toolbar').inner_text()))
+        w = float(mt.group(1)) if mt else None
+        shown = [float(page.locator('#presetWidthInput%d' % i).input_value()) for i in (0, 1)]
+        want = [(w + 40) / 2, (w + 40) / 2 + 60] if w is not None else None
+        print('    [info] framed: available width %s, form prefill %s' % (w, shown))
+        check('M4a framed prefill O = (W + 40) / 2, X = O + 60', want is not None and near_list(shown, want), 'W %s, want %s, got %s' % (w, want, shown))
+        click_button(page, 'Confirm preset')
+        page.wait_for_timeout(300)
+        select_leaf_at(page, [0, 0], 'M4a')
+        s = end_box_state(page, 'left')
+        check('M4a framed left end box enabled, shows 20', s is not None and not s['disabled'] and s['value'] == '20', str(s))
+        select_leaf_at(page, [0, 1], 'M4a')
+        s = end_box_state(page, 'right')
+        check('M4a framed right end box enabled, shows 20', s is not None and not s['disabled'] and s['value'] == '20', str(s))
+
+        # b) no-frame sashless beside the mullion
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        set_overall(page, 1800, 2100)
+        add_mullion(page, 'M4b')
+        build_ox_in_cell(page, check, 'M4b sashless', 0, [480, 540], sashless=True)
+        for path in ([0, 0], [0, 1]):
+            select_leaf_at(page, path, 'M4b')
+            n = page.locator('#presetEndTuckInput-left').count() + page.locator('#presetEndTuckInput-right').count()
+            check('M4b sashless pane %s shows no end boxes' % path, n == 0, '%d boxes' % n)
+
+        # c) helper on its own
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_18(page, 'M4c')
+        page.wait_for_timeout(300)
+        got = page.evaluate("() => { const ev = activeElevation(); return presetEndTuckInMM(ev.root.assemblyPresetRef, ev, false, []); }")
+        check('M4c file 18 layout: {left: 0, right: 0}', got == {'left': 0, 'right': 0}, str(got))
+        page.goto(URL)
+        page.wait_for_selector('#diagram .pane')
+        recipe_15(page, 'M4c')
+        page.wait_for_timeout(300)
+        js = "(p) => { const ev = activeElevation(); let n = ev.root; for (const i of p) n = n.children[i]; return presetEndTuckInMM(n.assemblyPresetRef, ev, false, p); }"
+        got = page.evaluate(js, [0])
+        check('M4c file 15 left row [0]: {left: 0, right: 20}', got == {'left': 0, 'right': 20}, str(got))
+        got = page.evaluate(js, [1])
+        check('M4c file 15 right row [1]: {left: 20, right: 0}', got == {'left': 20, 'right': 0}, str(got))
+        msg = page.evaluate("() => { const ev = activeElevation(); try { presetEndTuckInMM(ev.root.children[0].assemblyPresetRef, ev, false); return 'no throw'; } catch (e) { return e.message; } }")
+        check('M4c no-frame call without a row path throws, naming the function', 'presetEndTuckInMM' in msg, '"%s"' % msg)
+    return run_mullion_scenario(browser, 'Step 4b-5 M4: controls (framed, sashless, helper)', body)
+
+
 END_MORE_SCENARIOS = [('endS1', run_end_s1_scenario), ('endS2', run_end_s2_scenario), ('endS3', run_end_s3_scenario),
-                      ('endS4', run_end_s4_scenario), ('endS5', run_end_s5_scenario)]
+                      ('endS4', run_end_s4_scenario), ('endS5', run_end_s5_scenario),
+                      ('M1', run_m1_scenario), ('M2', run_m2_scenario), ('M3', run_m3_scenario), ('M4', run_m4_scenario)]
 
 
 def main():
