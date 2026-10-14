@@ -28,7 +28,7 @@ from engine.shared.data_loader import (
 )
 from engine.shared.results import make_human_impact_result
 from engine.human_impact.location_rules import (
-    match_location, GRADE_A_TYPES, ALL_TYPES,
+    match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES,
 )
 from engine.human_impact.routes import combine_alts, resolve_table_and_thickness
 
@@ -98,8 +98,8 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
     determine_louvre()'s Grade-A-required branches.
 
     allow: list of Grade-A type ids eligible after every matching rule's
-    type filter has been intersected (monolithic_toughened and/or
-    laminated_toughened).
+    type filter has been intersected (a subset of GRADE_A_CAPABLE_TYPES -
+    only the toughened pair when a rule demands toughened).
     min_thickness_by_type: dict of type_id -> min thickness for the
     Grade-A types in `allow` (already resolved, including the Table 5.4
     area-conditional case).
@@ -109,7 +109,7 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
     types = []
     for type_id in ALL_TYPES:
         name = TYPE_NAMES[type_id]
-        if type_id in GRADE_A_TYPES:
+        if type_id in GRADE_A_CAPABLE_TYPES:
             if type_id in allow:
                 types.append({
                     'id': type_id, 'name': name, 'ok': True,
@@ -123,7 +123,8 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
                     'why': f"not permitted under Table {table} for this configuration",
                 })
         else:
-            # annealed / heat-strengthened. combine_alts() has already
+            # monolithic annealed / heat-strengthened (not safety glass, so
+            # only reachable through an exception band). combine_alts() has already
             # tested every candidate band against the actual panel
             # area/width - combo is None if nothing fit (either blocked
             # outright by some rule offering no alternative at all, or no
@@ -214,7 +215,7 @@ def determine_fixed(ctx, data_dir=None):
 
     grade_a_matches = [m for m in r['matches'] if m['grade_a']]
     type_filters = [set(m['type_filter']) for m in grade_a_matches if m['type_filter']]
-    allow = set(GRADE_A_TYPES)
+    allow = set(GRADE_A_CAPABLE_TYPES)
     for tf in type_filters:
         allow &= tf
     allow = list(allow)

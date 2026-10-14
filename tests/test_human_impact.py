@@ -549,8 +549,8 @@ def test_25():
         {'id': 'monolithic_annealed', 'name': 'Monolithic Annealed', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
         {'id': 'monolithic_heat_strengthened', 'name': 'Monolithic Heat-strengthened', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
         {'id': 'monolithic_toughened', 'name': 'Monolithic Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
-        {'id': 'laminated_annealed', 'name': 'Laminated Annealed', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
-        {'id': 'laminated_heat_strengthened', 'name': 'Laminated Heat-strengthened', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
+        {'id': 'laminated_annealed', 'name': 'Laminated Annealed', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
+        {'id': 'laminated_heat_strengthened', 'name': 'Laminated Heat-strengthened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
         {'id': 'laminated_toughened', 'name': 'Laminated Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
     ]
     checks = [
@@ -616,6 +616,124 @@ def test_26():
 
 
 # ---------------------------------------------------------------------------
+# TESTS 27-32 — Laminated annealed/heat-strengthened count as Grade A
+# (hand-derived expectations - not copied from engine output)
+# ---------------------------------------------------------------------------
+
+def ok_ids(result):
+    return sorted(t['id'] for t in result['types'] if t['ok'])
+
+
+TOUGHENED_ONLY = sorted(['monolithic_toughened', 'laminated_toughened'])
+GRADE_A_CAPABLE = sorted(['monolithic_toughened', 'laminated_toughened',
+                          'laminated_annealed', 'laminated_heat_strengthened'])
+
+
+def test_27():
+    # A: school window, sightline 800mm, sight 900x1200mm, fully framed, no
+    # other triggers -> Table 5.1, clause 5.10.2, the four Grade A capable
+    # types allowed, monolithic annealed/heat-strengthened blocked.
+    ctx = base_ctx(opening_type='window', building_use='school', framing='fully',
+                   sightline_mm=800, sight_width_mm=900, sight_height_mm=1200,
+                   panel_area_m2=1.08, panel_width_mm=900)
+    result = determine_fixed(ctx)
+    ma = get_type(result, 'monolithic_annealed')
+    mh = get_type(result, 'monolithic_heat_strengthened')
+    checks = [
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('clauses', ['5.10.2'], result['clauses'], result['clauses'] == ['5.10.2']),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_heat_strengthened ok', False, mh['ok'], mh['ok'] is False),
+    ]
+    report('27', 'School window, fully framed -> Table 5.1, laminated annealed/HS allowed', checks)
+
+
+def test_28():
+    # B: same as test 27 but unframed -> Table 5.3, same allowed/blocked lists.
+    ctx = base_ctx(opening_type='window', building_use='school', framing='unframed',
+                   sightline_mm=800, sight_width_mm=900, sight_height_mm=1200,
+                   panel_area_m2=1.08, panel_width_mm=900)
+    result = determine_fixed(ctx)
+    ma = get_type(result, 'monolithic_annealed')
+    mh = get_type(result, 'monolithic_heat_strengthened')
+    checks = [
+        ('table', '5.3', result['table'], result['table'] == '5.3'),
+        ('clauses', ['5.10.2'], result['clauses'], result['clauses'] == ['5.10.2']),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_heat_strengthened ok', False, mh['ok'], mh['ok'] is False),
+    ]
+    report('28', 'School window, unframed -> Table 5.3, laminated annealed/HS allowed', checks)
+
+
+def test_29():
+    # C: fully framed door, 0.08m2, building use other, no bathroom ->
+    # monolithic annealed still allowed at 3mm through the door exception
+    # band (unchanged), laminated annealed/HS allowed outright, both
+    # toughened types allowed.
+    ctx = base_ctx(opening_type='door', building_use='other', framing='fully',
+                   panel_area_m2=0.08, panel_width_mm=100)
+    result = determine_fixed(ctx)
+    ma = get_type(result, 'monolithic_annealed')
+    la = get_type(result, 'laminated_annealed')
+    lh = get_type(result, 'laminated_heat_strengthened')
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('monolithic_annealed ok/thickness', (True, 3.0), (ma['ok'], ma['min_thickness']),
+         ma['ok'] is True and ma['min_thickness'] == 3.0),
+        ('laminated_annealed ok', True, la['ok'], la['ok'] is True),
+        ('laminated_heat_strengthened ok', True, lh['ok'], lh['ok'] is True),
+        ('monolithic_toughened ok', True, mt['ok'], mt['ok'] is True),
+        ('laminated_toughened ok', True, lt['ok'], lt['ok'] is True),
+    ]
+    report('29', 'Door, fully framed, 0.08m² -> MA 3mm, laminated annealed/HS and toughened allowed', checks)
+
+
+def test_30():
+    # D: unframed door -> toughened-only filter excludes laminated
+    # annealed/HS; only the two toughened types at 10mm.
+    result = determine_fixed(base_ctx(framing='unframed'))
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
+        ('monolithic_toughened min_thickness', 10, mt['min_thickness'], mt['min_thickness'] == 10),
+        ('laminated_toughened min_thickness', 10, lt['min_thickness'], lt['min_thickness'] == 10),
+    ]
+    report('30', 'Door, unframed -> toughened only at 10mm, laminated annealed/HS excluded', checks)
+
+
+def test_31():
+    # E: window within 300mm of a doorway (side panel), bottom of glass at
+    # 800mm, partly framed, exposed edges -> toughened-only filter, 10mm.
+    ctx = base_ctx(opening_type='window', is_side_panel=True, framing='partly',
+                   exposed_edges='y', sightline_mm=800)
+    result = determine_fixed(ctx)
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
+        ('monolithic_toughened min_thickness', 10, mt['min_thickness'], mt['min_thickness'] == 10),
+        ('laminated_toughened min_thickness', 10, lt['min_thickness'], lt['min_thickness'] == 10),
+    ]
+    report('31', 'Side panel, partly framed, exposed edges -> toughened only at 10mm', checks)
+
+
+def test_32():
+    # F: bathroom window, partly framed, bottom of glass 1000mm -> Table 5.4
+    # toughened-only filter, laminated annealed/HS excluded.
+    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+                   sightline_mm=1000)
+    result = determine_fixed(ctx)
+    checks = [
+        ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
+    ]
+    report('32', 'Bathroom window, partly framed -> toughened only', checks)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -634,7 +752,8 @@ def run_tests():
         test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8,
         test_9, test_10, test_11, test_12, test_13, test_14, test_15,
         test_16, test_17, test_18, test_19, test_20, test_21, test_22,
-        test_23, test_24, test_25, test_26,
+        test_23, test_24, test_25, test_26, test_27, test_28, test_29,
+        test_30, test_31, test_32,
     ]
     passed = 0
     for t in tests:
