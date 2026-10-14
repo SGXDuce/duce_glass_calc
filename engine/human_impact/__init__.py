@@ -21,7 +21,8 @@
 import os
 
 from engine.shared.data_loader import (
-    load_human_impact_table_5_4,
+    load_table_5_4_frameless_max_area,
+    load_bathroom_toughened_allowance,
     load_mistaken_doorway_exceptions,
     load_sashless_span_table,
     load_door_annealed_exceptions,
@@ -62,7 +63,8 @@ def _load_data(data_dir=None):
     """
     d = data_dir if data_dir is not None else _DATA_DIR
     return {
-        'table_5_4': load_human_impact_table_5_4(os.path.join(d, 'Table_5_4_Bathroom_Partly_Framed.csv')),
+        'table_5_4_max_area': load_table_5_4_frameless_max_area(os.path.join(d, 'Table_5_4_Frameless_Max_Area.csv')),
+        'bathroom_toughened_allowance': load_bathroom_toughened_allowance(os.path.join(d, 'Bathroom_Toughened_Allowance.csv')),
         'mistaken_doorway': load_mistaken_doorway_exceptions(os.path.join(d, 'Mistaken_Doorway_Exceptions.csv')),
         'sashless_span': load_sashless_span_table(os.path.join(d, 'Sashless_Span_Table.csv')),
         'door_annealed': load_door_annealed_exceptions(os.path.join(d, 'Door_Annealed_Exceptions.csv')),
@@ -71,28 +73,49 @@ def _load_data(data_dir=None):
     }
 
 
-def _table_5_4_thickness_for_type(df_5_4, type_id, area_m2):
+NEEDS_DIMENSIONS_REASON = "daylight width and height needed to set the thickness"
+
+
+def _table_5_4_largest_area(data):
+    """Largest panel area (m2) the bathroom table covers."""
+    return float(data['table_5_4_max_area']['max_area_m2'].max())
+
+
+def _table_5_4_oversize_reason():
+    return ("The panel is larger than the largest size the tool covers for "
+            "this situation (bathroom glazing, partly framed or unframed). "
+            "Human impact is not assessed for this configuration. The wind "
+            "load result is still returned.")
+
+
+def _table_5_4_thickness_for_type(data, type_id, area_m2):
     """
-    Table 5.4 is area-conditional per the CSV loader: monolithic_toughened
-    gets the reduced thickness when area <= area_allowance_max_m2, else the
-    flat min_thickness_mm. laminated_toughened has no reduced-thickness
-    route in the interim placeholder data (area_allowance_max_m2 is blank)
-    so it always uses the flat min_thickness_mm.
+    Minimum thickness for a bathroom panel (partly framed / unframed) of
+    the given area. Returns None when area is None - the caller must then
+    say the dimensions are needed; no default thickness is assumed.
+
+    Small monolithic toughened panels may use the thinner allowance
+    thickness; everything else (and larger monolithic panels) takes the
+    thinnest row of the main table that is big enough, limits inclusive.
+    The caller must already have confirmed area_m2 is within the table's
+    largest size.
     """
-    csv_type = 'MT' if type_id == 'monolithic_toughened' else 'LT'
-    row = df_5_4[df_5_4['glass_type'] == csv_type].iloc[0]
-    flat_min = float(row['min_thickness_mm'])
-    allowance_max_area = row['area_allowance_max_m2']
-    allowance_min_thickness = row['area_allowance_min_thickness_mm']
+    if area_m2 is None:
+        return None
 
-    if pd.isna(allowance_max_area) or pd.isna(allowance_min_thickness):
-        return flat_min
-    if area_m2 is not None and area_m2 <= float(allowance_max_area):
-        return float(allowance_min_thickness)
-    return flat_min
+    if type_id == 'monolithic_toughened':
+        df_allow = data['bathroom_toughened_allowance']
+        row = df_allow[df_allow['glass_type'] == 'MT'].iloc[0]
+        if area_m2 <= float(row['max_area_m2']):
+            return float(row['min_thickness_mm'])
+
+    df = data['table_5_4_max_area']
+    qualifying = df[df['max_area_m2'] >= area_m2]
+    return float(qualifying.iloc[0]['nominal_thickness_mm'])
 
 
-def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, matches_used):
+def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, matches_used,
+                      ok_why=None):
     """
     Builds the six-type result list shared by determine_fixed()'s and
     determine_louvre()'s Grade-A-required branches.
@@ -105,6 +128,8 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
     area-conditional case).
     combo: combine_alts() result - None (blocked), {} (no route offered),
     or a cap dict.
+    ok_why: note shown on an allowed type whose thickness could not be
+    set (e.g. dimensions missing).
     """
     types = []
     for type_id in ALL_TYPES:
@@ -114,7 +139,8 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
                 types.append({
                     'id': type_id, 'name': name, 'ok': True,
                     'min_thickness': min_thickness_by_type[type_id],
-                    'cap': None, 'why': None,
+                    'cap': None,
+                    'why': ok_why if min_thickness_by_type[type_id] is None else None,
                 })
             else:
                 types.append({
@@ -226,16 +252,34 @@ def determine_fixed(ctx, data_dir=None):
     combo = combine_alts(r['matches'], panel_area_m2, panel_width_mm)
 
     min_thickness_by_type = {}
+    ok_why = None
     if table == '5.4':
-        for type_id in allow:
-            min_thickness_by_type[type_id] = _table_5_4_thickness_for_type(
-                data['table_5_4'], type_id, panel_area_m2,
+        # Only the bathroom rule (partly framed / unframed) uses this table.
+        if panel_area_m2 is not None and panel_area_m2 > _table_5_4_largest_area(data):
+            return make_human_impact_result(
+                scope=False, grade_a_required=True,
+                out_of_scope_reasons=[_table_5_4_oversize_reason()],
+                trail=r['trail'], notes=r['notes'], clauses=clauses,
             )
+        for type_id in allow:
+            table_thickness = _table_5_4_thickness_for_type(
+                data, type_id, panel_area_m2,
+            )
+            # Other matching rules (e.g. a side panel with exposed edges)
+            # can demand a thicker glass than the bathroom table does. The
+            # most stringent requirement governs, so take the larger. If
+            # the table figure is None (no area given) it stays None.
+            if table_thickness is not None and min_thickness is not None:
+                table_thickness = max(table_thickness, min_thickness)
+            min_thickness_by_type[type_id] = table_thickness
+        if panel_area_m2 is None:
+            ok_why = NEEDS_DIMENSIONS_REASON
     else:
         for type_id in allow:
             min_thickness_by_type[type_id] = min_thickness
 
-    types = _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, r['matches'])
+    types = _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, r['matches'],
+                              ok_why=ok_why)
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=table, types=types,
@@ -300,15 +344,18 @@ def determine_louvre(ctx, data_dir=None):
     table, min_thickness = resolve_table_and_thickness(r['matches'])
 
     if table == '5.4':
-        # Table 5.4's monolithic_toughened figure is area-conditional (see
-        # _table_5_4_thickness_for_type) - the flat min_thickness stored on
-        # the match itself is only the non-reduced ceiling, so re-resolve
-        # it here the same way determine_fixed() does rather than trusting
-        # resolve_table_and_thickness()'s flat max().
-        panel_area_m2 = ctx.get('panel_area_m2')
-        min_thickness = _table_5_4_thickness_for_type(
-            data['table_5_4'], 'monolithic_toughened', panel_area_m2,
-        )
+        # A louvre is made of separate blades, so the bathroom table is
+        # read against the area of one blade, not the whole opening. The
+        # blade size check above has already confirmed both dimensions
+        # are present and within the blade limits.
+        blade_area_m2 = blade_width_mm * blade_length_mm / 1_000_000
+        table_thickness = _table_5_4_thickness_for_type(data, 'monolithic_toughened', blade_area_m2)
+        # Other matching rules can demand a thicker glass than the
+        # bathroom table does; the most stringent requirement governs, so
+        # take the larger before the louvre floor is applied below.
+        if table_thickness is not None and min_thickness is not None:
+            table_thickness = max(table_thickness, min_thickness)
+        min_thickness = table_thickness
 
     final_min = max(min_thickness, 5) if min_thickness is not None else 5
 

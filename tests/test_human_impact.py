@@ -370,8 +370,9 @@ def test_16():
 def test_17():
     # Louvre, bathroom, partly framed, blade 150x800mm, area 1.0m² -> MT
     # ok=True at 5mm (both 5.12's 5mm floor and Table 5.4's reduced
-    # allowance agree here). Separately, area >2.2m² pushes Table 5.4 to
-    # 6mm, and 5.12 must NOT cap it back down to 5mm.
+    # allowance agree here). Separately, a large opening area (3.0m²) must
+    # NOT push the thickness up: a louvre is read against the area of one
+    # blade, which stays small.
     ctx_low = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
                        sightline_mm=1000, panel_area_m2=1.0,
                        sight_width_mm=900, sight_height_mm=1500)
@@ -388,9 +389,9 @@ def test_17():
     checks = [
         ('area 1.0m² -> MT ok/thickness', (True, 5.0), (mt_low['ok'], mt_low['min_thickness']),
          mt_low['ok'] is True and mt_low['min_thickness'] == 5.0),
-        ('area 3.0m² -> MT ok/thickness (most-restrictive-wins, 5.12 does not cap down)',
-         (True, 6.0), (mt_high['ok'], mt_high['min_thickness']),
-         mt_high['ok'] is True and mt_high['min_thickness'] == 6.0),
+        ('opening area 3.0m² -> MT ok/thickness (blade area governs, not opening area)',
+         (True, 5.0), (mt_high['ok'], mt_high['min_thickness']),
+         mt_high['ok'] is True and mt_high['min_thickness'] == 5.0),
     ]
     report('17', 'Louvre + bathroom Table 5.4 area-conditional thickness, most-restrictive-wins', checks)
 
@@ -734,6 +735,129 @@ def test_32():
 
 
 # ---------------------------------------------------------------------------
+# BATHROOM (CLAUSE 5.8, PARTLY FRAMED / UNFRAMED) - HAND-DERIVED EXPECTATIONS
+# ---------------------------------------------------------------------------
+
+def _bathroom_ctx(area):
+    return base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+                    sightline_mm=1000, panel_area_m2=area)
+
+
+def _bathroom_case(test_id, area, mt_expected, lt_expected):
+    result = determine_fixed(_bathroom_ctx(area))
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('in scope', True, result['scope'], result['scope'] is True),
+        ('table', '5.4', result['table'], result['table'] == '5.4'),
+        ('monolithic_toughened min_thickness', mt_expected, mt['min_thickness'],
+         mt['min_thickness'] == mt_expected),
+        ('laminated_toughened min_thickness', lt_expected, lt['min_thickness'],
+         lt['min_thickness'] == lt_expected),
+    ]
+    report(test_id, f'Bathroom partly framed, {area}m² -> MT {mt_expected}mm, LT {lt_expected}mm', checks)
+
+
+def test_B1():
+    _bathroom_case('B1', 1.0, 5.0, 6.0)
+
+
+def test_B2():
+    _bathroom_case('B2', 2.2, 5.0, 6.0)
+
+
+def test_B3():
+    _bathroom_case('B3', 2.5, 6.0, 6.0)
+
+
+def test_B4():
+    _bathroom_case('B4', 3.0, 6.0, 6.0)
+
+
+def test_B5():
+    _bathroom_case('B5', 3.5, 8.0, 8.0)
+
+
+def test_B6():
+    _bathroom_case('B6', 5.0, 10.0, 10.0)
+
+
+def test_B7():
+    _bathroom_case('B7', 7.5, 12.0, 12.0)
+
+
+def test_B8():
+    result = determine_fixed(_bathroom_ctx(8.0))
+    checks = [
+        ('out of scope', False, result['scope'], result['scope'] is False),
+        ('has a reason', True, result['out_of_scope_reasons'],
+         len(result['out_of_scope_reasons']) == 1),
+    ]
+    report('B8', 'Bathroom partly framed, 8.0m² -> out of scope', checks)
+
+
+def test_B9():
+    result = determine_fixed(_bathroom_ctx(None))
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
+        ('MT min_thickness None', None, mt['min_thickness'], mt['min_thickness'] is None),
+        ('LT min_thickness None', None, lt['min_thickness'], lt['min_thickness'] is None),
+        ('reason mentions daylight width and height', True, mt['why'],
+         'daylight width and height' in (mt['why'] or '')),
+    ]
+    report('B9', 'Bathroom partly framed, no area -> types allowed, thickness None with reason', checks)
+
+
+def test_B10():
+    ctx = _bathroom_ctx(None)
+    ctx['blade_width_mm'] = 230
+    ctx['blade_length_mm'] = 1000
+    result = determine_louvre(ctx)
+    mt = get_type(result, 'monolithic_toughened')
+    checks = [
+        ('allowed types', ['monolithic_toughened'], ok_ids(result),
+         ok_ids(result) == ['monolithic_toughened']),
+        ('monolithic_toughened min_thickness', 5.0, mt['min_thickness'], mt['min_thickness'] == 5.0),
+    ]
+    report('B10', 'Bathroom louvre, blade 230x1000 -> monolithic toughened 5mm only', checks)
+
+
+def test_B11():
+    # Bathroom side panel with exposed edges: the side-panel rule's higher
+    # minimum governs over the bathroom table.
+    ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
+                   framing='partly', exposed_edges='y', sightline_mm=800,
+                   panel_area_m2=1.0)
+    result = determine_fixed(ctx)
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    checks = [
+        ('table', '5.4', result['table'], result['table'] == '5.4'),
+        ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
+        ('monolithic_toughened min_thickness', 10.0, mt['min_thickness'], mt['min_thickness'] == 10.0),
+        ('laminated_toughened min_thickness', 10.0, lt['min_thickness'], lt['min_thickness'] == 10.0),
+    ]
+    report('B11', 'Bathroom side panel, exposed edges -> other rule 10mm governs', checks)
+
+
+def test_B12():
+    ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
+                   framing='partly', exposed_edges='y', sightline_mm=800)
+    ctx['blade_width_mm'] = 150
+    ctx['blade_length_mm'] = 900
+    result = determine_louvre(ctx)
+    mt = get_type(result, 'monolithic_toughened')
+    checks = [
+        ('allowed types', ['monolithic_toughened'], ok_ids(result),
+         ok_ids(result) == ['monolithic_toughened']),
+        ('monolithic_toughened min_thickness', 10.0, mt['min_thickness'], mt['min_thickness'] == 10.0),
+    ]
+    report('B12', 'Bathroom side-panel louvre, exposed edges -> other rule 10mm governs', checks)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -754,6 +878,8 @@ def run_tests():
         test_16, test_17, test_18, test_19, test_20, test_21, test_22,
         test_23, test_24, test_25, test_26, test_27, test_28, test_29,
         test_30, test_31, test_32,
+        test_B1, test_B2, test_B3, test_B4, test_B5, test_B6, test_B7,
+        test_B8, test_B9, test_B10, test_B11, test_B12,
     ]
     passed = 0
     for t in tests:

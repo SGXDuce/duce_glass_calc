@@ -91,25 +91,32 @@ def get_nominal_thickness(df_nominal, glass_type, actual_thickness_mm):
 # in the engine.
 # ---------------------------------------------------------------------------
 
-def load_human_impact_table_5_4(csv_path):
+def load_table_5_4_frameless_max_area(csv_path):
     """
-    Loads AS 1288 Table 5.4 (bathroom, partly framed/unframed) from CSV.
-
-    *** PLACEHOLDER DATA *** - Sahil is supplying the real values for this
-    table. The interim rows here are derived from clause discussion only,
-    to make the engine testable now. Replace data/Table_5_4_Bathroom_Partly_Framed.csv
-    once the real table arrives.
-
-    Returns a pandas DataFrame with columns: glass_type, min_thickness_mm,
-    area_allowance_max_m2, area_allowance_min_thickness_mm. The area
-    allowance columns are blank/NaN for glass types with no reduced-
-    thickness allowance in the interim data (currently LT - do not guess
-    a value, leave as NaN until the real CSV is supplied).
+    Loads the bathroom (partly framed / unframed) maximum-area table from
+    CSV. One row per nominal thickness: the largest panel area that
+    thickness can serve. Returns a pandas DataFrame with columns
+    nominal_thickness_mm, max_area_m2, sorted thinnest first - callers
+    rely on this order to find the thinnest row that is big enough.
     """
     df = pd.read_csv(csv_path)
-    numeric_columns = ['min_thickness_mm', 'area_allowance_max_m2', 'area_allowance_min_thickness_mm']
+    numeric_columns = ['nominal_thickness_mm', 'max_area_m2']
     for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        df[col] = pd.to_numeric(df[col])
+    return df.sort_values('nominal_thickness_mm').reset_index(drop=True)
+
+
+def load_bathroom_toughened_allowance(csv_path):
+    """
+    Loads the bathroom allowance that lets small monolithic toughened
+    panels use a thinner glass than the main table would give. Returns a
+    pandas DataFrame with columns glass_type, min_thickness_mm,
+    max_area_m2 (currently a single MT row).
+    """
+    df = pd.read_csv(csv_path)
+    numeric_columns = ['min_thickness_mm', 'max_area_m2']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col])
     return df
 
 
