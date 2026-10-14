@@ -111,9 +111,10 @@ def combine_alts(matches, panel_area_m2, panel_width_mm):
               callers)
       {'min_thickness_mm', 'max_area_m2', 'max_width_mm'} -> combined cap
               at the thinnest thickness that satisfies every matching
-              rule, shared by monolithic and laminated annealed/heat-
-              strengthened alike (the source CSVs don't currently
-              distinguish monolithic vs laminated annealed bands)
+              rule. The cap applies to monolithic annealed/heat-
+              strengthened only - laminated annealed/heat-strengthened
+              count as Grade A and are allowed outright, so they never
+              depend on an exception band
     """
     grade_a_matches = [m for m in matches if m['grade_a']]
 

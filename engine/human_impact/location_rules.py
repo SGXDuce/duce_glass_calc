@@ -17,8 +17,22 @@
 
 import pandas as pd
 
-# Grade-A-eligible glass type ids used throughout this engine.
-GRADE_A_TYPES = ['monolithic_toughened', 'laminated_toughened']
+# Glass type ids that count as Grade A safety glass in their own right.
+# Toughened glass qualifies because of how it breaks; laminated glass
+# qualifies whatever its ply type, because the interlayer holds the broken
+# pieces in place - so laminated annealed and laminated heat-strengthened
+# belong here alongside the two toughened types. Monolithic annealed and
+# monolithic heat-strengthened are not safety glass and only ever reach a
+# Grade A location through an annealed exception band (see combine_alts).
+GRADE_A_CAPABLE_TYPES = [
+    'monolithic_toughened', 'laminated_annealed',
+    'laminated_heat_strengthened', 'laminated_toughened',
+]
+
+# The narrower set some rules demand: toughened specifically, not just any
+# Grade A glass. Used as the type_filter on those rules, so intersecting it
+# with GRADE_A_CAPABLE_TYPES drops laminated annealed/heat-strengthened.
+TOUGHENED_TYPES = ['monolithic_toughened', 'laminated_toughened']
 
 # All six glass type ids this engine ever reports on.
 ALL_TYPES = [
@@ -133,7 +147,7 @@ def match_location(ctx, data):
             mt_min = float(df_5_4[df_5_4['glass_type'] == 'MT']['min_thickness_mm'].iloc[0])
             matches.append(_match(
                 '5.8', grade_a=True, table='5.4',
-                type_filter=['monolithic_toughened', 'laminated_toughened'],
+                type_filter=TOUGHENED_TYPES,
                 min_thickness=mt_min, alt=False,
             ))
             trail.append("Clause 5.8 (bathroom, partly/unframed, sightline <=2000mm): "
@@ -153,7 +167,7 @@ def match_location(ctx, data):
         if framing == 'unframed':
             matches.append(_match(
                 '5.2', grade_a=True, table='5.1',
-                type_filter=['monolithic_toughened', 'laminated_toughened'],
+                type_filter=TOUGHENED_TYPES,
                 min_thickness=10, alt=False,
             ))
             trail.append("Clause 5.2 (unframed door): Grade A required, Table 5.1, "
@@ -205,7 +219,7 @@ def match_location(ctx, data):
             if exposed_edges == 'y':
                 matches.append(_match(
                     '5.3.1', grade_a=True, table='5.3',
-                    type_filter=['monolithic_toughened', 'laminated_toughened'],
+                    type_filter=TOUGHENED_TYPES,
                     min_thickness=10, alt=False,
                 ))
                 trail.append("Clause 5.3.1 (partly/unframed side panel, exposed edges): "
