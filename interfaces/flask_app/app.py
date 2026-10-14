@@ -13,6 +13,7 @@ from engine.silicone_bite import run_bite_calculation
 from engine.combined import run_pathway3_calculation, run_pathway4_calculation
 from engine.shared.data_loader import load_table_data, load_nc_table, load_nominal_thickness_table, get_pressures_from_nc_rating
 from engine.human_impact import determine_fixed, determine_louvre, determine_sashless
+from engine.shared.side_panel import sightline_within_side_panel_limit
 from engine.schedule.translation import translate_system
 
 # ---------------------------------------------------------------------------
@@ -340,13 +341,11 @@ def human_impact_check():
         data = request.get_json()
 
         opening_type = data.get('opening_type')
-        is_side_panel = (
+        declared_side_panel = (
             opening_type == 'side_panel'
             or (opening_type == 'window' and bool(data.get('reclassified_as_side_panel')))
         )
         shared = dict(
-            opening_type=opening_type,
-            is_side_panel=is_side_panel,
             building_use=data.get('building_use', 'other'),
             is_bathroom=bool(data.get('is_bathroom')),
             high_risk=bool(data.get('high_risk')),
@@ -359,11 +358,12 @@ def human_impact_check():
             m = methods['fixed']
             ctx = dict(shared)
             ctx['is_louvre'] = False
+            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
+            downgraded = _apply_side_panel_height_test(ctx, opening_type, declared_side_panel)
             ctx['framing'] = m.get('framing')
             ctx['exposed_edges'] = m.get('exposed_edges')
             ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
             ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
-            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
             ctx['opaque_or_patterned'] = bool(m.get('opaque_or_patterned'))
             ctx['rail_present'] = bool(m.get('rail_present'))
             ctx['rail_upper_edge_mm'] = _to_float(m.get('rail_upper_edge_mm'))
@@ -373,15 +373,18 @@ def human_impact_check():
             ctx['panel_area_m2'] = panel_area_m2
             ctx['panel_width_mm'] = panel_width_mm
             results['fixed'] = determine_fixed(ctx)
+            if downgraded:
+                results['fixed']['trail'].append(SIDE_PANEL_DOWNGRADE_SENTENCE)
 
         if 'louvre' in methods:
             m = methods['louvre']
             ctx = dict(shared)
+            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
+            downgraded = _apply_side_panel_height_test(ctx, opening_type, declared_side_panel)
             ctx['framing'] = m.get('framing')
             ctx['exposed_edges'] = m.get('exposed_edges')
             ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
             ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
-            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
             ctx['opaque_or_patterned'] = False
             ctx['rail_present'] = False
             ctx['rail_upper_edge_mm'] = None
@@ -393,6 +396,8 @@ def human_impact_check():
             ctx['blade_width_mm'] = _to_float(m.get('blade_width_mm'))
             ctx['blade_length_mm'] = _to_float(m.get('blade_length_mm'))
             results['louvre'] = determine_louvre(ctx)
+            if downgraded:
+                results['louvre']['trail'].append(SIDE_PANEL_DOWNGRADE_SENTENCE)
 
         if 'sashless' in methods:
             span_mm = _to_float(methods['sashless'].get('span_mm'))
@@ -402,6 +407,43 @@ def human_impact_check():
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+SIDE_PANEL_DOWNGRADE_SENTENCE = (
+    "Treated as a window: the bottom of the glass is above 1200 mm, so the "
+    "side panel rules (Clause 5.3.1) do not apply. Other provisions were "
+    "still checked."
+)
+
+
+def _apply_side_panel_height_test(ctx, opening_type, declared_side_panel):
+    """
+    Sets ctx['opening_type'] and ctx['is_side_panel'] for one glazing
+    method, using that method's own sightline (already in ctx).
+
+    On this page the person supplies the "within 300 mm of a doorway" half
+    of the side panel test by choosing Side panel (or answering Yes to the
+    300 mm question for a window); the tool can only check the height half.
+    A declared side panel whose lowest sightline is above the height limit
+    is therefore treated as an ordinary window for this method, so the
+    doorway look-alike and other window rules still run. If the sightline
+    is missing the person's choice stands.
+
+    Returns True when a declared side panel was downgraded to a window.
+    """
+    sightline_mm = ctx.get('sightline_mm')
+    downgraded = (
+        declared_side_panel
+        and sightline_mm is not None
+        and not sightline_within_side_panel_limit(sightline_mm)
+    )
+    if downgraded:
+        ctx['opening_type'] = 'window'
+        ctx['is_side_panel'] = False
+    else:
+        ctx['opening_type'] = opening_type
+        ctx['is_side_panel'] = declared_side_panel
+    return downgraded
 
 
 def _to_float(value):

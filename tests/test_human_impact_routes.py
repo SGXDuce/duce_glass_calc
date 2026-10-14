@@ -197,6 +197,154 @@ def test_5():
     ]
     report('5', 'POST /human_impact/check - multiple methods + window reclassification', checks)
 
+# ---------------------------------------------------------------------------
+# TESTS - side panel height test (1200mm) applied per method by the route
+# ---------------------------------------------------------------------------
+
+DOWNGRADE_SENTENCE = (
+    "Treated as a window: the bottom of the glass is above 1200 mm, so the "
+    "side panel rules (Clause 5.3.1) do not apply. Other provisions were "
+    "still checked."
+)
+
+
+def _fixed_side_panel_request(opening_type, reclassified, sightline_mm):
+    # Base: test_5's fixed method - fully framed, 0.25 m2 - only opening
+    # type, reclassification flag and sightline vary.
+    return {
+        'opening_type': opening_type,
+        'reclassified_as_side_panel': reclassified,
+        'building_use': 'residential',
+        'is_bathroom': False,
+        'high_risk': False,
+        'methods': {
+            'fixed': {
+                'framing': 'fully',
+                'sightline_mm': sightline_mm,
+                'panel_width_mm': 500,
+                'panel_height_mm': 500,  # 0.25 m^2
+            },
+        },
+    }
+
+
+def test_r1():
+    data = post(_fixed_side_panel_request('window', True, 1200))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 in clauses', True, '5.3.1' in fixed['clauses'], '5.3.1' in fixed['clauses']),
+        ('grade_a_required', True, fixed['grade_a_required'], fixed['grade_a_required'] is True),
+    ]
+    report('R1', 'window reclassified Yes, sightline 1200 (inclusive) -> still a side panel', checks)
+
+
+def test_r2():
+    data = post(_fixed_side_panel_request('window', True, 1201))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 not in clauses', False, '5.3.1' in fixed['clauses'], '5.3.1' not in fixed['clauses']),
+        ('grade_a_required', False, fixed['grade_a_required'], fixed['grade_a_required'] is False),
+        ('trail has downgrade sentence', True, DOWNGRADE_SENTENCE in fixed['trail'],
+         DOWNGRADE_SENTENCE in fixed['trail']),
+    ]
+    report('R2', 'window reclassified Yes, sightline 1201 -> treated as a window', checks)
+
+
+def test_r3():
+    data = post(_fixed_side_panel_request('side_panel', False, 800))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 in clauses', True, '5.3.1' in fixed['clauses'], '5.3.1' in fixed['clauses']),
+        ('grade_a_required', True, fixed['grade_a_required'], fixed['grade_a_required'] is True),
+    ]
+    report('R3', 'side panel picked directly, sightline 800 -> side panel', checks)
+
+
+def test_r4():
+    data = post(_fixed_side_panel_request('side_panel', False, 1500))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 not in clauses', False, '5.3.1' in fixed['clauses'], '5.3.1' not in fixed['clauses']),
+        ('grade_a_required', False, fixed['grade_a_required'], fixed['grade_a_required'] is False),
+        ('trail has downgrade sentence', True, DOWNGRADE_SENTENCE in fixed['trail'],
+         DOWNGRADE_SENTENCE in fixed['trail']),
+    ]
+    report('R4', 'side panel picked directly, sightline 1500 -> treated as a window', checks)
+
+
+def test_r5():
+    data = post(_fixed_side_panel_request('window', False, 800))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 not in clauses', False, '5.3.1' in fixed['clauses'], '5.3.1' not in fixed['clauses']),
+        ('grade_a_required', False, fixed['grade_a_required'], fixed['grade_a_required'] is False),
+    ]
+    report('R5', 'window, reclassified No, sightline 800 -> unchanged, not a side panel', checks)
+
+
+def test_r6():
+    data = post(_fixed_side_panel_request('side_panel', False, None))
+    fixed = data['results']['fixed']
+    checks = [
+        ('5.3.1 in clauses', True, '5.3.1' in fixed['clauses'], '5.3.1' in fixed['clauses']),
+    ]
+    report('R6', 'side panel, sightline missing -> the choice stands', checks)
+
+
+def _louvre_side_panel_request(exposed_edges):
+    return {
+        'opening_type': 'side_panel',
+        'reclassified_as_side_panel': False,
+        'building_use': 'residential',
+        'is_bathroom': False,
+        'high_risk': False,
+        'methods': {
+            'louvre': {
+                'framing': 'partly',
+                'exposed_edges': exposed_edges,
+                'sightline_mm': 800,
+                'blade_width_mm': 150,
+                'blade_length_mm': 900,
+            },
+        },
+    }
+
+
+def _only_allowed_type(result):
+    return [t['id'] for t in result['types'] if t['ok']]
+
+
+def test_r7():
+    result = post(_louvre_side_panel_request('n'))['results']['louvre']
+    mt = get_type(result, 'monolithic_toughened')
+    checks = [
+        ('monolithic_toughened ok/thickness', (True, 5), (mt['ok'], mt['min_thickness']),
+         mt['ok'] is True and mt['min_thickness'] == 5),
+        ('only allowed type', ['monolithic_toughened'], _only_allowed_type(result),
+         _only_allowed_type(result) == ['monolithic_toughened']),
+    ]
+    report('R7', 'louvre side panel, partly framed, exposed_edges n -> MT 5mm only', checks)
+
+
+def test_r8():
+    result = post(_louvre_side_panel_request('y'))['results']['louvre']
+    mt = get_type(result, 'monolithic_toughened')
+    checks = [
+        ('monolithic_toughened ok/thickness', (True, 10), (mt['ok'], mt['min_thickness']),
+         mt['ok'] is True and mt['min_thickness'] == 10),
+    ]
+    report('R8', 'louvre side panel, partly framed, exposed_edges y -> MT 10mm', checks)
+
+
+def test_r9():
+    from engine.shared.side_panel import sightline_within_side_panel_limit
+    checks = [
+        ('1200', True, sightline_within_side_panel_limit(1200), sightline_within_side_panel_limit(1200) is True),
+        ('1201', False, sightline_within_side_panel_limit(1201), sightline_within_side_panel_limit(1201) is False),
+        ('None', False, sightline_within_side_panel_limit(None), sightline_within_side_panel_limit(None) is False),
+    ]
+    report('R9', 'sightline_within_side_panel_limit boundary and None', checks)
+
 
 def run_tests():
     # report() now asserts internally, so a test function either completes
@@ -209,7 +357,8 @@ def run_tests():
     print('  Duce Timber Windows and Doors')
     print('=' * 70)
 
-    tests = [test_1, test_2, test_3, test_4, test_5]
+    tests = [test_1, test_2, test_3, test_4, test_5,
+             test_r1, test_r2, test_r3, test_r4, test_r5, test_r6, test_r7, test_r8, test_r9]
     passed = 0
     for t in tests:
         try:

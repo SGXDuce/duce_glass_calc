@@ -526,7 +526,7 @@ function buildMethodCards() {
         html += buildFixedCard(isSidePanel, isGenuineWindow);
     }
     if (hiState.selectedMethods.has('louvre')) {
-        html += buildLouvreCard();
+        html += buildLouvreCard(isSidePanel);
     }
     if (hiState.selectedMethods.has('sashless')) {
         html += buildSashlessCard();
@@ -641,7 +641,22 @@ function buildFixedCard(isSidePanel, isGenuineWindow) {
     </div>`;
 }
 
-function buildLouvreCard() {
+function buildLouvreCard(isSidePanel) {
+    let extra = '';
+
+    if (isSidePanel) {
+        extra += `
+            <div class="field-group" id="hi-louvre-exposed-row" hidden>
+                <label class="field-label" id="lbl-hi-louvre-exposed">Unframed edges exposed?
+                    <span class="tip" tabindex="0" role="button" data-tip="Only relevant when this side panel is partly framed or unframed - Clause 5.3.1's exposed-edge condition.">?</span>
+                </label>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-louvre-exposed">
+                    <button class="toggle-btn active" id="hi-louvre-exposed-n" onclick="setLouvreField('exposed_edges', 'n')">No</button>
+                    <button class="toggle-btn" id="hi-louvre-exposed-y" onclick="setLouvreField('exposed_edges', 'y')">Yes</button>
+                </div>
+            </div>`;
+    }
+
     return `
     <div class="hi-method-card" id="hi-card-louvre">
         <div class="hi-method-card-header">
@@ -656,6 +671,7 @@ function buildLouvreCard() {
                     <button class="toggle-btn" id="hi-louvre-framing-unframed" onclick="setLouvreFraming('unframed')">Unframed</button>
                 </div>
             </div>
+            ${extra}
             <div class="field-group">
                 <label class="field-label" for="hi_louvre_sightline">Lowest sightline above floor/ground (mm)</label>
                 <input class="field-input" type="number" id="hi_louvre_sightline" min="0" oninput="onMethodInputChanged('louvre')">
@@ -711,7 +727,7 @@ function buildSashlessCard() {
 
 const hiMethodState = {
     fixed: { framing: 'fully', exposed_edges: 'n', opaque_or_patterned: false, rail_present: false, level_difference: false },
-    louvre: { framing: 'fully' },
+    louvre: { framing: 'fully', exposed_edges: 'n' },
     sashless: {},
 };
 
@@ -754,6 +770,19 @@ function setLouvreFraming(framing) {
     ['fully', 'partly', 'unframed'].forEach(f => {
         document.getElementById(`hi-louvre-framing-${f}`).classList.toggle('active', f === framing);
     });
+    const isSidePanel = (hiState.openingType === 'side_panel') ||
+                         (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
+    const exposedRow = document.getElementById('hi-louvre-exposed-row');
+    if (exposedRow) exposedRow.hidden = !(isSidePanel && framing !== 'fully');
+    runCheck();
+}
+
+function setLouvreField(field, value) {
+    hiMethodState.louvre[field] = value;
+    if (field === 'exposed_edges') {
+        document.getElementById('hi-louvre-exposed-n').classList.toggle('active', value === 'n');
+        document.getElementById('hi-louvre-exposed-y').classList.toggle('active', value === 'y');
+    }
     runCheck();
 }
 
@@ -817,6 +846,7 @@ function buildPayload() {
     if (hiState.selectedMethods.has('louvre') && document.getElementById('hi-card-louvre') && hasSightline('louvre')) {
         methods.louvre = {
             framing: hiMethodState.louvre.framing,
+            exposed_edges: hiMethodState.louvre.exposed_edges,
             sightline_mm: val('hi_louvre_sightline'),
             sight_width_mm: val('hi_louvre_sight_width'),
             sight_height_mm: val('hi_louvre_sight_height'),
