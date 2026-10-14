@@ -20,11 +20,11 @@
 # calculation, only quoted in the warning sentence.
 ASSUMED_BAR_TUCKIN_MM = 20
 
-# Sahil: 1200mm sightline threshold for the side-panel geometry test comes
-# from project notes, not checked against AS 1288 text itself - flagged
-# here, not silently treated as verified.
-SIDE_PANEL_SIGHTLINE_MAX_MM = 1200
-SIDE_PANEL_GAP_MAX_MM = 300
+# Sahil confirmed the 1200 mm sightline and 300 mm gap limits on 14 Oct
+# 2026; not yet checked against the AS 1288 text itself. The values live in
+# engine/shared/side_panel.py so the standalone human impact page uses the
+# same numbers.
+from engine.shared.side_panel import SIDE_PANEL_SIGHTLINE_MAX_MM, SIDE_PANEL_GAP_MAX_MM
 
 SLIDER_TYPES = ('horizontal-slider', 'vertical-slider')
 
