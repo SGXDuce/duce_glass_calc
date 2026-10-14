@@ -372,7 +372,7 @@ def determine_sashless(span_mm, data_dir=None):
         types.append({
             'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
             'min_thickness': None, 'cap': None,
-            'why': "Clause 5.15 requires Grade A",
+            'why': "not one of the glass combinations listed for sashless glazing under Clause 5.15",
         })
 
     if not any_ok:
