@@ -108,7 +108,7 @@ def match_location(ctx, data):
       }
 
     data: dict of preloaded DataFrames, keyed
-      'table_5_4', 'mistaken_doorway', 'door_annealed',
+      'mistaken_doorway', 'door_annealed',
       'side_panel_annealed', 'low_level_annealed'
     (callers load these once via engine/shared/data_loader.py and pass
     them in - this function does no file I/O itself).
@@ -143,12 +143,15 @@ def match_location(ctx, data):
             trail.append("Clause 5.8 (bathroom, fully framed, sightline <=2000mm): "
                           "Grade A required, Table 5.1, no alternative offered.")
         else:
-            df_5_4 = data['table_5_4']
-            mt_min = float(df_5_4[df_5_4['glass_type'] == 'MT']['min_thickness_mm'].iloc[0])
+            # No fixed thickness here: the thickness depends on panel area
+            # and glass type, so the engine works it out per type from the
+            # supplied dimensions (see human_impact/__init__.py). Leaving
+            # it None also stops a made-up default leaking into the
+            # "most restrictive wins" comparison.
             matches.append(_match(
                 '5.8', grade_a=True, table='5.4',
                 type_filter=TOUGHENED_TYPES,
-                min_thickness=mt_min, alt=False,
+                min_thickness=None, alt=False,
             ))
             trail.append("Clause 5.8 (bathroom, partly/unframed, sightline <=2000mm): "
                           "Grade A required, Table 5.4, types restricted to "
