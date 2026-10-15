@@ -136,9 +136,9 @@ def load_sashless_span_table(csv_path):
     Loads the AS 1288 Clause 5.15 sashless span table from CSV.
     Returns a pandas DataFrame with columns: glass_type, max_span_mm,
     min_thickness_mm. glass_type is 'MT' (monolithic toughened) or 'L'
-    (any laminated type: annealed, heat-strengthened or toughened). Rows are in ascending max_span_mm order per glass
-    type - callers rely on this order to find the first (narrowest)
-    qualifying band.
+    (any laminated type: annealed, heat-strengthened or toughened). Rows
+    are in ascending max_span_mm order per glass type - callers rely on
+    this order to find the first (narrowest) qualifying band.
     """
     df = pd.read_csv(csv_path)
     numeric_columns = ['max_span_mm', 'min_thickness_mm']
