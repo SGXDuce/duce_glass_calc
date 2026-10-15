@@ -330,7 +330,8 @@ def human_impact_check():
         "methods": {
           "fixed":    { ...method-specific fields... } | omitted,
           "louvre":   { ...method-specific fields... } | omitted,
-          "sashless": { "span_mm": float } | omitted
+          "sashless": { "span_mm", "sightline_mm", "sight_width_mm",
+                        "sight_height_mm", ... } | omitted
         }
       }
 
@@ -400,8 +401,20 @@ def human_impact_check():
                 results['louvre']['trail'].append(SIDE_PANEL_DOWNGRADE_SENTENCE)
 
         if 'sashless' in methods:
-            span_mm = _to_float(methods['sashless'].get('span_mm'))
-            results['sashless'] = determine_sashless(span_mm)
+            m = methods['sashless']
+            ctx = dict(shared)
+            ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
+            downgraded = _apply_side_panel_height_test(ctx, opening_type, declared_side_panel)
+            ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
+            ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
+            ctx['opaque_or_patterned'] = bool(m.get('opaque_or_patterned'))
+            ctx['rail_present'] = bool(m.get('rail_present'))
+            ctx['rail_upper_edge_mm'] = _to_float(m.get('rail_upper_edge_mm'))
+            ctx['rail_lower_edge_mm'] = _to_float(m.get('rail_lower_edge_mm'))
+            ctx['level_difference_mm'] = _to_float(m.get('level_difference_mm')) if m.get('level_difference') else None
+            results['sashless'] = determine_sashless(_to_float(m.get('span_mm')), ctx)
+            if downgraded:
+                results['sashless']['trail'].append(SIDE_PANEL_DOWNGRADE_SENTENCE)
 
         return jsonify({'success': True, 'results': results})
 

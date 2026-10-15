@@ -707,12 +707,26 @@ function buildSashlessCard() {
         <div class="hi-method-card-header">
             <span class="hi-method-card-title">Sashless</span>
         </div>
-        <div class="hi-method-inputs" style="grid-template-columns: 1fr;">
+        <div class="hi-method-inputs">
             <div class="field-group">
                 <label class="field-label" for="hi_sashless_span">Span (mm)
-                    <span class="tip" tabindex="0" role="button" data-tip="Clause 5.15 is self-contained - no framing or geometry inputs needed beyond span.">?</span>
+                    <span class="tip" tabindex="0" role="button" data-tip="Clause 5.15 span between the held edges.">?</span>
                 </label>
                 <input class="field-input" type="number" id="hi_sashless_span" min="0" oninput="onMethodInputChanged('sashless')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_sashless_sightline">Lowest sightline above floor/ground (mm)
+                    <span class="tip" tabindex="0" role="button" data-tip="Height of the lowest point of visible glass above the floor or ground level.">?</span>
+                </label>
+                <input class="field-input" type="number" id="hi_sashless_sightline" placeholder="e.g. 0" min="0" oninput="onMethodInputChanged('sashless')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_sashless_sight_width">Sight width (mm)</label>
+                <input class="field-input" type="number" id="hi_sashless_sight_width" min="0" oninput="onMethodInputChanged('sashless')">
+            </div>
+            <div class="field-group">
+                <label class="field-label" for="hi_sashless_sight_height">Sight height (mm)</label>
+                <input class="field-input" type="number" id="hi_sashless_sight_height" min="0" oninput="onMethodInputChanged('sashless')">
             </div>
         </div>
         <div class="hi-result-card" id="hi-result-sashless">
@@ -814,11 +828,11 @@ function val(id) {
 // engine/human_impact/ is out of scope for this fix, and this is the
 // only change that can't reintroduce the bug from some other missing
 // guard later.
-const SIGHTLINE_INPUT_ID = { fixed: 'hi_fixed_sightline', louvre: 'hi_louvre_sightline' };
+const SIGHTLINE_INPUT_ID = { fixed: 'hi_fixed_sightline', louvre: 'hi_louvre_sightline', sashless: 'hi_sashless_sightline' };
 
 function hasSightline(method) {
     const inputId = SIGHTLINE_INPUT_ID[method];
-    if (!inputId) return true; // sashless has no sightline concept at all
+    if (!inputId) return true;
     return val(inputId) !== null;
 }
 
@@ -855,9 +869,12 @@ function buildPayload() {
         };
     }
 
-    if (hiState.selectedMethods.has('sashless') && document.getElementById('hi-card-sashless')) {
+    if (hiState.selectedMethods.has('sashless') && document.getElementById('hi-card-sashless') && hasSightline('sashless')) {
         methods.sashless = {
             span_mm: val('hi_sashless_span'),
+            sightline_mm: val('hi_sashless_sightline'),
+            sight_width_mm: val('hi_sashless_sight_width'),
+            sight_height_mm: val('hi_sashless_sight_height'),
         };
     }
 
@@ -888,7 +905,7 @@ function runCheck() {
     // buildPayload() above) - render its own "needs input" placeholder
     // immediately rather than leaving whatever result happened to be on
     // screen before, which would otherwise look like a stale/frozen card.
-    ['fixed', 'louvre'].forEach(method => {
+    ['fixed', 'louvre', 'sashless'].forEach(method => {
         if (hiState.selectedMethods.has(method) && document.getElementById(`hi-card-${method}`) && !hasSightline(method)) {
             renderNeedsInput(method, 'Enter the lowest sightline to see the result.');
         }
