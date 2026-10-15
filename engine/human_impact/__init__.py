@@ -8,7 +8,7 @@
 # Public entry points (the only functions other code should call):
 #   determine_fixed(ctx)   -> dict
 #   determine_louvre(ctx)  -> dict
-#   determine_sashless(span_mm) -> dict
+#   determine_sashless(span_mm, ctx) -> dict
 #
 # Standalone engine - engine/human_impact must never import from
 # engine/wind_load, engine/silicone_bite, or engine/combined, and nothing
@@ -28,7 +28,7 @@ from engine.shared.data_loader import (
 )
 from engine.shared.results import make_human_impact_result
 from engine.human_impact.location_rules import (
-    match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES,
+    match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES, NOT_OFFERED_SENTENCE,
 )
 from engine.human_impact.routes import resolve_table_and_thickness
 
@@ -43,13 +43,22 @@ TYPE_NAMES = {
     'laminated_toughened': 'Laminated Toughened',
 }
 
-# The four annealed / heat-strengthened type ids (monolithic and laminated).
-# determine_sashless() reports all four as not one of the combinations
-# listed for sashless glazing.
-ANNEALED_HS_TYPES = [
-    'monolithic_annealed', 'monolithic_heat_strengthened',
-    'laminated_annealed', 'laminated_heat_strengthened',
-]
+# Which Clause 5.15 table row each glass type reads. 'MT' applies to
+# monolithic toughened only; 'L' applies to every laminated type. Monolithic
+# annealed and monolithic heat-strengthened have no row and are never offered.
+SASHLESS_ROW_FOR_TYPE = {
+    'monolithic_toughened': 'MT',
+    'laminated_annealed': 'L',
+    'laminated_heat_strengthened': 'L',
+    'laminated_toughened': 'L',
+}
+
+SASHLESS_NOT_ASSESSED_NOTE = (
+    "Not assessed by this tool for sashless glazing: the fixed vanity or "
+    "bench exemption, the permanent barrier exemption, and low-level "
+    "glazing (Clause 5.5), which is not applied to louvres or sashless "
+    "glazing."
+)
 
 
 def _load_data(data_dir=None):
@@ -332,60 +341,145 @@ def determine_louvre(ctx, data_dir=None):
     )
 
 
-def determine_sashless(span_mm, data_dir=None):
+def _sashless_out_of_scope(reason, grade_a_required=None, trail=None, notes=None, clauses=None):
+    return make_human_impact_result(
+        scope=False, grade_a_required=grade_a_required,
+        out_of_scope_reasons=[reason], trail=trail, notes=notes, clauses=clauses,
+    )
+
+
+def determine_sashless(span_mm, ctx, data_dir=None):
     """
     Determines Grade A requirement and eligible glass types/thicknesses
-    for a sashless window, per AS 1288 Clause 5.15. Self-contained - does
-    NOT call match_location() at all (Sahil confirmed other location
-    clauses add nothing here, since 5.15 already forces Grade A on its own
-    with its own complete type/thickness scheme).
+    for sashless glazing (a window or side panel with two free edges).
+
+    The location rules run through match_location() with the usual ctx.
+    The engine sets framing itself ('partly'), and for a side panel sets
+    exposed_edges to 'y' (the free edges are bare glass) whatever the
+    caller passed. Clause 5.5 is not applied to sashless glazing. If any
+    Grade A rule matches, the types and minimum thicknesses come from the
+    Clause 5.15 span table, intersected with every matching rule's type
+    filter and raised by any thickness those rules (or Table 5.4, for a
+    bathroom) demand. Sashless doors are not assessed.
+
+    TODO: when the sashless card has an "Incomplete" state, drop the
+    sightline stop-gap below; a missing sightline then becomes incomplete
+    rather than out of scope.
 
     TODO (next session): when this gets wired into the calculator's glass-
     type checkboxes, the resulting per-type minimum thickness must combine
     with wind load via max() - span sets a floor, wind can raise it, never
-    lower it. Not implemented here since this session is engine/data only.
+    lower it.
     """
+    if ctx.get('opening_type') == 'door':
+        return _sashless_out_of_scope("Sashless doors are not assessed by this tool")
+    if ctx.get('sightline_mm') is None:
+        return _sashless_out_of_scope("Sightline above floor is needed")
+    if span_mm is None:
+        return _sashless_out_of_scope("Span is needed")
+
     data = _load_data(data_dir)
     df = data['sashless_span']
 
-    types = []
-    any_ok = False
-    for type_id, csv_type in (('monolithic_toughened', 'MT'), ('laminated_toughened', 'LT')):
-        type_rows = df[df['glass_type'] == csv_type].sort_values('max_span_mm')
-        qualifying = type_rows[type_rows['max_span_mm'] >= span_mm]
-        if len(qualifying) > 0:
-            best = qualifying.iloc[0]
-            types.append({
-                'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': True,
-                'min_thickness': float(best['min_thickness_mm']), 'why': None,
-            })
-            any_ok = True
-        else:
-            highest_span = float(type_rows['max_span_mm'].max())
-            types.append({
-                'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
-                'min_thickness': None,
-                'why': f"span exceeds {highest_span:g}mm - outside AS 1288",
-            })
+    is_side_panel = bool(ctx.get('is_side_panel', False))
+    sight_width_mm = ctx.get('sight_width_mm')
+    sight_height_mm = ctx.get('sight_height_mm')
 
-    for type_id in ANNEALED_HS_TYPES:
-        types.append({
-            'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
-            'min_thickness': None,
-            'why': "not one of the glass combinations listed for sashless glazing under Clause 5.15",
-        })
+    mctx = dict(ctx)
+    mctx['framing'] = 'partly'
+    mctx['is_louvre'] = False
+    mctx['is_sashless'] = True
+    mctx['exposed_edges'] = 'y' if is_side_panel else None
+    sizes_missing = sight_width_mm is None or sight_height_mm is None
+    if sizes_missing:
+        # The Clause 5.4 size exceptions cannot be tested without both sizes.
+        mctx['sight_width_mm'] = None
+        mctx['sight_height_mm'] = None
 
-    if not any_ok:
+    r = match_location(mctx, data)
+    trail = list(r['trail'])
+    if is_side_panel:
+        trail.append("Sashless free edges are treated as exposed edges (Duce interpretation).")
+    if sizes_missing and not is_side_panel:
+        trail.append("Sight width and height not given, so the Clause 5.4 size exceptions "
+                      "could not be tested; Clause 5.4 is treated as not exempt (conservative).")
+
+    if r['oos']:
+        return _sashless_out_of_scope(r['oos'][0], trail=trail, notes=r['notes'])
+
+    grade_a_required = any(m['grade_a'] for m in r['matches'])
+    clauses = sorted({m['clause'] for m in r['matches']})
+
+    if not grade_a_required:
         return make_human_impact_result(
-            scope=False,
-            out_of_scope_reasons=[
-                f"No combination in Clause 5.15 covers a span of {span_mm:g}mm "
-                "for any permitted glass type. This configuration is outside "
-                "AS 1288 as currently modelled."
-            ],
+            scope=True, grade_a_required=False, table=None,
+            types=_all_types_ok_no_restriction(),
+            notes=list(r['notes']) + [SASHLESS_NOT_ASSESSED_NOTE],
+            trail=trail, clauses=clauses,
+        )
+
+    clauses = sorted(set(clauses) | {'5.15'})
+    trail.append("Clause 5.15 (sashless): Grade A required; types and minimum "
+                  "thicknesses come from the sashless span table. " + NOT_OFFERED_SENTENCE)
+
+    allow = set(GRADE_A_CAPABLE_TYPES)
+    for m in r['matches']:
+        if m['grade_a'] and m['type_filter']:
+            allow &= set(m['type_filter'])
+
+    rule_floors = [m['min_thickness'] for m in r['matches']
+                   if m['grade_a'] and m['min_thickness'] is not None]
+    bathroom_table = any(m['grade_a'] and m['table'] == '5.4' for m in r['matches'])
+    area_m2 = None
+    if bathroom_table and not sizes_missing:
+        area_m2 = sight_width_mm * sight_height_mm / 1_000_000
+        if area_m2 > _table_5_4_largest_area(data):
+            return _sashless_out_of_scope(
+                _table_5_4_oversize_reason(), grade_a_required=True,
+                trail=trail, notes=r['notes'], clauses=clauses,
+            )
+
+    types = []
+    for type_id in ALL_TYPES:
+        name = TYPE_NAMES[type_id]
+        row_key = SASHLESS_ROW_FOR_TYPE.get(type_id)
+        if row_key is None:
+            types.append({'id': type_id, 'name': name, 'ok': False,
+                          'min_thickness': None, 'why': MONOLITHIC_ANNEALED_HS_NOT_OFFERED})
+            continue
+        if type_id not in allow:
+            types.append({'id': type_id, 'name': name, 'ok': False,
+                          'min_thickness': None,
+                          'why': "not offered by this tool at this location"})
+            continue
+        rows = df[df['glass_type'] == row_key].sort_values('max_span_mm')
+        covering = rows[rows['max_span_mm'] >= span_mm]
+        if len(covering) == 0:
+            types.append({'id': type_id, 'name': name, 'ok': False,
+                          'min_thickness': None,
+                          'why': f"span exceeds {float(rows['max_span_mm'].max()):g}mm - beyond Clause 5.15"})
+            continue
+        thickness = float(covering.iloc[0]['min_thickness_mm'])
+        why = None
+        if rule_floors:
+            thickness = max([thickness] + [float(f) for f in rule_floors])
+        if bathroom_table:
+            if area_m2 is None:
+                thickness, why = None, NEEDS_DIMENSIONS_REASON
+            else:
+                thickness = max(thickness, _table_5_4_thickness_for_type(data, type_id, area_m2))
+        types.append({'id': type_id, 'name': name, 'ok': True,
+                      'min_thickness': thickness, 'why': why})
+
+    if not any(t['ok'] for t in types):
+        return _sashless_out_of_scope(
+            f"No combination in Clause 5.15 covers a span of {span_mm:g}mm for any "
+            "glass type allowed at this location (span beyond 5.15). This "
+            "configuration is not assessed by this tool.",
+            grade_a_required=True, trail=trail, notes=r['notes'], clauses=clauses,
         )
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=None, types=types,
-        clauses=['5.15'],
+        notes=r['notes'], trail=trail, clauses=clauses,
     )

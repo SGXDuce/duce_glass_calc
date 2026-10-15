@@ -6,7 +6,10 @@
 # Run from the project root (duce_glass_calc/):
 #   python -m tests.test_human_impact
 
-from engine.human_impact import determine_fixed, determine_louvre, determine_sashless
+from engine.human_impact import (
+    determine_fixed, determine_louvre, determine_sashless,
+    _load_data, NEEDS_DIMENSIONS_REASON,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -471,61 +474,283 @@ def test_19():
 
 
 # ---------------------------------------------------------------------------
-# TESTS 20-23 — Sashless (Clause 5.15)
+# TESTS SA-SP — Sashless glazing through the location rules (Clause 5.15)
 # ---------------------------------------------------------------------------
 
-def test_20():
-    # Sashless, span 900mm -> MT ok=True/5mm, LT ok=False (exceeds 750mm).
-    result = determine_sashless(900)
-    mt = get_type(result, 'monolithic_toughened')
-    lt = get_type(result, 'laminated_toughened')
+def sashless_ctx(**overrides):
+    """A window ctx for sashless tests. framing is deliberately left at the
+    base_ctx default ('fully'): the engine must set 'partly' itself."""
+    overrides.setdefault('opening_type', 'window')
+    return base_ctx(**overrides)
+
+
+def tvals(result, type_id):
+    t = get_type(result, type_id)
+    return (t['ok'], t['min_thickness'])
+
+
+def sashless_checks(result, expected):
+    """expected: dict of type_id -> thickness (ok=True) for the types that
+    must be ok; every other type must be ok=False."""
+    checks = []
+    for type_id in ('monolithic_toughened', 'laminated_annealed',
+                    'laminated_heat_strengthened', 'laminated_toughened'):
+        want = (True, float(expected[type_id])) if type_id in expected else (False, None)
+        checks.append((type_id, want, tvals(result, type_id), tvals(result, type_id) == want))
+    return checks
+
+
+def test_SA():
+    # A: residential, sightline 900, sight 1000 x 1400, span 1000.
+    # 5.5 skipped (sashless). 5.4: width 1000 > 500, height 1400 > 1000, but
+    # sightline 900 >= 500 -> exempt. Nothing else matches -> no requirement.
+    # All six types ok; note lists low-level glazing for louvres and sashless.
+    result = determine_sashless(1000, sashless_ctx(
+        sightline_mm=900, sight_width_mm=1000, sight_height_mm=1400))
     checks = [
-        ('monolithic_toughened ok/thickness', (True, 5.0), (mt['ok'], mt['min_thickness']),
-         mt['ok'] is True and mt['min_thickness'] == 5.0),
-        ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
+        ('scope', True, result['scope'], result['scope'] is True),
+        ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('all six ok', True, all(t['ok'] for t in result['types']) and len(result['types']) == 6,
+         all(t['ok'] for t in result['types']) and len(result['types']) == 6),
+        ('note lists low-level for louvres and sashless', True,
+         any('low-level' in n and 'louvres or sashless' in n for n in result['notes']),
+         any('low-level' in n and 'louvres or sashless' in n for n in result['notes'])),
+        ('trail: 5.5 not applied', True,
+         any('5.5' in t and 'not applied to sashless' in t for t in result['trail']),
+         any('5.5' in t and 'not applied to sashless' in t for t in result['trail'])),
     ]
-    report('20', 'Sashless, span 900mm -> MT 5mm, LT out of range', checks)
+    report('SA', 'Sashless, residential, sightline 900 -> no requirement', checks)
 
 
-def test_21():
-    # Sashless, span 1100mm -> MT ok=True/6mm (crosses into 1000-1200
-    # tier), LT ok=False.
-    result = determine_sashless(1100)
-    mt = get_type(result, 'monolithic_toughened')
-    lt = get_type(result, 'laminated_toughened')
+def test_SB():
+    # B: building 'other', sightline 300, sight 1000 x 1400, span 1000.
+    # 5.4: width 1000 > 500, height 1400 > 1000, sightline 300 < 500, no
+    # opaque/rail/level -> not exempt -> Grade A, no type filter.
+    # 5.15: MT row up to 1000 covers span 1000 (limit inclusive) -> 5.
+    # L row tops out below 1000 -> laminated types not covered.
+    result = determine_sashless(1000, sashless_ctx(
+        building_use='other', sightline_mm=300, sight_width_mm=1000, sight_height_mm=1400))
     checks = [
-        ('monolithic_toughened ok/thickness', (True, 6.0), (mt['ok'], mt['min_thickness']),
-         mt['ok'] is True and mt['min_thickness'] == 6.0),
-        ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
-    ]
-    report('21', 'Sashless, span 1100mm -> MT 6mm (crosses tier), LT out of range', checks)
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('clauses', ['5.15', '5.4'], result['clauses'], result['clauses'] == ['5.15', '5.4']),
+    ] + sashless_checks(result, {'monolithic_toughened': 5}) + assert_mono_annealed_hs_not_offered(result)
+    report('SB', 'Sashless, other, sightline 300, span 1000 -> Grade A, MT 5 only', checks)
 
 
-def test_22():
-    # Sashless, span 1400mm -> every type ok=False, scope=False.
-    result = determine_sashless(1400)
-    all_blocked = all(t['ok'] is False for t in result.get('types', []))
+def test_SC():
+    # C: as B but 700 x 1400, span 700. Width 700 > 500 -> still not exempt.
+    # MT row (limit 1000) covers 700 -> 5. L row (limit 750) covers 700 -> 6
+    # for all three laminated types.
+    result = determine_sashless(700, sashless_ctx(
+        building_use='other', sightline_mm=300, sight_width_mm=700, sight_height_mm=1400))
+    checks = sashless_checks(result, {
+        'monolithic_toughened': 5, 'laminated_annealed': 6,
+        'laminated_heat_strengthened': 6, 'laminated_toughened': 6,
+    }) + assert_mono_annealed_hs_not_offered(result)
+    report('SC', 'Sashless, span 700 -> MT 5, every laminated type 6', checks)
+
+
+def test_SD():
+    # D: as B, 1100 x 1400, span 1100. MT first row (limit 1000) too small;
+    # second row (limit 1200) covers -> 6. L (limit 750) does not cover.
+    result = determine_sashless(1100, sashless_ctx(
+        building_use='other', sightline_mm=300, sight_width_mm=1100, sight_height_mm=1400))
+    checks = sashless_checks(result, {'monolithic_toughened': 6}) + assert_mono_annealed_hs_not_offered(result)
+    report('SD', 'Sashless, span 1100 -> MT 6 only', checks)
+
+
+def test_SE():
+    # E: as B, 1300 x 1400, span 1300. Above the largest MT limit (1200) and
+    # the L limit -> no type covered -> scope False.
+    result = determine_sashless(1300, sashless_ctx(
+        building_use='other', sightline_mm=300, sight_width_mm=1300, sight_height_mm=1400))
     checks = [
         ('scope', False, result['scope'], result['scope'] is False),
-        ('out_of_scope_reasons non-empty', True, len(result['out_of_scope_reasons']) > 0,
-         len(result['out_of_scope_reasons']) > 0),
+        ('reason mentions span beyond 5.15', True,
+         any('span beyond 5.15' in x for x in result['out_of_scope_reasons']),
+         any('span beyond 5.15' in x for x in result['out_of_scope_reasons'])),
     ]
-    report('22', 'Sashless, span 1400mm -> no combination covers it, out of scope', checks)
+    report('SE', 'Sashless, span 1300 -> out of scope', checks)
 
 
-def test_23():
-    # Sashless, span 700mm -> MT ok=True/5mm, LT ok=True/6mm (both within
-    # their respective caps).
-    result = determine_sashless(700)
+def test_SF():
+    # F: residential, sightline 300, 1000 x 1400, span 1000.
+    # 5.5 would trigger (residential, sightline < 500) but is skipped for
+    # sashless. 5.4: not exempt (as B) -> Grade A. MT 5 only.
+    result = determine_sashless(1000, sashless_ctx(
+        sightline_mm=300, sight_width_mm=1000, sight_height_mm=1400))
+    checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('5.5 not in clauses', False, '5.5' in result['clauses'], '5.5' not in result['clauses']),
+        ('5.4 in clauses', True, '5.4' in result['clauses'], '5.4' in result['clauses']),
+        ('trail: 5.5 not applied', True,
+         any('5.5' in t and 'not applied to sashless' in t for t in result['trail']),
+         any('5.5' in t and 'not applied to sashless' in t for t in result['trail'])),
+    ] + sashless_checks(result, {'monolithic_toughened': 5}) + assert_mono_annealed_hs_not_offered(result)
+    report('SF', 'Sashless, residential, sightline 300, 5.5 skipped, 5.4 applies', checks)
+
+
+def test_SF2():
+    # F2: residential, sightline 300, 400 x 1400, span 400.
+    # 5.4: width 400 <= 500 -> exempt. 5.5 skipped. Nothing matches ->
+    # no requirement, all six ok, low-level note present.
+    result = determine_sashless(400, sashless_ctx(
+        sightline_mm=300, sight_width_mm=400, sight_height_mm=1400))
+    checks = [
+        ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('all six ok', True, all(t['ok'] for t in result['types']), all(t['ok'] for t in result['types'])),
+        ('low-level note present', True,
+         any('low-level' in n for n in result['notes']), any('low-level' in n for n in result['notes'])),
+    ]
+    report('SF2', 'Sashless, residential, sightline 300, 400 wide -> 5.4 exempt, no requirement', checks)
+
+
+def test_SG():
+    # G: residential, sightline 900, high_risk, 1000 x 1400, span 1000.
+    # 5.4 exempt (sightline >= 500). 5.24 (high risk) -> Grade A, no filter.
+    # MT row covers 1000 -> 5; L does not cover.
+    result = determine_sashless(1000, sashless_ctx(
+        sightline_mm=900, high_risk=True, sight_width_mm=1000, sight_height_mm=1400))
+    checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('5.24 in clauses', True, '5.24' in result['clauses'], '5.24' in result['clauses']),
+    ] + sashless_checks(result, {'monolithic_toughened': 5}) + assert_mono_annealed_hs_not_offered(result)
+    report('SG', 'Sashless, high risk -> Grade A, MT 5 only', checks)
+
+
+def test_SH():
+    # H: bathroom, residential, sightline 1000 (<= 2000), 1000 x 1000
+    # = 1.0 m2, span 1000. 5.8 (framing set to partly) -> Table 5.4,
+    # toughened only. 5.4 exempt (sightline >= 500).
+    # MT: 5.15 -> 5. Table 5.4 allowance row (MT, max 2.2 m2) covers 1.0 -> 5.
+    # Larger of 5 and 5 = 5. Laminated: filtered out by toughened-only (and
+    # L row does not cover 1000 anyway). laminated_toughened excluded by L row.
+    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=1000, sight_height_mm=1000)
+    result = determine_sashless(1000, ctx)
+    data = _load_data()
+    print(f"    Table 5.4 allowance row used for MT at 1.0 m2:\n{data['bathroom_toughened_allowance'].to_string(index=False)}")
+    checks = [
+        ('5.8 in clauses', True, '5.8' in result['clauses'], '5.8' in result['clauses']),
+    ] + sashless_checks(result, {'monolithic_toughened': 5}) + assert_mono_annealed_hs_not_offered(result)
+    report('SH', 'Sashless bathroom 1.0 m2, span 1000 -> MT 5 only', checks)
+
+
+def test_SI():
+    # I: bathroom, 700 x 1000 = 0.7 m2, span 700, sightline 1000.
+    # MT: 5.15 -> 5; allowance row (max 2.2 m2) covers 0.7 -> 5; larger = 5.
+    # laminated_toughened: 5.15 L row (limit 750) -> 6; Table 5.4 main table,
+    # first row with max area >= 0.7 is the 3.0 m2 row -> 6; larger = 6.
+    # laminated_annealed / laminated_heat_strengthened: removed by the
+    # toughened-only filter -> not ok.
+    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=700, sight_height_mm=1000)
+    result = determine_sashless(700, ctx)
+    data = _load_data()
+    print(f"    Table 5.4 rows used - MT allowance row:\n{data['bathroom_toughened_allowance'].to_string(index=False)}")
+    print(f"    laminated_toughened main-table row (first max_area >= 0.7):\n"
+          f"{data['table_5_4_max_area'][data['table_5_4_max_area']['max_area_m2'] >= 0.7].head(1).to_string(index=False)}")
+    checks = sashless_checks(result, {'monolithic_toughened': 5, 'laminated_toughened': 6}) \
+        + assert_mono_annealed_hs_not_offered(result)
+    report('SI', 'Sashless bathroom 0.7 m2, span 700 -> MT 5, LT 6 only', checks)
+
+
+def test_SJ():
+    # J: bathroom, 1300 x 1000, span 1300. Area 1.3 m2 is within Table 5.4,
+    # but no 5.15 row covers 1300 -> scope False (span beyond 5.15).
+    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=1300, sight_height_mm=1000)
+    result = determine_sashless(1300, ctx)
+    checks = [
+        ('scope', False, result['scope'], result['scope'] is False),
+        ('reason mentions span beyond 5.15', True,
+         any('span beyond 5.15' in x for x in result['out_of_scope_reasons']),
+         any('span beyond 5.15' in x for x in result['out_of_scope_reasons'])),
+    ]
+    report('SJ', 'Sashless bathroom, span 1300 -> out of scope', checks)
+
+
+def test_SK():
+    # K: side panel, residential, sightline 900, 1000 x 1400, span 1000.
+    # Caller passes exposed_edges='n'; the engine overrides it to 'y'.
+    # 5.3.1 partly + exposed -> toughened only, 10 mm minimum. 5.4 does not
+    # run for a side panel; 5.5 skipped.
+    # MT: larger of 10 and 5.15 (5) = 10. L row does not cover 1000.
+    result = determine_sashless(1000, sashless_ctx(
+        opening_type='side_panel', is_side_panel=True, exposed_edges='n',
+        sightline_mm=900, sight_width_mm=1000, sight_height_mm=1400))
+    checks = [
+        ('trail: free edges treated as exposed', True,
+         any('Sashless free edges are treated as exposed edges' in t for t in result['trail']),
+         any('Sashless free edges are treated as exposed edges' in t for t in result['trail'])),
+        ('5.3.1 in clauses', True, '5.3.1' in result['clauses'], '5.3.1' in result['clauses']),
+    ] + sashless_checks(result, {'monolithic_toughened': 10}) + assert_mono_annealed_hs_not_offered(result)
+    report('SK', 'Sashless side panel, span 1000 -> MT 10 only', checks)
+
+
+def test_SL():
+    # L: as K, 700 x 1400, span 700.
+    # MT: max(10, 5) = 10. laminated_toughened: max(10, 6) = 10.
+    # laminated_annealed / heat_strengthened removed by toughened-only.
+    result = determine_sashless(700, sashless_ctx(
+        opening_type='side_panel', is_side_panel=True,
+        sightline_mm=900, sight_width_mm=700, sight_height_mm=1400))
+    checks = sashless_checks(result, {'monolithic_toughened': 10, 'laminated_toughened': 10}) \
+        + assert_mono_annealed_hs_not_offered(result)
+    report('SL', 'Sashless side panel, span 700 -> MT 10, LT 10 only', checks)
+
+
+def test_SM():
+    # M: opening_type 'door' -> out of scope, checked first (even with the
+    # sightline missing).
+    result = determine_sashless(1000, base_ctx(opening_type='door', sightline_mm=None))
+    checks = [
+        ('scope', False, result['scope'], result['scope'] is False),
+        ('reason', ['Sashless doors are not assessed by this tool'],
+         result['out_of_scope_reasons'],
+         result['out_of_scope_reasons'] == ['Sashless doors are not assessed by this tool']),
+    ]
+    report('SM', 'Sashless door -> not assessed', checks)
+
+
+def test_SN():
+    # N: sightline None -> stop-gap out of scope.
+    result = determine_sashless(1000, sashless_ctx(sightline_mm=None))
+    checks = [
+        ('scope', False, result['scope'], result['scope'] is False),
+        ('reason', ['Sightline above floor is needed'], result['out_of_scope_reasons'],
+         result['out_of_scope_reasons'] == ['Sightline above floor is needed']),
+    ]
+    report('SN', 'Sashless, no sightline -> sightline needed', checks)
+
+
+def test_SO():
+    # O: building 'other', sightline 300, sight sizes missing, span 1000.
+    # The 5.4 size exceptions cannot be tested -> 5.4 treated as not exempt
+    # (sightline 300 < 500 so no other exception) -> Grade A, MT 5 only,
+    # and the trail says so.
+    result = determine_sashless(1000, sashless_ctx(building_use='other', sightline_mm=300))
+    checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('trail says sizes not given', True,
+         any('could not be tested' in t for t in result['trail']),
+         any('could not be tested' in t for t in result['trail'])),
+    ] + sashless_checks(result, {'monolithic_toughened': 5})
+    report('SO', 'Sashless, sight sizes missing -> 5.4 treated as not exempt', checks)
+
+
+def test_SP():
+    # P: bathroom, sightline 1000, sight sizes missing, span 700. Area cannot
+    # be worked out: types allowed (toughened only) with thickness None and
+    # the "daylight width and height needed" reason, as determine_fixed does.
+    result = determine_sashless(700, sashless_ctx(is_bathroom=True, sightline_mm=1000))
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     checks = [
-        ('monolithic_toughened ok/thickness', (True, 5.0), (mt['ok'], mt['min_thickness']),
-         mt['ok'] is True and mt['min_thickness'] == 5.0),
-        ('laminated_toughened ok/thickness', (True, 6.0), (lt['ok'], lt['min_thickness']),
-         lt['ok'] is True and lt['min_thickness'] == 6.0),
+        ('MT ok / thickness / why', (True, None, NEEDS_DIMENSIONS_REASON),
+         (mt['ok'], mt['min_thickness'], mt['why']),
+         mt['ok'] and mt['min_thickness'] is None and mt['why'] == NEEDS_DIMENSIONS_REASON),
+        ('LT ok / thickness', (True, None), (lt['ok'], lt['min_thickness']),
+         lt['ok'] and lt['min_thickness'] is None),
     ]
-    report('23', 'Sashless, span 700mm -> MT 5mm, LT 6mm (both within caps)', checks)
+    report('SP', 'Sashless bathroom, no dimensions -> thickness None', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -545,8 +770,14 @@ def test_24():
         determine_louvre(dict(base_ctx(opening_type='window', high_risk=True,
                                         sight_width_mm=900, sight_height_mm=1500),
                                blade_width_mm=300, blade_length_mm=800)),
-        determine_sashless(900),
-        determine_sashless(1400),
+        determine_sashless(1000, sashless_ctx(sightline_mm=300, sight_width_mm=1000,
+                                              sight_height_mm=1400)),
+        determine_sashless(1000, sashless_ctx(sightline_mm=900, sight_width_mm=1000,
+                                              sight_height_mm=1400)),
+        determine_sashless(1300, sashless_ctx(building_use='other', sightline_mm=300,
+                                              sight_width_mm=1300, sight_height_mm=1400)),
+        determine_sashless(1000, base_ctx(opening_type='door')),
+        determine_sashless(1000, sashless_ctx(sightline_mm=None)),
     ]
     key_sets = [frozenset(r.keys()) for r in results]
     all_same = len(set(key_sets)) == 1
@@ -929,8 +1160,10 @@ def run_tests():
     tests = [
         test_1, test_2, test_3, test_4, test_5, test_6, test_7, test_8,
         test_9, test_10, test_11, test_12, test_13, test_14, test_15,
-        test_16, test_17, test_18, test_19, test_20, test_21, test_22,
-        test_23, test_24, test_25, test_26, test_27, test_28, test_29,
+        test_16, test_17, test_18, test_19,
+        test_SA, test_SB, test_SC, test_SD, test_SE, test_SF, test_SF2, test_SG,
+        test_SH, test_SI, test_SJ, test_SK, test_SL, test_SM, test_SN, test_SO,
+        test_SP, test_24, test_25, test_26, test_27, test_28, test_29,
         test_30, test_31, test_32, test_33,
         test_B1, test_B2, test_B3, test_B4, test_B5, test_B6, test_B7,
         test_B8, test_B9, test_B10, test_B11, test_B12,

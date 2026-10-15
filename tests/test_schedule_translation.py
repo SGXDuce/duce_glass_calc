@@ -786,7 +786,15 @@ def test_t11b_sashless_double_hung_real_export():
         assert result['payload']['span_mm'] == sight_width_mm  # held left/right -> span = sight_width
         assert result['payload']['span_mm'] != sight_height_mm  # not the height axis
 
-    engine_result = determine_sashless(1050)
+    # Hand arithmetic: span 1050 -> 5.4 not exempt (width 1050 over 500,
+    # height 1400 over 1000, sightline 300 under 500; building 'other' so
+    # 5.5 does not apply anyway) -> Grade A. The 5 mm toughened row stops
+    # at 1000; the 6 mm row (up to 1200) covers 1050 -> 6.
+    engine_result = determine_sashless(1050, dict(
+        opening_type='window', building_use='other', is_bathroom=False,
+        high_risk=False, sightline_mm=300, sight_width_mm=1050,
+        sight_height_mm=1400, is_side_panel=False,
+    ))
     mono_tough = next(t for t in engine_result['types'] if t['id'] == 'monolithic_toughened')
     assert mono_tough['ok'] is True
     assert mono_tough['min_thickness'] == 6

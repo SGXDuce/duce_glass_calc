@@ -137,8 +137,11 @@ def test_3():
 
 
 def test_4():
-    # Mirrors test_human_impact.test_20: sashless, span 900mm -> MT ok/5mm,
-    # LT blocked (exceeds 750mm cap).
+    # Sashless through the route: window, residential, sightline 300, sight
+    # 1000 x 1400, span 1000. 5.5 skipped (sashless); 5.4 not exempt (width
+    # over 500, height over 1000, sightline under 500) -> Grade A. The 5.15
+    # MT row (limit 1000) covers 1000 -> 5; laminated rows (limit 750) do
+    # not cover it. Mirrors test_human_impact.test_SF.
     data = post({
         'opening_type': 'window',
         'reclassified_as_side_panel': False,
@@ -146,18 +149,20 @@ def test_4():
         'is_bathroom': False,
         'high_risk': False,
         'methods': {
-            'sashless': {'span_mm': 900},
+            'sashless': {'span_mm': 1000, 'sightline_mm': 300,
+                         'sight_width_mm': 1000, 'sight_height_mm': 1400},
         },
     })
     result = data['results']['sashless']
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
         ('monolithic_toughened ok/thickness', (True, 5.0), (mt['ok'], mt['min_thickness']),
          mt['ok'] is True and mt['min_thickness'] == 5.0),
         ('laminated_toughened ok', False, lt['ok'], lt['ok'] is False),
     ]
-    report('4', 'POST /human_impact/check - sashless, span 900mm -> MT 5mm, LT blocked', checks)
+    report('4', 'POST /human_impact/check - sashless, sightline 300, span 1000 -> Grade A, MT 5mm', checks)
 
 
 def test_5():

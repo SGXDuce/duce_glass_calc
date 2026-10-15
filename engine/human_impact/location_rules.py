@@ -96,6 +96,9 @@ def match_location(ctx, data):
         "trail": [...],     # ordered human-readable audit trail
       }
 
+    ctx['is_sashless'] (default False) skips Clause 5.5 and records that in
+    the trail; it changes nothing else.
+
     data: dict of preloaded DataFrames, keyed
       'mistaken_doorway'
     (callers load these once via engine/shared/data_loader.py and pass
@@ -217,9 +220,14 @@ def match_location(ctx, data):
                               f"no type filter. " + NOT_OFFERED_SENTENCE)
 
     # --- Low-level residential (Clause 5.5) ---
+    # Sashless glazing skips this clause entirely (Duce interpretation).
+    is_sashless = ctx.get('is_sashless', False)
     low_level_triggered = (building_use == 'residential' and sightline_mm is not None
                             and sightline_mm < 500 and opening_type != 'door')
-    if low_level_triggered:
+    if is_sashless:
+        trail.append("Clause 5.5 (low-level residential) is not applied to sashless "
+                      "glazing (Duce interpretation, less conservative than the printed clause).")
+    elif low_level_triggered:
         if is_side_panel:
             if framing == 'fully':
                 matches.append(_match('5.5', grade_a=True, table='5.1'))
