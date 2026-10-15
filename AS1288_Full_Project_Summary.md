@@ -1,13 +1,93 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.52 (Configurator variant: step 4b merged, row-end width tuck-in boxes, no-frame preset beside a mullion, overlap design and bar-clash rule decided)
-### Last Updated: 12 October 2026
+### Version: V1.53 (Human impact questionnaire: PRs #60-63 merged, decisions recorded, open items listed)
+### Last Updated: 15 October 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.53 - 15 October 2026 - Human impact questionnaire: PRs #60-63 merged, decisions recorded, open items listed
+
+Source: master and git history, the Claude Code checks, and the decisions Sahil gave in chat, 15 October 2026. Tags follow the ledger. This entry names clauses and tables by number only. It holds no AS 1288 clause text and no table values.
+
+**A. Merged since v1.52.** REPORTED BY CLAUDE CODE (git log and git show --stat; master is at 3f29c58, the merge of PR #63):
+- PR #60, ed474d2: new data/Table_5_2_Annealed_Max_Area.csv. Laminated annealed and laminated heat-strengthened count as Grade A (GRADE_A_CAPABLE_TYPES and TOUGHENED_TYPES in location_rules.py). Wording fixes. Also touched engine/human_impact/__init__.py, routes.py and tests/test_human_impact.py.
+- PR #61, b7bb6ad: new engine/shared/side_panel.py (the 300 and 1200 limits, shared with translation.py). /human_impact/check applies the 1200 mm test per method. A declared side panel above 1200 is treated as a window, with a trail sentence. Louvre card now asks the exposed-edges question. Tests R1-R9 added (tests/test_human_impact_routes.py). Also touched app.py, human_impact.html and translation.py.
+- PR #62, 5e3226d: data/Table_5_4_Frameless_Max_Area.csv and data/Bathroom_Toughened_Allowance.csv. Values checked by Sahil against the printed standard (DECIDED BY SAHIL; Claude Code did not check them). Data only, no loader in this PR.
+- PR #63, 3f29c58: bathroom glazing, partly framed or unframed. Table 5.4 area limits per thickness plus the toughened allowance for small areas. Over the largest row: out of scope. No area given: thickness left blank with a reason. Louvres use the area of one blade. The stricter of Table 5.4 and any other rule's minimum governs. The old placeholder CSV (data/Table_5_4_Bathroom_Partly_Framed.csv) and its loader code were removed. Tests B1-B12 added; test_17 changed. Also touched engine/human_impact/__init__.py, location_rules.py and data_loader.py.
+- State: 235 pytest tests plus 3 standalone runners passing (run_tests.bat). REPORTED BY SAHIL (his figure, not re-run by Claude Code in this task).
+- Old branches safe to delete, local and GitHub: human-impact-questionnaire, side-panel-height-check, table-5-4-data, bathroom-table-5-4.
+
+**B. Decisions.** All DECIDED BY SAHIL unless marked otherwise:
+1. No monolithic annealed or monolithic heat-strengthened glass where human impact applies. None of the exception routes are offered: door bands, side panel area exception, low-level area exception, Table 5.2. Wording must say "not offered by this tool", never "not permitted by AS 1288". NOT BUILT YET. The Table 5.2 CSV is now unused.
+2. Glass types allowed per rule. Grade A means monolithic toughened, laminated annealed, laminated heat-strengthened, laminated toughened. "Toughened" does not automatically include laminated toughened; each rule is checked against its clause wording. Where the standard is not clear, "toughened" means monolithic toughened only.
+
+| Rule | Allowed types | Source | Engine status |
+|---|---|---|---|
+| Unframed door (5.2(c)) | monolithic toughened, laminated toughened | clause names both | correct |
+| Side panel with exposed edges (5.3.1(b)(ii)) | same | clause names both | correct |
+| Bathroom Table 5.4 | monolithic toughened, laminated toughened | table heading names both | correct |
+| Bathroom toughened allowance for small areas | monolithic toughened only | clause says toughened only | correct |
+| Louvres (5.12) | monolithic toughened only | lead-in not seen, conservative reading | correct |
+| Sashless toughened rows (5.15) | monolithic toughened only | conservative reading | TO CHANGE (engine also offers laminated toughened) |
+| Sashless laminated row (5.15) | laminated annealed, laminated heat-strengthened, laminated toughened | "laminated" read as any laminated; this is LESS restrictive than today, confirmed deliberately | TO CHANGE (engine offers laminated toughened only) |
+
+   Thickness note (a note, not a change): the clauses say "nominal" for monolithic and "total" for laminated; the engine treats both as the same number, consistent with Table 5.1's note that laminated thickness is total glass thickness excluding interlayer.
+3. Every answer starts blank. A blank required answer gives "Incomplete", never "No requirement found".
+4. No-trigger wording: "No requirement found under the rules this tool checks", plus a list of what is not assessed (vanity exemption, permanent barrier, out-of-scope items).
+5. Kitchens follow the bathroom rule (2000 mm). This is an NCC requirement (recorded as NCC 2022 cl 8.4.6, NOT re-checked), not AS 1288 and not a Duce rule. Label: "Bathroom, ensuite, spa room or kitchen?" with a note that kitchens come from the NCC.
+6. High-risk is asked and applied only when the bottom of the glass is 2000 mm or lower.
+7. Side panel means BOTH: lowest sightline at or below 1200 mm (inclusive) AND less than 300 mm from the door edge (follows the standard text). Choosing "Side panel" directly counts as the 300 mm answer; the tool checks only height. If either test fails it is not a side panel, even if labelled one. BUILT: the 1200 check (PR #61). NOT BUILT: "less than 300" (the engine still uses 300 or less). OPEN CONFLICT: the Configurator's "side-panel" label rule (label wins over geometry), left for when the Configurator resumes.
+8. The 300 mm question: for windows, asked whenever the glass bottom is 1200 mm or lower, whatever the framing (being a side panel decides whether Grade A applies at all, because 5.4 excludes side panels). For shopfronts, asked only when the glass is not fully framed.
+9. Internal or external wall is a separate question, asked for every opening type. It changes shopfronts now and feeds the wind step later.
+10. Opening types: door / side panel / window / shopfront or partition. Shopfront glass is always fixed. A door or window inside a shopfront is entered as a door or window.
+11. Shopfronts and partitions: internal wall -> 5.7; external wall -> 5.6. Grade A at any height; the height shortcut never clears them. Fully framed: Table 5.1. Top and bottom framed, side edge(s) unframed: Table 5.3. Three sides framed, top unframed: internal -> Table 5.1, external -> out of scope. Anything else (bottom edge unframed, no framing): out of scope. External and could be mistaken for a doorway: 5.4 applies. School, aged care, bathroom/kitchen and high-risk still apply on top (most stringent governs). Fins and fin-jointed glazing are out of scope. Under decision 1 the shopfront annealed questions (doorway extras, top-edge height) are not needed.
+12. Sashless goes through the same location rules as a window, including 5.4 (Sahil's reading of "subject to human impact"). The earlier "always Grade A" decision is SUPERSEDED. If any rule applies, glass types and minimum thicknesses come from the 5.15 span table, with types as in decision 2. All values are minimums; a row never extends beyond its listed span. In a bathroom: the stricter of 5.15 and Table 5.4 per type; span beyond 5.15 -> out of scope. No rule applies -> "No requirement found". NOT BUILT: determine_sashless today ignores location and always gives Grade A.
+13. Table 5.4 applies to all bathroom glazing with unframed edges (partly framed or unframed windows, louvres, sashless). The printed table is titled for frameless shower doors and panels, so this is a Duce interpretation, conservative. Built for fixed and louvre.
+14. Louvres: inputs are blade width, blade length and bottom-of-glass height. Daylight size is not asked (5.4 never applies to louvres). Blades over the 5.12 size limits are out of scope. A bathroom louvre in scope comes out as monolithic toughened at the minimum thickness the rules give.
+15. Daylight size: ask width and height with a plain help note (clear glass size between the visible frame or sash edges). Area is always calculated from them. If either is missing, prompt for it.
+16. Results: Grade A required (with clauses), No requirement found, Out of scope, Incomplete. The result always ends with an accept prompt (existing design).
+
+**C. Still to decide.**
+- Annealed exception code: keep behind an "offer annealed exceptions" switch set to off, or delete it. PROPOSED BY CLAUDE: keep behind the switch, set to off (reversible; old tests can run with it on).
+- Wind question at the end ("Do wind loads apply?"): (a) ask it and say "wind not assessed here", or (b) leave it out until the handoff to the wind pathways is built. PROPOSED BY CLAUDE: (a).
+- Doorway look-alike extras (opaque or patterned, rail, level difference): corner case only (width over 500, height over 1000, bottom under 500) or every window? No recommendation yet.
+- Picture layers: about 13 SVG layers on one 600 x 800 canvas (3 bases, 2 glazing-method, 5 framing, 3 extras); floor line, height marker and result colour drawn by code. Not confirmed, parked.
+
+**D. Open items and known issues.**
+- Standard text still wanted from Sahil as screenshots: opening lines of 5.3 (confirms 1200); 5.4(e) rail limits (the engine's rail and level limits were never printed and checked); opening lines of 5.5 (may settle the AGWA question about partly framed low-level windows); the 5.15 table (verify span rows, which came from notes); Section 1 definition of "sight size" (5.4 uses it; the tool uses daylight size).
+- 5.3.1(b)(ii) names unframed glazing with exposed edges; the engine also applies it to partly framed (conservative).
+- Code leftovers: the downgrade sentence in app.py hard-codes "1200 mm"; a louvre with missing blade sizes shows "Out of scope" instead of "Incomplete"; the Table 5.4 oversize message mentions "wind load result is still returned"; human-impact-engine-notes.md line 92 refers to the deleted placeholder CSV.
+- Standalone page: results only update after leaving a field, defaults are pre-selected, and there is a scope dialog first. All replaced by the new page.
+- Configurator work (step 4b-5b onwards) is ON HOLD.
+
+**E. Next steps, in order.**
+1. "Less than 300 mm" in engine/shared/side_panel.py. List the flipped test_schedule_translation.py boundary tests (gap 300 becomes False) for Sahil's approval first.
+2. Annealed ground rule. List every test that flips before the edit (human impact tests 1, 2, 5, 6, 7, 9, 29; route tests 1, 5; some translation tests).
+3. Sashless: location rules, bathroom combination with Table 5.4, types per decision 2. Start with a read-only check of data/Sashless_Span_Table.csv (rows labelled MT/LT; the laminated row must be relabelled to mean any laminated). Hand-derived cases first.
+4. Shopfront rules: rewrite the old A/B/C worked cases in short form under decision 1; Sahil checks before code.
+5. New questionnaire page.
+6. Picture layers, once confirmed.
+
+**F. Question order.** Agreed shape; renumber when built:
+1. Scope check (excluded: balustrade, stair glazing, mirror or backed glass, wardrobe door, roller/tilting/sectional door, shower screen or enclosure, window seat, leadlight, faceted or structural silicone, fins and fin-jointed glazing).
+2. Internal or external wall.
+3. Opening type.
+4. How the glass is held (fixed or sash / louvre / sashless; doors fixed or louvre; not asked for shopfronts).
+5. Bottom of visible glass above floor (mm; skipped for doors).
+6. Within 300 mm of the doorway edge? (windows at 1200 or lower; shopfronts not fully framed).
+7. Building use (1500 or lower).
+8. Bathroom, ensuite, spa room or kitchen? (2000 or lower).
+9. High-risk area? (2000 or lower).
+10. Framing and exposed edges.
+11. Daylight width and height / blade width and length / sashless span.
+12. Doorway extras (open decision, section C).
+13. Wind question (open decision, section C).
+
+---
 
 ### v1.52 - 12 October 2026 - Configurator variant: step 4b merged (row-end width tuck-in boxes, no-frame preset beside a mullion), overlap design and bar-clash rule decided
 
