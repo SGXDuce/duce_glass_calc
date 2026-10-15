@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.53 (Human impact questionnaire: PRs #60-63 merged, decisions recorded, open items listed)
+### Version: V1.54 (PRs #65-70 merged; Configurator, schedule and system check removed; decisions recorded)
 ### Last Updated: 15 October 2026
 
 ---
@@ -8,6 +8,68 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.54 - 15 October 2026 - PRs #65-70 merged, Configurator / schedule / system check removed, decisions recorded, standard text checked
+
+Source: master and git history (git log --merges), the Claude Code checks, the screenshots and decisions Sahil gave in chat, 15 October 2026. Tags follow the ledger. This entry names clauses and tables by number only. It holds no AS 1288 clause text and no table values. The only numbers repeated are the location thresholds already in v1.53 (300, 1200, 500, 1000) and the 2000 mm high-risk limit.
+
+**STATUS NOTE.** The Configurator, the window schedule and the system check described in the entries before v1.54 were removed from the code on 15 October 2026 (DECIDED BY SAHIL: the plan is on hold indefinitely). The old entries stay below unchanged, as history. The last state of the code before removal is recoverable from the git tag configurator-archive-2026-10-15 (it points at d88ce4e, the merge of PR #68).
+
+**A. Merged since v1.53.** REPORTED BY CLAUDE CODE (git log --merges; master is at bee563d, the merge of PR #70). All six merges are dated 15 October 2026:
+- PR #65, 2297aef: side panel gap rule is now strictly less than 300 mm (299 yes, 300 no); the 1200 height test stays inclusive. Touched engine/shared/side_panel.py, engine/schedule/translation.py, app.py, human_impact.html, tests and the notes.
+- PR #66, 5286868: removed the annealed / heat-strengthened exception routes (doors, side panel, low-level, Table 5.2) and their four CSVs (Door_Annealed_Exceptions, Low_Level_Residential_Annealed_Exception, Side_Panel_Annealed_Exception, Table_5_2_Annealed_Max_Area). Touched engine/human_impact (init, location_rules, routes), data_loader.py, results.py, app.py, human_impact.html and the human impact tests.
+- PR #67, 7995a9f: sashless glazing goes through the location rules; the 5.15 table labels were changed so the laminated row means any laminated type. Touched data/Sashless_Span_Table.csv, engine/human_impact, data_loader.py, app.py, human_impact.html and tests.
+- PR #68, d88ce4e: louvres skip Clause 5.5 like sashless; one shared "not assessed" note used by both. Touched engine/human_impact (init, location_rules), the engine notes and tests.
+- PR #69, b6b918c: removed the Configurator page, the schedule and system check pages and routes, their templates, the tests for those routes, tools/ui_regression.py, tools/compare.py and tools/compare_full.py. The landing page was changed and tests added to check the removed URLs are gone.
+- PR #70, bee563d: removed the schedule translation layer (engine/schedule/), tests/test_schedule_translation.py (73 tests), tests/fixtures/ and the configurator_safety_net_v6/ folder.
+- State: master has 137 pytest tests plus the 3 standalone runners, all passing in run_tests.bat. REPORTED BY CLAUDE CODE.
+- Test counts, checked in git: pytest collects 255 tests at d88ce4e (before #69) and 137 after #70. PR #69 deleted 47 tests in three files (5 + 6 + 36) and added landing-page tests, leaving 210; PR #70 deleted 73. REPORTED BY CLAUDE CODE.
+- The safety-net folder held 21 files (a README plus 20 JSON files).
+
+**B. Decisions.** All DECIDED BY SAHIL, 15 October 2026:
+1. Side panel gap: strictly less than 300 mm (299 yes, 300 no). The 1200 height test stays inclusive.
+2. No monolithic annealed or monolithic heat-strengthened glass where human impact applies. The exception routes (doors, side panel, low-level, Table 5.2) and their CSVs are deleted. Wording is "not offered by this tool". Laminated annealed and laminated heat-strengthened still count as Grade A where a rule allows them. This SUPERSEDES the v1.53 decision 1 "NOT BUILT YET" note and the v1.53 "still to decide" annealed-switch item (decision: delete, not switch).
+3. Sashless: runs through the location rules as a window or side panel, with framing set to partly inside the engine. A location rule must apply for Grade A; if none does, the result is "no requirement found" with a note listing what is not assessed. Types and thickness come from the 5.15 table: the monolithic toughened rows apply to monolithic toughened only; the laminated row applies to ANY laminated type (less restrictive than before). Bathroom: toughened types only, the larger of the 5.15 and Table 5.4 values per type; span beyond 5.15 is out of scope. Side panel: sashless free edges count as exposed edges (Duce interpretation), toughened only, 10 mm minimum, larger of that and 5.15. Sashless doors are not assessed by this tool. A missing sightline returns not assessed (a stop-gap, to become Incomplete on the new page). This SUPERSEDES v1.53 decision 12's "same location rules including 5.5" and the "always Grade A" statement.
+4. Louvres and sashless glazing are NOT assessed under 5.5 (low-level residential). This is a standing rule and a Duce interpretation, LESS conservative than the printed clause. Every other rule still applies to them. Their no-requirement result lists low-level glazing under "not assessed by this tool".
+5. Low-level windows (5.5) that are not fully framed stay "not assessed by this tool". Record this as a TOOL limit, not a standard limit (see finding F2).
+6. High risk (5.24) stays asked and applied only at 2000 mm or lower. Decision 6 of v1.53 stands; Sahil considered it again and kept it.
+7. The Configurator, schedule and system check are removed (details in section D).
+8. A span of exactly a table limit is covered (the limit is inclusive).
+
+**C. Standard text checked.** Screenshots supplied by Sahil, 15 October 2026: 5.2, 5.3, 5.4, 5.5 and 5.15. REPORTED BY CLAUDE (reading Sahil's screenshots) unless marked. Claude Code compared the two CSVs (Sashless_Span_Table.csv and Mistaken_Doorway_Exceptions.csv) with the printed rows and found them matching row for row (REPORTED BY CLAUDE CODE).
+- F1. The opening line of 5.3.1 uses "less than" for the doorway distance. This confirms the strictly-less-than rule.
+- F2. 5.5 covers all low-level glazing; only its annealed alternative is limited to fully framed. So "not fully framed low-level windows are out of scope" is a tool limit, not a standard limit.
+- F3. 5.3.1(b)(ii) and (b)(iii) carry no height wording of their own (only (a) and (b)(i) do). The engine's 1200 test turns a high side panel into a window, which skips the exposed-edges rule. Interpretation OPEN; engine unchanged.
+- F4. 5.2 does not address partly framed doors explicitly (only unframed doors are restricted to toughened 10 mm). The engine treats partly framed like fully framed (Table 5.1, four Grade A types). OPEN: confirm.
+- F5. 5.3.1 measures the gap to the doorway opening; the removed schedule layer measured to the door leaf's glass edge. Moot now; recorded.
+- F6. 5.15 prints "two horizontal edges unframed". The standalone page takes a typed span, so this only mattered to the removed layer.
+- F7. 5.4.2: Sashless_Span_Table.csv and Mistaken_Doorway_Exceptions.csv match the printed rows. Exception (f) (louvre blades) is handled by the blanket 5.4 skip for louvres, so a louvre with wide blades is also exempt. "Leadlight" is not in the CSV (dropped by an earlier decision).
+
+**D. Removal of the Configurator work.** DECIDED BY SAHIL.
+- Removed: the Configurator page; the schedule and system check pages and routes; the schedule translation layer; their tests (47 tests in three route and page test files in PR #69, 73 translation tests in PR #70); the fixtures; the 21-file safety-net folder; tools/ui_regression.py, tools/compare.py and tools/compare_full.py.
+- Kept: the human impact engine and page; engine/shared/side_panel.py (the height test is used by the page; the gap constant is kept as the recorded rule); all wind, bite and structural engines.
+- The old conflict about the Configurator's "side-panel" label rule is moot.
+- REPORTED BY CLAUDE (Claude in Chrome browser check, results relayed by Sahil): a browser check of the landing page, the pathways, the human impact page and the removed URLs (404), 14-15 October 2026. A timed Fully Framed calculation took 0.2 to 0.5 s with the same Pass / Monolithic Toughened / 4 mm result each time.
+
+**E. Open items and known issues.**
+- OPEN DECISIONS (not yet decided): partly framed doors (F4); the wind question on the new page; the doorway look-alike extras (ask for every window or only in the corner case); picture layers.
+- Still wanted from Sahil: screenshots of 5.6, 5.7 (shopfronts and partitions), 5.8, 5.12, the Section 1 "sight size" definition, and the 5.4(e) rail limits detail.
+- Shopfront rules: worked cases to be rewritten and checked before code.
+- New questionnaire page: blank answers, four results, wall question, blade inputs, kitchen label. Known page issues it replaces: results only update after a field loses focus; defaults are pre-selected; a scope dialog comes first. Fixed-pane engine behaviours to fix there: a missing sightline switches the sightline rules off (fail-open); a missing exposed-edges answer is treated as "no". Sashless already returns not assessed for a missing sightline.
+- Code leftovers: the downgrade sentence in app.py hard-codes "1200 mm"; a louvre with missing blade sizes shows Out of scope instead of Incomplete; the Table 5.4 oversize message mentions a wind load result (also used for sashless).
+- Integration into the wind pathways: design chat first (how results combine with wind thickness, where the questionnaire sits, the accept / override flow).
+- EXPIRY_DATE check (read-only, nothing changed). REPORTED BY CLAUDE CODE: app.py line 25 sets EXPIRY_DATE to 30 September 2026 23:59:59, which is already past. interfaces/flask_app/launcher.py imports it (line 22) and, when the current date is later (line 42), prints "This version has expired", asks the user to contact the maintainer, waits for Enter and exits before the server starts. So a launcher.py launch is blocked today; running the app directly through app.py is not.
+- human-impact-engine-notes.md still holds table-derived numbers from earlier work (the sashless span rows, the louvre size envelope, the bathroom allowance), against the no-values rule. Pre-existing. To be cleaned in a later docs pass.
+- Housekeeping: dist.zip (an old exe, about 33 MB) is tracked in git; the leftover branch worktree-agent-a0f3c5ec3038ef3a0 and the remote claude/* branches; the three .docx files were not opened and may describe old behaviour.
+- The handover file (Window_Schedule_Progress_Handover.md) is an ARCHIVE and is deliberately not edited; its lines about annealed caps and the 1.5 factor are stale history.
+
+**F. Next steps, in order.**
+1. Answer the open decisions.
+2. Shopfront rules (needs the screenshots).
+3. New questionnaire page.
+4. Integration design.
+
+---
 
 ### v1.53 - 15 October 2026 - Human impact questionnaire: PRs #60-63 merged, decisions recorded, open items listed
 

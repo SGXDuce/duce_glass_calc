@@ -148,7 +148,7 @@ def _build_types_list(allow, min_thickness_by_type, table, ok_why=None):
                 types.append({
                     'id': type_id, 'name': name, 'ok': False,
                     'min_thickness': None,
-                    'why': f"not permitted under Table {table} for this configuration",
+                    'why': f"not offered by this tool for this configuration (Table {table})",
                 })
         else:
             types.append({
