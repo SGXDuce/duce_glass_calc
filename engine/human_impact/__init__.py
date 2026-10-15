@@ -29,6 +29,7 @@ from engine.shared.data_loader import (
 from engine.shared.results import make_human_impact_result
 from engine.human_impact.location_rules import (
     match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES, NOT_OFFERED_SENTENCE,
+    LOW_LEVEL_NOT_ASSESSED_NOTE,
 )
 from engine.human_impact.routes import resolve_table_and_thickness
 
@@ -52,13 +53,6 @@ SASHLESS_ROW_FOR_TYPE = {
     'laminated_heat_strengthened': 'L',
     'laminated_toughened': 'L',
 }
-
-SASHLESS_NOT_ASSESSED_NOTE = (
-    "Not assessed by this tool for sashless glazing: the fixed vanity or "
-    "bench exemption, the permanent barrier exemption, and low-level "
-    "glazing (Clause 5.5), which is not applied to louvres or sashless "
-    "glazing."
-)
 
 
 def _load_data(data_dir=None):
@@ -279,6 +273,7 @@ def determine_louvre(ctx, data_dir=None):
     if not grade_a_required:
         types = _all_types_ok_no_restriction()
         notes = list(r['notes']) + [
+            LOW_LEVEL_NOT_ASSESSED_NOTE,
             "Clause 5.12: in all other (non-Grade-A) areas, annealed glass may be used."
         ]
         return make_human_impact_result(
@@ -414,7 +409,7 @@ def determine_sashless(span_mm, ctx, data_dir=None):
         return make_human_impact_result(
             scope=True, grade_a_required=False, table=None,
             types=_all_types_ok_no_restriction(),
-            notes=list(r['notes']) + [SASHLESS_NOT_ASSESSED_NOTE],
+            notes=list(r['notes']) + [LOW_LEVEL_NOT_ASSESSED_NOTE],
             trail=trail, clauses=clauses,
         )
 
