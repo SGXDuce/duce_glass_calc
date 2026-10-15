@@ -25,15 +25,12 @@ from engine.shared.data_loader import (
     load_bathroom_toughened_allowance,
     load_mistaken_doorway_exceptions,
     load_sashless_span_table,
-    load_door_annealed_exceptions,
 )
 from engine.shared.results import make_human_impact_result
 from engine.human_impact.location_rules import (
     match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES,
 )
-from engine.human_impact.routes import combine_alts, resolve_table_and_thickness
-
-import pandas as pd
+from engine.human_impact.routes import resolve_table_and_thickness
 
 _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data')
 
@@ -46,9 +43,9 @@ TYPE_NAMES = {
     'laminated_toughened': 'Laminated Toughened',
 }
 
-# Which broad glass-type id each ALL_TYPES entry belongs to, for
-# combine_alts()'s single monolithic/laminated-agnostic cap dict - both
-# annealed and heat-strengthened share whatever cap combine_alts() returns.
+# The four annealed / heat-strengthened type ids (monolithic and laminated).
+# determine_sashless() reports all four as not one of the combinations
+# listed for sashless glazing.
 ANNEALED_HS_TYPES = [
     'monolithic_annealed', 'monolithic_heat_strengthened',
     'laminated_annealed', 'laminated_heat_strengthened',
@@ -67,9 +64,6 @@ def _load_data(data_dir=None):
         'bathroom_toughened_allowance': load_bathroom_toughened_allowance(os.path.join(d, 'Bathroom_Toughened_Allowance.csv')),
         'mistaken_doorway': load_mistaken_doorway_exceptions(os.path.join(d, 'Mistaken_Doorway_Exceptions.csv')),
         'sashless_span': load_sashless_span_table(os.path.join(d, 'Sashless_Span_Table.csv')),
-        'door_annealed': load_door_annealed_exceptions(os.path.join(d, 'Door_Annealed_Exceptions.csv')),
-        'side_panel_annealed': pd.read_csv(os.path.join(d, 'Side_Panel_Annealed_Exception.csv')),
-        'low_level_annealed': pd.read_csv(os.path.join(d, 'Low_Level_Residential_Annealed_Exception.csv')),
     }
 
 
@@ -114,11 +108,16 @@ def _table_5_4_thickness_for_type(data, type_id, area_m2):
     return float(qualifying.iloc[0]['nominal_thickness_mm'])
 
 
-def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, matches_used,
-                      ok_why=None):
+MONOLITHIC_ANNEALED_HS_NOT_OFFERED = (
+    "Monolithic annealed and monolithic heat-strengthened glass is not "
+    "offered by this tool where human impact applies."
+)
+
+
+def _build_types_list(allow, min_thickness_by_type, table, ok_why=None):
     """
-    Builds the six-type result list shared by determine_fixed()'s and
-    determine_louvre()'s Grade-A-required branches.
+    Builds the six-type result list shared by determine_fixed()'s
+    Grade-A-required branch.
 
     allow: list of Grade-A type ids eligible after every matching rule's
     type filter has been intersected (a subset of GRADE_A_CAPABLE_TYPES -
@@ -126,10 +125,11 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
     min_thickness_by_type: dict of type_id -> min thickness for the
     Grade-A types in `allow` (already resolved, including the Table 5.4
     area-conditional case).
-    combo: combine_alts() result - None (blocked), {} (no route offered),
-    or a cap dict.
     ok_why: note shown on an allowed type whose thickness could not be
     set (e.g. dimensions missing).
+
+    Monolithic annealed and monolithic heat-strengthened are never offered
+    at a Grade A location.
     """
     types = []
     for type_id in ALL_TYPES:
@@ -139,70 +139,26 @@ def _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_
                 types.append({
                     'id': type_id, 'name': name, 'ok': True,
                     'min_thickness': min_thickness_by_type[type_id],
-                    'cap': None,
                     'why': ok_why if min_thickness_by_type[type_id] is None else None,
                 })
             else:
                 types.append({
                     'id': type_id, 'name': name, 'ok': False,
-                    'min_thickness': None, 'cap': None,
+                    'min_thickness': None,
                     'why': f"not permitted under Table {table} for this configuration",
                 })
         else:
-            # monolithic annealed / heat-strengthened (not safety glass, so
-            # only reachable through an exception band). combine_alts() has already
-            # tested every candidate band against the actual panel
-            # area/width - combo is None if nothing fit (either blocked
-            # outright by some rule offering no alternative at all, or no
-            # band accommodated these dimensions), so no further area/
-            # width re-check is needed here (see routes.combine_alts
-            # docstring for the "test against actual dimensions" guard).
-            if combo is None or not combo:
-                reason = _annealed_blocked_reason(matches_used, panel_area_m2, panel_width_mm)
-                types.append({
-                    'id': type_id, 'name': name, 'ok': False,
-                    'min_thickness': None, 'cap': None, 'why': reason,
-                })
-            else:
-                types.append({
-                    'id': type_id, 'name': name, 'ok': True,
-                    'min_thickness': combo['min_thickness_mm'],
-                    'cap': {'max_area_m2': combo['max_area_m2'], 'max_width_mm': combo['max_width_mm']},
-                    'why': None,
-                })
+            types.append({
+                'id': type_id, 'name': name, 'ok': False,
+                'min_thickness': None, 'why': MONOLITHIC_ANNEALED_HS_NOT_OFFERED,
+            })
     return types
-
-
-def _annealed_blocked_reason(matches, panel_area_m2, panel_width_mm):
-    """
-    Builds a human-readable reason for why no annealed/heat-strengthened
-    route survived, distinguishing "some rule offers no alternative at
-    all" from "no band's area/width accommodated this panel".
-    """
-    grade_a_matches = [m for m in matches if m['grade_a']]
-    no_alt_clauses = [m['clause'] for m in grade_a_matches if not m['alt']]
-    if no_alt_clauses:
-        return (f"Grade A required with no annealed/heat-strengthened alternative "
-                f"offered at all under Clause(s) {', '.join(no_alt_clauses)}")
-
-    empty_alt_clauses = [m['clause'] for m in grade_a_matches if m['alt'] and not m['alt_rows']]
-    if empty_alt_clauses:
-        return (f"Clause(s) {', '.join(empty_alt_clauses)} offer an alternative in "
-                f"principle but no exception band applies to this framing")
-
-    dims = []
-    if panel_area_m2 is not None:
-        dims.append(f"area {panel_area_m2}m2")
-    if panel_width_mm is not None:
-        dims.append(f"width {panel_width_mm}mm")
-    dims_str = " / ".join(dims) if dims else "these panel dimensions"
-    return f"no annealed/heat-strengthened exception band accommodates {dims_str}"
 
 
 def _all_types_ok_no_restriction():
     return [
         {'id': t, 'name': TYPE_NAMES[t], 'ok': True, 'min_thickness': None,
-         'cap': None, 'why': None}
+         'why': None}
         for t in ALL_TYPES
     ]
 
@@ -213,8 +169,9 @@ def determine_fixed(ctx, data_dir=None):
     for a fixed panel or sash, per AS 1288 Section 5.
 
     ctx: dict of inputs - see location_rules.match_location() for the full
-    field list. Also expects (for the annealed/heat-strengthened
-    area/width tests): panel_area_m2, panel_width_mm.
+    field list. Also expects panel_area_m2 (used for the Table 5.4
+    thickness) and panel_width_mm (carried in the ctx, not used by the
+    engine).
 
     Returns a dict built by make_human_impact_result().
     """
@@ -247,9 +204,6 @@ def determine_fixed(ctx, data_dir=None):
     allow = list(allow)
 
     panel_area_m2 = ctx.get('panel_area_m2')
-    panel_width_mm = ctx.get('panel_width_mm')
-
-    combo = combine_alts(r['matches'], panel_area_m2, panel_width_mm)
 
     min_thickness_by_type = {}
     ok_why = None
@@ -278,8 +232,7 @@ def determine_fixed(ctx, data_dir=None):
         for type_id in allow:
             min_thickness_by_type[type_id] = min_thickness
 
-    types = _build_types_list(allow, min_thickness_by_type, combo, panel_area_m2, panel_width_mm, table, r['matches'],
-                              ok_why=ok_why)
+    types = _build_types_list(allow, min_thickness_by_type, table, ok_why=ok_why)
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=table, types=types,
@@ -364,12 +317,12 @@ def determine_louvre(ctx, data_dir=None):
         if type_id == 'monolithic_toughened':
             types.append({
                 'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': True,
-                'min_thickness': final_min, 'cap': None, 'why': None,
+                'min_thickness': final_min, 'why': None,
             })
         else:
             types.append({
                 'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
-                'min_thickness': None, 'cap': None,
+                'min_thickness': None,
                 'why': "Clause 5.12 permits toughened only",
             })
 
@@ -404,21 +357,21 @@ def determine_sashless(span_mm, data_dir=None):
             best = qualifying.iloc[0]
             types.append({
                 'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': True,
-                'min_thickness': float(best['min_thickness_mm']), 'cap': None, 'why': None,
+                'min_thickness': float(best['min_thickness_mm']), 'why': None,
             })
             any_ok = True
         else:
             highest_span = float(type_rows['max_span_mm'].max())
             types.append({
                 'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
-                'min_thickness': None, 'cap': None,
+                'min_thickness': None,
                 'why': f"span exceeds {highest_span:g}mm - outside AS 1288",
             })
 
     for type_id in ANNEALED_HS_TYPES:
         types.append({
             'id': type_id, 'name': TYPE_NAMES[type_id], 'ok': False,
-            'min_thickness': None, 'cap': None,
+            'min_thickness': None,
             'why': "not one of the glass combinations listed for sashless glazing under Clause 5.15",
         })
 

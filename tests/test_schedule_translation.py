@@ -108,7 +108,11 @@ def test_t2_fixed_window():
     assert annealed['ok'] is False
 
 
-def test_t2b_opaque_still_blocked_by_area():
+def test_t2b_opaque_monolithic_annealed_not_offered():
+    # Hand calculation: window 1080 x 1380 = 1.4904 m2, sightline 360,
+    # residential, fully framed, opaque answer given -> 5.4 exempt (opaque);
+    # sightline below 500 -> 5.5 only -> Grade A, Table 5.1. Monolithic
+    # annealed ok=False (not offered by this tool), whatever the area.
     pane = make_pane(
         productClass='window', type='fixed',
         xMM=60, yMM=60, widthMM=1080, heightMM=1380,
@@ -123,7 +127,11 @@ def test_t2b_opaque_still_blocked_by_area():
     assert annealed['ok'] is False
 
 
-def test_t2c_short_pane_allows_annealed():
+def test_t2c_short_pane_annealed_not_offered():
+    # Hand calculation: window 1080 x 880 = 0.9504 m2, sightline 360,
+    # residential, fully framed, opaque answer given -> 5.4 exempt (opaque);
+    # sightline below 500 -> 5.5 only -> Grade A, Table 5.1. Monolithic
+    # annealed ok=False (not offered by this tool), even for a short pane.
     pane = make_pane(
         productClass='window', type='fixed',
         xMM=60, yMM=60, widthMM=1080, heightMM=880,
@@ -135,8 +143,8 @@ def test_t2c_short_pane_allows_annealed():
 
     engine_result = determine_fixed(ctx)
     annealed = next(t for t in engine_result['types'] if t['id'] == 'monolithic_annealed')
-    assert annealed['ok'] is True
-    assert annealed['min_thickness'] == 5
+    assert annealed['ok'] is False
+    assert annealed['min_thickness'] is None
 
 
 # ---------------------------------------------------------------------------
@@ -242,9 +250,13 @@ def test_t4_side_panel_gap_boundary():
     assert ctx_301['is_side_panel'] is False
 
     engine_301 = determine_fixed(ctx_301)
+    # Hand calculation: gap 301 -> not a side panel, so a window. Sight width
+    # 330 <= 500 -> 5.4 exempt. Sightline 60 < 500, residential, fully
+    # framed -> 5.5 only -> Grade A, Table 5.1. Monolithic annealed ok=False
+    # (not offered by this tool). Area 330 x 2000 = 0.66 m2.
     assert '5.4' not in engine_301['clauses']  # exempt: sight width 330 <= 500
     annealed = next(t for t in engine_301['types'] if t['id'] == 'monolithic_annealed')
-    assert annealed['ok'] is True
+    assert annealed['ok'] is False
     assert round(ctx_301['panel_area_m2'], 4) == 0.66
 
 

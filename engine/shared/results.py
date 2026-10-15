@@ -372,9 +372,8 @@ def make_human_impact_result(scope=True, grade_a_required=None, table=None,
     grade_a_required: None only when scope is False. Otherwise True/False.
 
     types: list of dicts, one per glass type actually reported on this
-    call - {id, name, ok, min_thickness, cap, why}. 'cap' is the
-    area/width cap dict (or None) for annealed/heat-strengthened
-    alternative routes; 'why' explains an ok=False result (or None).
+    call - {id, name, ok, min_thickness, why}. 'why' explains an
+    ok=False result (or None).
 
     notes: informational, non-blocking messages (e.g. the bathroom
     vanity/bench exemption note, the high-risk permanent-barrier note).

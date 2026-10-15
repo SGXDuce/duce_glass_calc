@@ -3,9 +3,9 @@
 #
 # AS 1288 Section 5 (Human Impact) location rule matching. Shared by
 # determine_fixed() and determine_louvre() - see package __init__.py.
-# This module owns the actual clause-by-clause logic; combine_alts() and
-# resolve_table_and_thickness() in routes.py then reduce the list of
-# matches this produces into one governing answer.
+# This module owns the actual clause-by-clause logic; resolve_table_and_thickness()
+# in routes.py then reduces the list of matches this produces into one
+# governing table and thickness.
 #
 # Standalone engine - engine/human_impact must never import from
 # engine/wind_load, engine/silicone_bite, or engine/combined, and nothing
@@ -15,15 +15,13 @@
 #
 # Duce Timber Windows and Doors
 
-import pandas as pd
-
 # Glass type ids that count as Grade A safety glass in their own right.
 # Toughened glass qualifies because of how it breaks; laminated glass
 # qualifies whatever its ply type, because the interlayer holds the broken
 # pieces in place - so laminated annealed and laminated heat-strengthened
 # belong here alongside the two toughened types. Monolithic annealed and
-# monolithic heat-strengthened are not safety glass and only ever reach a
-# Grade A location through an annealed exception band (see combine_alts).
+# monolithic heat-strengthened are never offered where human impact applies
+# (decision, 15 Oct 2026), so they are not in this list.
 GRADE_A_CAPABLE_TYPES = [
     'monolithic_toughened', 'laminated_annealed',
     'laminated_heat_strengthened', 'laminated_toughened',
@@ -62,22 +60,22 @@ LOW_LEVEL_OOS_MESSAGE = (
     "requirement here - assess it separately."
 )
 
+# Closing sentence on every Grade A trail line. Where human impact applies
+# this tool never offers monolithic annealed or monolithic heat-strengthened.
+NOT_OFFERED_SENTENCE = (
+    "Monolithic annealed and monolithic heat-strengthened are not offered by this tool."
+)
+
 LOUVRE_54_SKIP_NOTE = (
     "Louvres are never assessed against Clause 5.4 - a louvre assembly "
     "cannot present as a solid doorway or opening."
 )
 
 
-def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None,
-           alt=False, alt_rows=None, alt_source=None):
+def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None):
     """
     One matching rule's contribution. type_filter is a list of glass type
-    ids this rule restricts eligibility to (None = no restriction). alt
-    marks whether this rule offers an annealed/heat-strengthened
-    alternative at all; alt_rows carries the actual exception band rows
-    (already normalised to dicts with min_thickness_mm/max_area_m2/
-    max_width_mm) when alt is True and rows were loaded. alt_source names
-    which CSV/clause the alt rows came from, for trail/why messages.
+    ids this rule restricts eligibility to (None = no restriction).
     """
     return {
         'clause': clause,
@@ -85,9 +83,6 @@ def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None,
         'table': table,
         'type_filter': type_filter,
         'min_thickness': min_thickness,
-        'alt': alt,
-        'alt_rows': alt_rows if alt_rows is not None else [],
-        'alt_source': alt_source,
     }
 
 
@@ -96,20 +91,13 @@ def match_location(ctx, data):
     Runs every AS 1288 Section 5 location clause against ctx and returns:
       {
         "matches": [...],  # list of _match() dicts, grade_a True or False
-        "alts": [],         # reserved for future non-rule-attached alt
-                             # sources; currently every alt route travels
-                             # on its owning match's alt_rows, so this is
-                             # always empty - combine_alts() reads alt_rows
-                             # off matches directly. Kept in the return
-                             # shape per the spec's documented contract.
         "oos": [...],       # list of out-of-scope reason strings
         "notes": [...],     # informational, non-blocking notes
         "trail": [...],     # ordered human-readable audit trail
       }
 
     data: dict of preloaded DataFrames, keyed
-      'mistaken_doorway', 'door_annealed',
-      'side_panel_annealed', 'low_level_annealed'
+      'mistaken_doorway'
     (callers load these once via engine/shared/data_loader.py and pass
     them in - this function does no file I/O itself).
     """
@@ -139,9 +127,9 @@ def match_location(ctx, data):
     # --- Bathroom (Clause 5.8) ---
     if bathroom_triggered:
         if framing == 'fully':
-            matches.append(_match('5.8', grade_a=True, table='5.1', alt=False))
+            matches.append(_match('5.8', grade_a=True, table='5.1'))
             trail.append("Clause 5.8 (bathroom, fully framed, sightline <=2000mm): "
-                          "Grade A required, Table 5.1, no alternative offered.")
+                          "Grade A required, Table 5.1. " + NOT_OFFERED_SENTENCE)
         else:
             # No fixed thickness here: the thickness depends on panel area
             # and glass type, so the engine works it out per type from the
@@ -151,11 +139,11 @@ def match_location(ctx, data):
             matches.append(_match(
                 '5.8', grade_a=True, table='5.4',
                 type_filter=TOUGHENED_TYPES,
-                min_thickness=None, alt=False,
+                min_thickness=None,
             ))
             trail.append("Clause 5.8 (bathroom, partly/unframed, sightline <=2000mm): "
                           "Grade A required, Table 5.4, types restricted to "
-                          "monolithic/laminated toughened.")
+                          "monolithic/laminated toughened. " + NOT_OFFERED_SENTENCE)
         notes.append(VANITY_EXEMPTION_NOTE)
     elif is_bathroom:
         if sightline_mm is None:
@@ -171,68 +159,43 @@ def match_location(ctx, data):
             matches.append(_match(
                 '5.2', grade_a=True, table='5.1',
                 type_filter=TOUGHENED_TYPES,
-                min_thickness=10, alt=False,
+                min_thickness=10,
             ))
             trail.append("Clause 5.2 (unframed door): Grade A required, Table 5.1, "
                           "types restricted to monolithic/laminated toughened at "
                           "10mm minimum. This type restriction governs regardless "
                           "of what any other matching clause (e.g. school/aged-care) "
                           "would otherwise permit - most-restrictive-wins, this is "
-                          "correct behaviour, not a bug.")
+                          "correct behaviour, not a bug. " + NOT_OFFERED_SENTENCE)
         else:
-            alt_rows = []
-            if framing == 'fully':
-                df_door = data['door_annealed']
-                for _, row in df_door.iterrows():
-                    alt_rows.append({
-                        'min_thickness_mm': float(row['min_thickness_mm']),
-                        'max_area_m2': None if pd.isna(row['max_area_m2']) else float(row['max_area_m2']),
-                        'max_width_mm': None if pd.isna(row['max_width_mm']) else float(row['max_width_mm']),
-                        'notes_plain': row['notes_plain'],
-                    })
-            matches.append(_match(
-                '5.2', grade_a=True, table='5.1', alt=True,
-                alt_rows=alt_rows, alt_source='Door_Annealed_Exceptions.csv',
-            ))
+            matches.append(_match('5.2', grade_a=True, table='5.1'))
             trail.append(
                 f"Clause 5.2 ({framing} framed door): Grade A required, Table 5.1, "
-                f"alternative offered={'yes, ' + str(len(alt_rows)) + ' band(s) loaded' if alt_rows else 'no (not fully framed)' if framing != 'fully' else 'yes but no bands loaded'}."
+                "no type filter. " + NOT_OFFERED_SENTENCE
             )
 
     # --- Side panels (Clause 5.3.1) ---
     if is_side_panel:
         if framing == 'fully':
-            df_sp = data['side_panel_annealed']
-            row = df_sp.iloc[0]
-            alt_rows = [{
-                'min_thickness_mm': float(row['min_thickness_mm']),
-                'max_area_m2': float(row['max_area_m2']),
-                'max_width_mm': None,
-                'notes_plain': row['notes_plain'],
-            }]
-            matches.append(_match(
-                '5.3.1', grade_a=True, table='5.1', alt=True,
-                alt_rows=alt_rows, alt_source='Side_Panel_Annealed_Exception.csv',
-            ))
+            matches.append(_match('5.3.1', grade_a=True, table='5.1'))
             trail.append("Clause 5.3.1 (fully framed side panel): Grade A required, "
-                          "Table 5.1, annealed/heat-strengthened alternative up to "
-                          f"{alt_rows[0]['max_area_m2']}m2 at {alt_rows[0]['min_thickness_mm']}mm offered.")
+                          "Table 5.1. " + NOT_OFFERED_SENTENCE)
         else:
             exposed_edges = ctx.get('exposed_edges')
             if exposed_edges == 'y':
                 matches.append(_match(
                     '5.3.1', grade_a=True, table='5.3',
                     type_filter=TOUGHENED_TYPES,
-                    min_thickness=10, alt=False,
+                    min_thickness=10,
                 ))
                 trail.append("Clause 5.3.1 (partly/unframed side panel, exposed edges): "
                               "Grade A required, Table 5.3, types restricted to "
-                              "monolithic/laminated toughened at 10mm minimum, no alternative.")
+                              "monolithic/laminated toughened at 10mm minimum. " + NOT_OFFERED_SENTENCE)
             else:
-                matches.append(_match('5.3.1', grade_a=True, table='5.3', alt=False))
+                matches.append(_match('5.3.1', grade_a=True, table='5.3'))
                 trail.append("Clause 5.3.1 (partly/unframed side panel, no exposed "
-                              "edges): Grade A required, Table 5.3, no type filter, "
-                              "no alternative.")
+                              "edges): Grade A required, Table 5.3, no type filter. "
+                              + NOT_OFFERED_SENTENCE)
 
     # --- Mistaken for a doorway (Clause 5.4) ---
     if opening_type == 'window' and not is_side_panel:
@@ -248,10 +211,10 @@ def match_location(ctx, data):
                 trail.append(f"Clause 5.4 (mistaken for a doorway): exempt - {reason}")
             else:
                 table_54 = '5.1' if framing == 'fully' else '5.3'
-                matches.append(_match('5.4', grade_a=True, table=table_54, alt=False))
+                matches.append(_match('5.4', grade_a=True, table=table_54))
                 trail.append(f"Clause 5.4 (mistaken for a doorway): no exception "
                               f"satisfied ({reason}) - Grade A required, Table {table_54}, "
-                              f"no type filter, no alternative.")
+                              f"no type filter. " + NOT_OFFERED_SENTENCE)
 
     # --- Low-level residential (Clause 5.5) ---
     low_level_triggered = (building_use == 'residential' and sightline_mm is not None
@@ -259,38 +222,14 @@ def match_location(ctx, data):
     if low_level_triggered:
         if is_side_panel:
             if framing == 'fully':
-                df_ll = data['low_level_annealed']
-                row = df_ll.iloc[0]
-                alt_rows = [{
-                    'min_thickness_mm': float(row['min_thickness_mm']),
-                    'max_area_m2': float(row['max_area_m2']),
-                    'max_width_mm': None,
-                    'notes_plain': row['notes_plain'],
-                }]
-                matches.append(_match(
-                    '5.5', grade_a=True, table='5.1', alt=True,
-                    alt_rows=alt_rows, alt_source='Low_Level_Residential_Annealed_Exception.csv',
-                ))
+                matches.append(_match('5.5', grade_a=True, table='5.1'))
             trail.append("Low-level glazing (below 500mm) - also a side panel, so "
                           "Clause 5.3.1 governs and Clause 5.5 adds nothing further.")
         else:
             if framing == 'fully':
-                df_ll = data['low_level_annealed']
-                row = df_ll.iloc[0]
-                alt_rows = [{
-                    'min_thickness_mm': float(row['min_thickness_mm']),
-                    'max_area_m2': float(row['max_area_m2']),
-                    'max_width_mm': None,
-                    'notes_plain': row['notes_plain'],
-                }]
-                matches.append(_match(
-                    '5.5', grade_a=True, table='5.1', alt=True,
-                    alt_rows=alt_rows, alt_source='Low_Level_Residential_Annealed_Exception.csv',
-                ))
+                matches.append(_match('5.5', grade_a=True, table='5.1'))
                 trail.append("Clause 5.5 (low-level residential window, fully framed): "
-                              "Grade A required, Table 5.1, annealed/heat-strengthened "
-                              f"alternative up to {alt_rows[0]['max_area_m2']}m2 at "
-                              f"{alt_rows[0]['min_thickness_mm']}mm offered.")
+                              "Grade A required, Table 5.1. " + NOT_OFFERED_SENTENCE)
             else:
                 oos.append(LOW_LEVEL_OOS_MESSAGE)
                 trail.append("Clause 5.5 (low-level residential window, not fully "
@@ -300,29 +239,28 @@ def match_location(ctx, data):
     if building_use == 'school' and ((sightline_mm is not None and sightline_mm <= 1000)
                                        or opening_type == 'door'):
         table_school = '5.1' if framing == 'fully' else '5.3'
-        matches.append(_match('5.10.2', grade_a=True, table=table_school, alt=False))
+        matches.append(_match('5.10.2', grade_a=True, table=table_school))
         trail.append(f"Clause 5.10.2 (school/early childhood): Grade A required, "
-                      f"Table {table_school}, no type filter, no alternative.")
+                      f"Table {table_school}, no type filter. " + NOT_OFFERED_SENTENCE)
 
     # --- Aged care and nursing homes (Clause 5.10.3) ---
     if building_use == 'aged' and ((sightline_mm is not None and sightline_mm <= 1500)
                                      or opening_type == 'door'):
         table_aged = '5.1' if framing == 'fully' else '5.3'
-        matches.append(_match('5.10.3', grade_a=True, table=table_aged, alt=False))
+        matches.append(_match('5.10.3', grade_a=True, table=table_aged))
         trail.append(f"Clause 5.10.3 (aged care/nursing home): Grade A required, "
-                      f"Table {table_aged}, no type filter, no alternative.")
+                      f"Table {table_aged}, no type filter. " + NOT_OFFERED_SENTENCE)
 
     # --- High risk of breakage (Clause 5.24) ---
     if high_risk:
         table_hr = '5.1' if framing == 'fully' else '5.3'
-        matches.append(_match('5.24', grade_a=True, table=table_hr, alt=False))
+        matches.append(_match('5.24', grade_a=True, table=table_hr))
         trail.append(f"Clause 5.24 (high risk of breakage): Grade A required, "
-                      f"Table {table_hr}, no type filter, no alternative.")
+                      f"Table {table_hr}, no type filter. " + NOT_OFFERED_SENTENCE)
         notes.append(HIGH_RISK_NOTE)
 
     return {
         'matches': matches,
-        'alts': [],
         'oos': oos,
         'notes': notes,
         'trail': trail,

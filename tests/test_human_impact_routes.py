@@ -50,8 +50,10 @@ def get_type(result, type_id):
 # ---------------------------------------------------------------------------
 
 def test_1():
-    # Mirrors test_human_impact.test_1: door, fully framed, 0.08m2/100mm ->
-    # monolithic annealed ok=True at 3mm.
+    # Mirrors test_human_impact.test_1. Hand calculation: door, fully
+    # framed, residential, sightline 0, 100 x 800mm = 0.08 m2 -> Clause 5.2
+    # only -> Grade A, Table 5.1, four Grade A types ok=True; monolithic
+    # annealed ok=False (not offered by this tool).
     data = post({
         'opening_type': 'door',
         'reclassified_as_side_panel': False,
@@ -70,10 +72,13 @@ def test_1():
     ma = get_type(data['results']['fixed'], 'monolithic_annealed')
     checks = [
         ('success', True, data['success'], data['success'] is True),
-        ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
-        ('monolithic_annealed min_thickness', 3.0, ma['min_thickness'], ma['min_thickness'] == 3.0),
+        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_annealed why', True, 'not offered by this tool' in (ma['why'] or ''),
+         'not offered by this tool' in (ma['why'] or '')),
+        ('allowed types', ['laminated_annealed', 'laminated_heat_strengthened', 'laminated_toughened', 'monolithic_toughened'], sorted(t['id'] for t in data['results']['fixed']['types'] if t['ok']),
+         sorted(t['id'] for t in data['results']['fixed']['types'] if t['ok']) == ['laminated_annealed', 'laminated_heat_strengthened', 'laminated_toughened', 'monolithic_toughened']),
     ]
-    report('1', 'POST /human_impact/check - door, fully framed, 0.08m² -> annealed 3mm', checks)
+    report('1', 'POST /human_impact/check - door, fully framed, 0.08m² -> monolithic annealed not offered', checks)
 
 
 def test_2():
@@ -191,8 +196,12 @@ def test_5():
          'fixed' in data['results'] and 'louvre' in data['results']),
         ('reclassified window matched as side panel (5.3.1)', True,
          '5.3.1' in fixed['clauses'], '5.3.1' in fixed['clauses']),
-        ('fixed: monolithic_annealed ok at 5mm (0.25m² side panel cap)', (True, 5.0),
-         (ma['ok'], ma['min_thickness']), ma['ok'] is True and ma['min_thickness'] == 5.0),
+        # Hand calculation: window reclassified as side panel, sightline 1200
+        # (within the limit, stays a side panel), fully framed, 500 x 500mm
+        # = 0.25 m2 -> Clause 5.3.1 only -> Grade A, Table 5.1; monolithic
+        # annealed ok=False (not offered by this tool).
+        ('fixed: monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('fixed: table', '5.1', fixed['table'], fixed['table'] == '5.1'),
         ('louvre result independently returned', True, 'grade_a_required' in louvre, 'grade_a_required' in louvre),
     ]
     report('5', 'POST /human_impact/check - multiple methods + window reclassification', checks)

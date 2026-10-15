@@ -144,23 +144,3 @@ def load_sashless_span_table(csv_path):
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col])
     return df
-
-
-def load_door_annealed_exceptions(csv_path):
-    """
-    Loads AS 1288 Clause 5.2(f)/(g) annealed/heat-strengthened door
-    exception bands from CSV. Returns a pandas DataFrame with columns:
-    exception_id, min_thickness_mm, max_area_m2, max_width_mm,
-    framing_required, notes_plain. max_width_mm is NaN for the top band
-    (no width limit).
-
-    Duce interpretation (see data/Door_Annealed_Exceptions.csv notes):
-    applies to monolithic annealed AND monolithic heat-strengthened -
-    heat-strengthened tracks annealed for every human impact exception in
-    this engine.
-    """
-    df = pd.read_csv(csv_path)
-    numeric_columns = ['min_thickness_mm', 'max_area_m2', 'max_width_mm']
-    for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-    return df
