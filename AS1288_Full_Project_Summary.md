@@ -49,7 +49,7 @@ Source: master and git history (git log --merges), the Claude Code checks, the s
 - Removed: the Configurator page; the schedule and system check pages and routes; the schedule translation layer; their tests (47 tests in three route and page test files in PR #69, 73 translation tests in PR #70); the fixtures; the 21-file safety-net folder; tools/ui_regression.py, tools/compare.py and tools/compare_full.py.
 - Kept: the human impact engine and page; engine/shared/side_panel.py (the height test is used by the page; the gap constant is kept as the recorded rule); all wind, bite and structural engines.
 - The old conflict about the Configurator's "side-panel" label rule is moot.
-- VERIFIED BY SAHIL: a browser check (Claude in Chrome) of the landing page, the pathways, the human impact page and the removed URLs (404), 14-15 October 2026. A timed Fully Framed calculation took 0.2 to 0.5 s with the same Pass / Monolithic Toughened / 4 mm result each time.
+- REPORTED BY CLAUDE (Claude in Chrome browser check, results relayed by Sahil): a browser check of the landing page, the pathways, the human impact page and the removed URLs (404), 14-15 October 2026. A timed Fully Framed calculation took 0.2 to 0.5 s with the same Pass / Monolithic Toughened / 4 mm result each time.
 
 **E. Open items and known issues.**
 - OPEN DECISIONS (not yet decided): partly framed doors (F4); the wind question on the new page; the doorway look-alike extras (ask for every window or only in the corner case); picture layers.
@@ -59,6 +59,7 @@ Source: master and git history (git log --merges), the Claude Code checks, the s
 - Code leftovers: the downgrade sentence in app.py hard-codes "1200 mm"; a louvre with missing blade sizes shows Out of scope instead of Incomplete; the Table 5.4 oversize message mentions a wind load result (also used for sashless).
 - Integration into the wind pathways: design chat first (how results combine with wind thickness, where the questionnaire sits, the accept / override flow).
 - EXPIRY_DATE check (read-only, nothing changed). REPORTED BY CLAUDE CODE: app.py line 25 sets EXPIRY_DATE to 30 September 2026 23:59:59, which is already past. interfaces/flask_app/launcher.py imports it (line 22) and, when the current date is later (line 42), prints "This version has expired", asks the user to contact the maintainer, waits for Enter and exits before the server starts. So a launcher.py launch is blocked today; running the app directly through app.py is not.
+- human-impact-engine-notes.md still holds table-derived numbers from earlier work (the sashless span rows, the louvre size envelope, the bathroom allowance), against the no-values rule. Pre-existing. To be cleaned in a later docs pass.
 - Housekeeping: dist.zip (an old exe, about 33 MB) is tracked in git; the leftover branch worktree-agent-a0f3c5ec3038ef3a0 and the remote claude/* branches; the three .docx files were not opened and may describe old behaviour.
 - The handover file (Window_Schedule_Progress_Handover.md) is an ARCHIVE and is deliberately not edited; its lines about annealed caps and the 1.5 factor are stale history.
 
