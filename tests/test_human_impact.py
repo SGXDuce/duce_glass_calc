@@ -10,6 +10,7 @@ from engine.human_impact import (
     determine_fixed, determine_louvre, determine_sashless,
     _load_data, NEEDS_DIMENSIONS_REASON,
 )
+from engine.human_impact.location_rules import LOW_LEVEL_OOS_MESSAGE
 
 
 # ---------------------------------------------------------------------------
@@ -1146,6 +1147,137 @@ def test_B12():
 # MAIN
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# TESTS L1-L6 — Louvres skip Clause 5.5 (low-level residential)
+# ---------------------------------------------------------------------------
+
+def louvre_ctx(**overrides):
+    """Residential louvre window, sight 1000 x 1000, blades 150 x 900."""
+    overrides.setdefault('opening_type', 'window')
+    overrides.setdefault('sight_width_mm', 1000)
+    overrides.setdefault('sight_height_mm', 1000)
+    ctx = base_ctx(**overrides)
+    ctx['blade_width_mm'] = 150
+    ctx['blade_length_mm'] = 900
+    return ctx
+
+
+def _skip_line(result):
+    return any('5.5' in t and 'not applied to louvres' in t for t in result['trail'])
+
+
+def _shared_note(result):
+    return any('Not assessed by this tool for louvres or sashless glazing' in n
+               for n in result['notes'])
+
+
+def test_L1():
+    # Louvre, residential, fully framed, sightline 300.
+    # 5.4 skipped (louvre). 5.5 would trigger (residential, 300 < 500) but is
+    # skipped for louvres. No other rule -> no requirement, clauses [].
+    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300))
+    checks = [
+        ('scope', True, result['scope'], result['scope'] is True),
+        ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('all six types ok', True, all(t['ok'] for t in result['types']) and len(result['types']) == 6,
+         all(t['ok'] for t in result['types']) and len(result['types']) == 6),
+        ('clauses', [], result['clauses'], result['clauses'] == []),
+        ('shared note present', True, _shared_note(result), _shared_note(result)),
+        ('shared note comes before the 5.12 line', True,
+         '5.12' in result['notes'][-1], '5.12' in result['notes'][-1]),
+        ('trail: 5.5 not applied to louvres', True, _skip_line(result), _skip_line(result)),
+    ]
+    report('L1', 'Louvre, residential, fully framed, sightline 300 -> no requirement', checks)
+
+
+def test_L2():
+    # Same as L1 but partly framed. Before the skip this was out of scope
+    # (5.5 not fully framed); now 5.5 is skipped, so the result equals L1.
+    result = determine_louvre(louvre_ctx(framing='partly', sightline_mm=300))
+    checks = [
+        ('scope', True, result['scope'], result['scope'] is True),
+        ('no out-of-scope reasons', [], result['out_of_scope_reasons'],
+         result['out_of_scope_reasons'] == []),
+        ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('all six types ok', True, all(t['ok'] for t in result['types']), all(t['ok'] for t in result['types'])),
+        ('clauses', [], result['clauses'], result['clauses'] == []),
+        ('trail: 5.5 not applied to louvres', True, _skip_line(result), _skip_line(result)),
+    ]
+    report('L2', 'Louvre, residential, partly framed, sightline 300 -> same as L1', checks)
+
+
+def test_L3():
+    # Louvre, bathroom, fully framed, sightline 300. 5.8 matches (300 <= 2000,
+    # fully framed -> Table 5.1). 5.4 and 5.5 skipped. Only 5.8 -> Grade A,
+    # clauses ['5.8']. Louvre rule: toughened only, 5 mm floor -> MT 5.
+    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300, is_bathroom=True))
+    mt = get_type(result, 'monolithic_toughened')
+    others = all(not t['ok'] for t in result['types'] if t['id'] != 'monolithic_toughened')
+    checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('clauses', ['5.8'], result['clauses'], result['clauses'] == ['5.8']),
+        ('monolithic_toughened ok/thickness', (True, 5), (mt['ok'], mt['min_thickness']),
+         mt['ok'] is True and mt['min_thickness'] == 5),
+        ('every other type blocked', True, others, others),
+        ('vanity note present', True, any('vanity' in n for n in result['notes']),
+         any('vanity' in n for n in result['notes'])),
+    ]
+    report('L3', 'Louvre, bathroom, fully framed, sightline 300 -> only 5.8, MT 5', checks)
+
+
+def test_L4():
+    # Regression guard: louvre, school, fully framed, sightline 300.
+    # 5.10.2 matches (school, 300 <= 1000, Table 5.1). 5.5 is residential
+    # only, so it never applied. Grade A, MT 5 only.
+    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300, building_use='school'))
+    mt = get_type(result, 'monolithic_toughened')
+    others = all(not t['ok'] for t in result['types'] if t['id'] != 'monolithic_toughened')
+    checks = [
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('clauses', ['5.10.2'], result['clauses'], result['clauses'] == ['5.10.2']),
+        ('monolithic_toughened ok/thickness', (True, 5), (mt['ok'], mt['min_thickness']),
+         mt['ok'] is True and mt['min_thickness'] == 5),
+        ('every other type blocked', True, others, others),
+    ]
+    report('L4', 'Louvre, school, fully framed, sightline 300 -> 5.10.2 only, MT 5', checks)
+
+
+def test_L5():
+    # Ordinary fixed window (not a louvre), residential, sightline 300,
+    # sight 1000 x 1000, opaque_or_patterned True so 5.4 is exempt.
+    # Fully framed: 5.5 still matches -> Grade A, Table 5.1, '5.5' in clauses.
+    # Partly framed: 5.5 still out of scope with LOW_LEVEL_OOS_MESSAGE.
+    fully = determine_fixed(base_ctx(
+        opening_type='window', framing='fully', sightline_mm=300,
+        sight_width_mm=1000, sight_height_mm=1000, opaque_or_patterned=True))
+    partly = determine_fixed(base_ctx(
+        opening_type='window', framing='partly', sightline_mm=300,
+        sight_width_mm=1000, sight_height_mm=1000, opaque_or_patterned=True))
+    checks = [
+        ('fully: grade_a_required', True, fully['grade_a_required'], fully['grade_a_required'] is True),
+        ('fully: table', '5.1', fully['table'], fully['table'] == '5.1'),
+        ('fully: 5.5 in clauses', True, '5.5' in fully['clauses'], '5.5' in fully['clauses']),
+        ('partly: scope', False, partly['scope'], partly['scope'] is False),
+        ('partly: LOW_LEVEL_OOS_MESSAGE', [LOW_LEVEL_OOS_MESSAGE], partly['out_of_scope_reasons'],
+         partly['out_of_scope_reasons'] == [LOW_LEVEL_OOS_MESSAGE]),
+    ]
+    report('L5', 'Ordinary window, low level -> 5.5 still applies (fully) / out of scope (partly)', checks)
+
+
+def test_L6():
+    # Louvre, residential, fully framed, sightline 900. 5.5 needs < 500, so
+    # it would not trigger anyway; the skip line is still recorded. No other
+    # rule -> no requirement, clauses [].
+    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=900))
+    checks = [
+        ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
+        ('all six types ok', True, all(t['ok'] for t in result['types']), all(t['ok'] for t in result['types'])),
+        ('clauses', [], result['clauses'], result['clauses'] == []),
+    ]
+    report('L6', 'Louvre, residential, sightline 900 -> no requirement', checks)
+
+
 def run_tests():
     # report() now asserts internally, so a test function either completes
     # (pass) or raises AssertionError (fail) - it no longer returns a bool.
@@ -1167,6 +1299,7 @@ def run_tests():
         test_30, test_31, test_32, test_33,
         test_B1, test_B2, test_B3, test_B4, test_B5, test_B6, test_B7,
         test_B8, test_B9, test_B10, test_B11, test_B12,
+        test_L1, test_L2, test_L3, test_L4, test_L5, test_L6,
     ]
     passed = 0
     for t in tests:

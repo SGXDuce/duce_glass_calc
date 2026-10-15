@@ -60,6 +60,15 @@ LOW_LEVEL_OOS_MESSAGE = (
     "requirement here - assess it separately."
 )
 
+# Shared by determine_sashless() and determine_louvre() when no location
+# rule matches: says what the tool does not assess for those two methods.
+LOW_LEVEL_NOT_ASSESSED_NOTE = (
+    "Not assessed by this tool for louvres or sashless glazing: the fixed "
+    "vanity or bench exemption, the permanent barrier exemption, and "
+    "low-level glazing (Clause 5.5), which is not applied to louvres or "
+    "sashless glazing."
+)
+
 # Closing sentence on every Grade A trail line. Where human impact applies
 # this tool never offers monolithic annealed or monolithic heat-strengthened.
 NOT_OFFERED_SENTENCE = (
@@ -96,8 +105,8 @@ def match_location(ctx, data):
         "trail": [...],     # ordered human-readable audit trail
       }
 
-    ctx['is_sashless'] (default False) skips Clause 5.5 and records that in
-    the trail; it changes nothing else.
+    ctx['is_sashless'] or ctx['is_louvre'] (both default False) skips Clause
+    5.5 and records that in the trail; it changes nothing else.
 
     data: dict of preloaded DataFrames, keyed
       'mistaken_doorway'
@@ -220,13 +229,14 @@ def match_location(ctx, data):
                               f"no type filter. " + NOT_OFFERED_SENTENCE)
 
     # --- Low-level residential (Clause 5.5) ---
-    # Sashless glazing skips this clause entirely (Duce interpretation).
+    # Sashless glazing and louvres skip this clause entirely (Duce interpretation).
     is_sashless = ctx.get('is_sashless', False)
     low_level_triggered = (building_use == 'residential' and sightline_mm is not None
                             and sightline_mm < 500 and opening_type != 'door')
-    if is_sashless:
-        trail.append("Clause 5.5 (low-level residential) is not applied to sashless "
-                      "glazing (Duce interpretation, less conservative than the printed clause).")
+    if is_sashless or is_louvre:
+        which = 'sashless glazing' if is_sashless else 'louvres'
+        trail.append(f"Clause 5.5 (low-level residential) is not applied to {which} "
+                      "(Duce interpretation, less conservative than the printed clause).")
     elif low_level_triggered:
         if is_side_panel:
             if framing == 'fully':
