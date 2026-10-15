@@ -457,11 +457,12 @@ def _to_float(value):
 def _panel_area_and_width(method_data):
     """
     Derives panel_area_m2/panel_width_mm from the page's width/height
-    fields, if supplied - these feed the annealed/heat-strengthened
-    area/width cap tests in combine_alts(). Both are optional; a method
-    card that never asks for panel width/height (e.g. sashless) simply
-    yields (None, None), which the engine treats as "no dimensions to
-    test the cap against" per its own None-guards.
+    fields, if supplied. The area feeds the Table 5.4 thickness for
+    bathroom glazing that is partly framed or unframed; the width is
+    carried in the ctx but not used by the engine. Both are optional; a
+    method card that never asks for panel width/height (e.g. sashless)
+    simply yields (None, None), which the engine treats as "no area to
+    work with" per its own None-guards.
     """
     width_mm = _to_float(method_data.get('panel_width_mm'))
     height_mm = _to_float(method_data.get('panel_height_mm'))

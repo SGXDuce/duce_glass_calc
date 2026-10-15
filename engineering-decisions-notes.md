@@ -27,7 +27,7 @@ Locked-in AS 1288 engineering decisions, precision rules, and the open questions
 
 ## Open items — 28 September 2026
 
-- Sight size (not true glass size) is used for the human impact area/width caps, including the annealed exception caps, in the translation layer — open question for Michael, since true glass size is always larger for a sashed pane and this is less conservative
+- Sight size (not true glass size) is used for the panel area in the translation layer, which feeds the Table 5.4 thickness for bathroom glazing that is partly framed or unframed — open question for Michael, since true glass size is always larger for a sashed pane and this is less conservative
 - The 1200mm side-panel sightline ceiling used by the translation layer's geometric side-panel test comes from project notes and still needs to be checked against the standard
 - Check that Clause 5.15 still applies to a horizontal slider whose top/bottom are held — Sahil to check against the standard
 - MUST DO at wiring time: the wiring step must read the export's top-level `schemaVersion` and treat any sashless pane from a schema below 6 as not assessable, because a pre-v6 sashless export carries the old (wrong) edge orientation and would give a wrong span silently. `translate_pane()`/`translate_system()` cannot see `schemaVersion` (they only receive `export['system']`), so this check belongs where the full export is available

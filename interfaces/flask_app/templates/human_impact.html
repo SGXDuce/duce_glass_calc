@@ -625,7 +625,7 @@ function buildFixedCard(isSidePanel, isGenuineWindow) {
             </div>
             <div class="field-group">
                 <label class="field-label" for="hi_fixed_panel_width">Panel width (mm)
-                    <span class="tip" tabindex="0" role="button" data-tip="Used with panel height to test annealed/heat-strengthened alternative area and width caps.">?</span>
+                    <span class="tip" tabindex="0" role="button" data-tip="Used with panel height to work out the panel area.">?</span>
                 </label>
                 <input class="field-input" type="number" id="hi_fixed_panel_width" min="0" oninput="onMethodInputChanged('fixed')">
             </div>
@@ -964,13 +964,7 @@ function renderMethodResult(method, result) {
         if (!t) return;
         const label = TYPE_LABELS[typeId] || t.name;
         if (t.ok) {
-            let detail = t.min_thickness != null ? `${t.min_thickness}mm minimum` : 'available';
-            if (t.cap) {
-                const capBits = [];
-                if (t.cap.max_area_m2 != null) capBits.push(`&le;${t.cap.max_area_m2}m&sup2;`);
-                if (t.cap.max_width_mm != null) capBits.push(`&le;${t.cap.max_width_mm}mm width`);
-                if (capBits.length) detail += ` (${capBits.join(', ')})`;
-            }
+            const detail = t.min_thickness != null ? `${t.min_thickness}mm minimum` : 'available';
             html += `<div class="hi-type-row ok">
                 <span class="hi-type-name">${label}</span>
                 <span class="hi-type-detail">${detail}</span>

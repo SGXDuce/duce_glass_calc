@@ -516,8 +516,8 @@ def translate_pane(pane, elevation_panes, angle_deg, row, answers):
         'exposed_edges': exposed_edges,
         'sight_width_mm': sight_width_mm,
         'sight_height_mm': sight_height_mm,
-        # DECISION (Sahil): sight size feeds the annealed/heat-strengthened
-        # area/width caps too, not true glass size. Less conservative than
+        # DECISION (Sahil): sight size feeds the panel area used for the
+        # Table 5.4 thickness, not true glass size. Less conservative than
         # true glass size for a sashed pane - open question for Michael,
         # not changed here.
         'panel_area_m2': panel_area_m2,

@@ -70,33 +70,59 @@ def get_type(result, type_id):
 
 
 # ---------------------------------------------------------------------------
-# TESTS 1-2 — Doors, fully framed, annealed exception bands
+# TESTS 1-2 — Doors, fully framed: monolithic annealed / heat-strengthened
+# are not offered, whatever the panel size
 # ---------------------------------------------------------------------------
 
-def test_1():
-    # Door, fully framed, residential, sightline 0mm, 100x800mm = 0.08 m²,
-    # width 100mm -> within band 1 (3-4mm/0.10m²/125mm) -> ok=True at 3mm.
-    result = determine_fixed(base_ctx(panel_area_m2=0.08, panel_width_mm=100))
+NOT_OFFERED_WHY = "not offered by this tool"
+
+
+def assert_mono_annealed_hs_not_offered(result):
+    """
+    Shared checks for every Grade A case: monolithic annealed and monolithic
+    heat-strengthened are ok=False with the 'not offered by this tool'
+    reason. Returns checks tuples for report().
+    """
     ma = get_type(result, 'monolithic_annealed')
+    mh = get_type(result, 'monolithic_heat_strengthened')
+    return [
+        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_heat_strengthened ok', False, mh['ok'], mh['ok'] is False),
+        ('monolithic_annealed why', True, NOT_OFFERED_WHY in (ma['why'] or ''),
+         NOT_OFFERED_WHY in (ma['why'] or '')),
+        ('monolithic_heat_strengthened why', True, NOT_OFFERED_WHY in (mh['why'] or ''),
+         NOT_OFFERED_WHY in (mh['why'] or '')),
+    ]
+
+def test_1():
+    # Hand calculation: door, fully framed, residential, sightline 0mm,
+    # 100 x 800mm = 0.08 m2, width 100mm. Rule matching: opening is a door,
+    # not bathroom -> Clause 5.2 only (no school/aged/high-risk; a door never
+    # runs 5.4/5.5). Grade A required, Table 5.1, no type filter -> the four
+    # Grade A types ok=True. Monolithic annealed and monolithic
+    # heat-strengthened are never offered -> ok=False.
+    result = determine_fixed(base_ctx(panel_area_m2=0.08, panel_width_mm=100))
     checks = [
         ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
-        ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
-        ('monolithic_annealed min_thickness', 3.0, ma['min_thickness'], ma['min_thickness'] == 3.0),
-    ]
-    report('1', 'Door, fully framed, 0.08m²/100mm -> annealed 3mm available', checks)
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('1', 'Door, fully framed, 0.08m²/100mm -> monolithic annealed not offered', checks)
 
 
 def test_2():
-    # Same door, area 0.60 m², width 500mm -> exceeds every band (including
-    # the top 0.50m² ceiling) -> monolithic annealed ok=False.
+    # Hand calculation: same door as test 1 but 0.60 m2 / 500mm. Same rule
+    # (Clause 5.2 only), same result as test 1: panel size has no effect on
+    # the monolithic annealed / heat-strengthened answer. Grade A required,
+    # Table 5.1, four Grade A types ok=True, the two monolithic annealed /
+    # heat-strengthened types ok=False with the "not offered by this tool"
+    # reason.
     result = determine_fixed(base_ctx(panel_area_m2=0.60, panel_width_mm=500))
-    ma = get_type(result, 'monolithic_annealed')
     checks = [
-        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
-        ('why cites the exceeded limit', True, 'exception band accommodates' in (ma['why'] or ''),
-         'exception band accommodates' in (ma['why'] or '')),
-    ]
-    report('2', 'Door, fully framed, 0.60m²/500mm -> no annealed band fits -> ok=False', checks)
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('2', 'Door, fully framed, 0.60m²/500mm -> same as test 1 (size no longer matters)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -149,38 +175,43 @@ def test_4():
 # ---------------------------------------------------------------------------
 
 def test_5():
-    # Side panel, fully framed, within 1200mm, area 0.25 m² -> monolithic
-    # annealed ok=True at 5mm (within the 0.30m² side-panel cap).
+    # Hand calculation: side panel, fully framed, sightline 1200mm (not
+    # below 500mm, so Clause 5.5 does not trigger), 0.25 m2. Rule matching:
+    # Clause 5.3.1 only -> Grade A required, Table 5.1, no type filter ->
+    # four Grade A types ok=True; monolithic annealed / heat-strengthened
+    # ok=False (not offered).
     ctx = base_ctx(opening_type='side_panel', is_side_panel=True, sightline_mm=1200,
                    panel_area_m2=0.25, panel_width_mm=500)
     result = determine_fixed(ctx)
-    ma = get_type(result, 'monolithic_annealed')
     checks = [
-        ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
-        ('monolithic_annealed min_thickness', 5.0, ma['min_thickness'], ma['min_thickness'] == 5.0),
-    ]
-    report('5', 'Side panel, fully framed, 0.25m² -> annealed 5mm available', checks)
+        ('clauses', ['5.3.1'], result['clauses'], result['clauses'] == ['5.3.1']),
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('5', 'Side panel, fully framed, 0.25m² -> monolithic annealed not offered', checks)
 
 
 def test_6():
-    # Same side panel, area 0.35 m² -> monolithic annealed ok=False, reason
-    # cites the 0.30m² side panel limit (Clause 5.3.1(a)(i)).
+    # Hand calculation: same side panel as test 5 at 0.35 m2. Same rule
+    # (Clause 5.3.1 only), same result as test 5: size has no effect. Four
+    # Grade A types ok=True; monolithic annealed / heat-strengthened
+    # ok=False with the "not offered by this tool" reason.
     ctx = base_ctx(opening_type='side_panel', is_side_panel=True, sightline_mm=1200,
                    panel_area_m2=0.35, panel_width_mm=500)
     result = determine_fixed(ctx)
-    ma = get_type(result, 'monolithic_annealed')
     checks = [
-        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
-        ('why cites area exceeded', True, 'area' in (ma['why'] or ''), 'area' in (ma['why'] or '')),
-    ]
-    report('6', 'Side panel, fully framed, 0.35m² -> exceeds 0.30m² cap -> ok=False', checks)
+        ('clauses', ['5.3.1'], result['clauses'], result['clauses'] == ['5.3.1']),
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('6', 'Side panel, fully framed, 0.35m² -> same as test 5 (size no longer matters)', checks)
 
 
 def test_7():
-    # Side panel, fully framed, residential, sightline 400mm (triggers BOTH
-    # 5.3.1 and 5.5), area 1.0 m² -> Grade A required, no annealed route
-    # survives (5.5's 1.2m² cap alone would pass, but 5.3.1's 0.30m² cap
-    # does not - combine_alts must satisfy every matching rule).
+    # Hand calculation: side panel, fully framed, residential, sightline
+    # 400mm (below 500mm, so Clause 5.5 also matches alongside 5.3.1), area
+    # 1.0 m2. Both rules give Grade A, Table 5.1, no type filter -> four
+    # Grade A types ok=True; monolithic annealed ok=False (not offered).
     ctx = base_ctx(opening_type='side_panel', is_side_panel=True, sightline_mm=400,
                    panel_area_m2=1.0, panel_width_mm=800)
     result = determine_fixed(ctx)
@@ -188,11 +219,12 @@ def test_7():
     checks = [
         ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
         ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
         ('both 5.3.1 and 5.5 matched', True,
          '5.3.1' in result['clauses'] and '5.5' in result['clauses'],
          '5.3.1' in result['clauses'] and '5.5' in result['clauses']),
     ]
-    report('7', 'Side panel + low-level stacking, 1.0m² -> 5.3.1 0.30m² cap blocks annealed', checks)
+    report('7', 'Side panel + low-level stacking -> both clauses listed, four Grade A types', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +232,11 @@ def test_7():
 # ---------------------------------------------------------------------------
 
 def test_8():
-    # Window, fully framed, residential, sightline 400mm, width 600mm,
-    # height 1200mm -> not exempt from 5.4 -> Grade A required, table 5.1.
-    # 5.4 offers no alternative at all, so annealed is blocked entirely
-    # regardless of 5.5 also matching and offering its own alternative.
+    # Hand calculation: window, fully framed, residential, sightline 400mm,
+    # sight 600 x 1200mm. Width 600 is over 500, height 1200 is over 1000 and
+    # sightline 400 is below 500, so no Clause 5.4 exception is met -> 5.4
+    # matches; sightline below 500 also triggers 5.5. Both give Grade A,
+    # Table 5.1. Monolithic annealed ok=False (not offered).
     ctx = base_ctx(opening_type='window', sightline_mm=400,
                    sight_width_mm=600, sight_height_mm=1200,
                    panel_area_m2=0.72, panel_width_mm=600)
@@ -215,28 +248,29 @@ def test_8():
         ('both 5.4 and 5.5 matched', True,
          '5.4' in result['clauses'] and '5.5' in result['clauses'],
          '5.4' in result['clauses'] and '5.5' in result['clauses']),
-        ('monolithic_annealed blocked by 5.4 no-alt', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_annealed not offered', False, ma['ok'], ma['ok'] is False),
     ]
-    report('8', 'Window not exempt from 5.4, also triggers 5.5 -> 5.4 no-alt blocks annealed entirely', checks)
+    report('8', 'Window not exempt from 5.4, also triggers 5.5 -> Table 5.1, monolithic annealed not offered', checks)
 
 
 def test_9():
-    # Window, fully framed, residential, sightline 400, width 480mm
-    # (<=500) -> exempt from 5.4 via width exception -> falls through to
-    # 5.5 alone -> Grade A with annealed alternative up to 1.2m² at 5mm.
+    # Hand calculation: window, fully framed, residential, sightline 400mm,
+    # sight width 480mm. Width 480 is not over 500, so Clause 5.4 is exempt
+    # by width. Sightline 400 is below 500, so Clause 5.5 matches alone ->
+    # Grade A required, Table 5.1, no type filter -> four Grade A types
+    # ok=True; monolithic annealed / heat-strengthened ok=False (not offered).
     ctx = base_ctx(opening_type='window', sightline_mm=400,
                    sight_width_mm=480, sight_height_mm=1200,
                    panel_area_m2=0.5, panel_width_mm=480)
     result = determine_fixed(ctx)
-    ma = get_type(result, 'monolithic_annealed')
     checks = [
         ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
         ('5.4 not matched (exempt)', False, '5.4' in result['clauses'], '5.4' not in result['clauses']),
         ('5.5 matched', True, '5.5' in result['clauses'], '5.5' in result['clauses']),
-        ('monolithic_annealed ok', True, ma['ok'], ma['ok'] is True),
-        ('monolithic_annealed min_thickness', 5.0, ma['min_thickness'], ma['min_thickness'] == 5.0),
-    ]
-    report('9', 'Window exempt from 5.4 (width<=500), 5.5 alone -> annealed 5mm available', checks)
+        ('allowed types', GRADE_A_CAPABLE, ok_ids(result), ok_ids(result) == GRADE_A_CAPABLE),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('9', 'Window exempt from 5.4 (width<=500), 5.5 alone -> monolithic annealed not offered', checks)
 
 
 def test_10():
@@ -302,11 +336,10 @@ def test_13():
 
 def test_14():
     # Bathroom side panel, fully framed, area 0.2 m² -> confirm BOTH 5.8
-    # and 5.3.1 matches present, table resolves to "5.1". Per Sahil's
-    # confirmed correction: 5.8's no-alt-at-all blocks the annealed route
-    # entirely, even though 5.3.1's own 0.30m² cap would have permitted
-    # 0.2m² on its own - the global combine_alts "any no-alt rule blocks
-    # everything" rule governs over 5.3.1's more generous allowance.
+    # and 5.3.1 matches present, table resolves to "5.1". Hand calculation:
+    # bathroom, sightline 1000mm (within 2000mm) -> 5.8; side panel, fully
+    # framed -> 5.3.1; both Table 5.1. Monolithic annealed ok=False (not
+    # offered), monolithic toughened ok=True.
     ctx = base_ctx(opening_type='side_panel', is_side_panel=True, is_bathroom=True,
                    framing='fully', sightline_mm=1000, panel_area_m2=0.2, panel_width_mm=400)
     result = determine_fixed(ctx)
@@ -317,10 +350,10 @@ def test_14():
         ('both 5.8 and 5.3.1 matched', True,
          '5.8' in result['clauses'] and '5.3.1' in result['clauses'],
          '5.8' in result['clauses'] and '5.3.1' in result['clauses']),
-        ('monolithic_annealed blocked by 5.8 no-alt', False, ma['ok'], ma['ok'] is False),
+        ('monolithic_annealed not offered', False, ma['ok'], ma['ok'] is False),
         ('monolithic_toughened still ok', True, mt['ok'], mt['ok'] is True),
     ]
-    report('14', 'Bathroom side panel, fully framed, 0.2m² -> 5.8 no-alt blocks annealed despite 5.3.1', checks)
+    report('14', 'Bathroom side panel, fully framed, 0.2m² -> 5.8 and 5.3.1, monolithic annealed not offered', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -536,6 +569,12 @@ ABOVE_TRIGGER_TEXT = "is above the 2000mm trigger"
 
 
 def test_25():
+    # Hand calculation for the types: bathroom window, fully framed,
+    # sightline None -> the 5.8 trigger cannot be tested, so no 5.8; window
+    # not a side panel and no 5.4 exception met (all dimensions None) ->
+    # Clause 5.4 only, Table 5.1, no type filter -> four Grade A types
+    # ok=True with no thickness, monolithic annealed / heat-strengthened
+    # ok=False with the "not offered by this tool" reason.
     # Bathroom, sightline_mm=None -> the "not matched" trail message must
     # read in plain words, never interpolate the missing value raw. Also
     # pins grade_a_required/table/types to the pre-fix values so the fix
@@ -547,12 +586,12 @@ def test_25():
     has_new_message = any(MISSING_SIGHTLINE_TRAIL in line for line in result['trail'])
     no_above_trigger_text = all(ABOVE_TRIGGER_TEXT not in line for line in result['trail'])
     expected_types = [
-        {'id': 'monolithic_annealed', 'name': 'Monolithic Annealed', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
-        {'id': 'monolithic_heat_strengthened', 'name': 'Monolithic Heat-strengthened', 'ok': False, 'min_thickness': None, 'cap': None, 'why': 'Grade A required with no annealed/heat-strengthened alternative offered at all under Clause(s) 5.4'},
-        {'id': 'monolithic_toughened', 'name': 'Monolithic Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
-        {'id': 'laminated_annealed', 'name': 'Laminated Annealed', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
-        {'id': 'laminated_heat_strengthened', 'name': 'Laminated Heat-strengthened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
-        {'id': 'laminated_toughened', 'name': 'Laminated Toughened', 'ok': True, 'min_thickness': None, 'cap': None, 'why': None},
+        {'id': 'monolithic_annealed', 'name': 'Monolithic Annealed', 'ok': False, 'min_thickness': None, 'why': 'Monolithic annealed and monolithic heat-strengthened glass is not offered by this tool where human impact applies.'},
+        {'id': 'monolithic_heat_strengthened', 'name': 'Monolithic Heat-strengthened', 'ok': False, 'min_thickness': None, 'why': 'Monolithic annealed and monolithic heat-strengthened glass is not offered by this tool where human impact applies.'},
+        {'id': 'monolithic_toughened', 'name': 'Monolithic Toughened', 'ok': True, 'min_thickness': None, 'why': None},
+        {'id': 'laminated_annealed', 'name': 'Laminated Annealed', 'ok': True, 'min_thickness': None, 'why': None},
+        {'id': 'laminated_heat_strengthened', 'name': 'Laminated Heat-strengthened', 'ok': True, 'min_thickness': None, 'why': None},
+        {'id': 'laminated_toughened', 'name': 'Laminated Toughened', 'ok': True, 'min_thickness': None, 'why': None},
     ]
     checks = [
         ('no "None" in trail', True, no_none_in_trail, no_none_in_trail),
@@ -585,7 +624,7 @@ def test_26():
     has_new_message = any(MISSING_SIGHTLINE_TRAIL in line for line in result['trail'])
     no_above_trigger_text = all(ABOVE_TRIGGER_TEXT not in line for line in result['trail'])
     expected_types = [
-        {'id': t, 'name': n, 'ok': True, 'min_thickness': None, 'cap': None, 'why': None}
+        {'id': t, 'name': n, 'ok': True, 'min_thickness': None, 'why': None}
         for t, n in [
             ('monolithic_annealed', 'Monolithic Annealed'),
             ('monolithic_heat_strengthened', 'Monolithic Heat-strengthened'),
@@ -669,10 +708,10 @@ def test_28():
 
 
 def test_29():
-    # C: fully framed door, 0.08m2, building use other, no bathroom ->
-    # monolithic annealed still allowed at 3mm through the door exception
-    # band (unchanged), laminated annealed/HS allowed outright, both
-    # toughened types allowed.
+    # Hand calculation: fully framed door, 0.08 m2, building use other, not
+    # bathroom -> Clause 5.2 only, Grade A, Table 5.1, no type filter. Four
+    # Grade A types ok=True (laminated annealed/HS allowed outright);
+    # monolithic annealed ok=False (not offered).
     ctx = base_ctx(opening_type='door', building_use='other', framing='fully',
                    panel_area_m2=0.08, panel_width_mm=100)
     result = determine_fixed(ctx)
@@ -682,14 +721,13 @@ def test_29():
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     checks = [
-        ('monolithic_annealed ok/thickness', (True, 3.0), (ma['ok'], ma['min_thickness']),
-         ma['ok'] is True and ma['min_thickness'] == 3.0),
+        ('monolithic_annealed ok', False, ma['ok'], ma['ok'] is False),
         ('laminated_annealed ok', True, la['ok'], la['ok'] is True),
         ('laminated_heat_strengthened ok', True, lh['ok'], lh['ok'] is True),
         ('monolithic_toughened ok', True, mt['ok'], mt['ok'] is True),
         ('laminated_toughened ok', True, lt['ok'], lt['ok'] is True),
     ]
-    report('29', 'Door, fully framed, 0.08m² -> MA 3mm, laminated annealed/HS and toughened allowed', checks)
+    report('29', 'Door, fully framed, 0.08m² -> MA not offered, laminated annealed/HS and toughened allowed', checks)
 
 
 def test_30():
@@ -732,6 +770,22 @@ def test_32():
         ('allowed types', TOUGHENED_ONLY, ok_ids(result), ok_ids(result) == TOUGHENED_ONLY),
     ]
     report('32', 'Bathroom window, partly framed -> toughened only', checks)
+
+
+def test_33():
+    # Removal never turns "Grade A required" into "no requirement". Hand
+    # calculation: fully framed door, 0.08 m2 (100 x 800mm) - a size that
+    # used to fit every exception - matches Clause 5.2, so Grade A is still
+    # required and Table 5.1 is still returned, with the four Grade A types
+    # allowed and monolithic annealed / heat-strengthened not offered.
+    result = determine_fixed(base_ctx(panel_area_m2=0.08, panel_width_mm=100))
+    checks = [
+        ('in scope', True, result['scope'], result['scope'] is True),
+        ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
+        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('clauses', ['5.2'], result['clauses'], result['clauses'] == ['5.2']),
+    ] + assert_mono_annealed_hs_not_offered(result)
+    report('33', 'Door, fully framed, 0.08m² -> still Grade A required, Table 5.1', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +931,7 @@ def run_tests():
         test_9, test_10, test_11, test_12, test_13, test_14, test_15,
         test_16, test_17, test_18, test_19, test_20, test_21, test_22,
         test_23, test_24, test_25, test_26, test_27, test_28, test_29,
-        test_30, test_31, test_32,
+        test_30, test_31, test_32, test_33,
         test_B1, test_B2, test_B3, test_B4, test_B5, test_B6, test_B7,
         test_B8, test_B9, test_B10, test_B11, test_B12,
     ]
