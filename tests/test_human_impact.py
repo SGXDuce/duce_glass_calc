@@ -1144,10 +1144,6 @@ def test_B12():
 
 
 # ---------------------------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # TESTS L1-L6 — Louvres skip Clause 5.5 (low-level residential)
 # ---------------------------------------------------------------------------
 
@@ -1171,6 +1167,16 @@ def _shared_note(result):
                for n in result['notes'])
 
 
+def _shared_note_index(result):
+    return next(i for i, n in enumerate(result['notes'])
+                if 'Not assessed by this tool for louvres or sashless glazing' in n)
+
+
+def _note_5_12_index(result):
+    return next(i for i, n in enumerate(result['notes'])
+                if n.startswith('Clause 5.12') or 'Clause 5.12' in n)
+
+
 def test_L1():
     # Louvre, residential, fully framed, sightline 300.
     # 5.4 skipped (louvre). 5.5 would trigger (residential, 300 < 500) but is
@@ -1184,7 +1190,8 @@ def test_L1():
         ('clauses', [], result['clauses'], result['clauses'] == []),
         ('shared note present', True, _shared_note(result), _shared_note(result)),
         ('shared note comes before the 5.12 line', True,
-         '5.12' in result['notes'][-1], '5.12' in result['notes'][-1]),
+         _shared_note_index(result) < _note_5_12_index(result),
+         _shared_note_index(result) < _note_5_12_index(result)),
         ('trail: 5.5 not applied to louvres', True, _skip_line(result), _skip_line(result)),
     ]
     report('L1', 'Louvre, residential, fully framed, sightline 300 -> no requirement', checks)
@@ -1277,6 +1284,10 @@ def test_L6():
     ]
     report('L6', 'Louvre, residential, sightline 900 -> no requirement', checks)
 
+
+# ---------------------------------------------------------------------------
+# MAIN
+# ---------------------------------------------------------------------------
 
 def run_tests():
     # report() now asserts internally, so a test function either completes
