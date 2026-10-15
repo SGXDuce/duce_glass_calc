@@ -20,9 +20,10 @@
 # Sahil confirmed the 1200 mm sightline limit (inclusive) and the 300 mm gap
 # limit (strictly less than) on 14 Oct 2026; not yet checked against the AS 1288 text itself.
 #
-# Kept in one place so the Configurator-schedule layer (which can measure
-# both limits from geometry) and the standalone human impact page (which
-# can only measure the height) can never drift apart.
+# The standalone human impact page uses the height test. The gap limit is
+# kept as the recorded rule for the doorway-distance test; the schedule layer
+# that used it has been removed (the tag configurator-archive-2026-10-15
+# holds it).
 #
 # Duce Timber Windows and Doors
 
