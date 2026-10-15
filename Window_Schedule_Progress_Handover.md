@@ -249,7 +249,7 @@ This section's ctx table above was missing one field: **`exposed_edges`**, which
 
 The layer produces **three output methods** — `fixed`, `louvre`, `sashless` — one per pane depending on its geometry, not a single method for the whole layer.
 
-**Bug found and fixed during review, before merge:** the side-panel gap function originally measured the gap between a pane and a door leaf incorrectly when the pane sat to the LEFT of the door — it always returned 0 regardless of actual distance, only computing correctly for a pane to the door's right. Fixed, with boundary tests added for both directions at gap 100, 300, 301, and 1000mm (300 is the pass/fail threshold — see §15).
+**Bug found and fixed during review, before merge:** the side-panel gap function originally measured the gap between a pane and a door leaf incorrectly when the pane sat to the LEFT of the door — it always returned 0 regardless of actual distance, only computing correctly for a pane to the door's right. Fixed, with boundary tests added for both directions at gap 100, 300, 301, and 1000mm (gap 300 is NOT a side panel and gap 299 is, since the gap test is strictly less than 300 — see §15).
 
 ---
 

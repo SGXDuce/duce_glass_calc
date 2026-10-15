@@ -20,8 +20,9 @@
 # calculation, only quoted in the warning sentence.
 ASSUMED_BAR_TUCKIN_MM = 20
 
-# Sahil confirmed the 1200 mm sightline and 300 mm gap limits on 14 Oct
-# 2026; not yet checked against the AS 1288 text itself. The values live in
+# Sahil confirmed the 1200 mm sightline limit (inclusive) and the 300 mm
+# gap limit (strictly less than) on 14 Oct 2026; not yet checked against the
+# AS 1288 text itself. The values live in
 # engine/shared/side_panel.py so the standalone human impact page uses the
 # same numbers.
 from engine.shared.side_panel import SIDE_PANEL_SIGHTLINE_MAX_MM, SIDE_PANEL_GAP_MAX_MM
@@ -269,7 +270,7 @@ def _is_side_panel(pane, elevation_panes, door_panes, sightline_mm, warnings):
             if not _height_overlap(pane, door_pane):
                 continue
             gap = _side_panel_gap_mm(pane, door_pane)
-            if gap <= SIDE_PANEL_GAP_MAX_MM:
+            if gap < SIDE_PANEL_GAP_MAX_MM:
                 geometry_says_side_panel = True
                 break
 
