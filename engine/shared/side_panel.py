@@ -5,8 +5,10 @@
 # "side panel". Glass is a side panel only if BOTH hold:
 #   (a) the bottom of the visible glass is no higher than
 #       SIDE_PANEL_SIGHTLINE_MAX_MM above the finished floor, and
-#   (b) the glass is within SIDE_PANEL_GAP_MAX_MM of the edge of a doorway.
-# Both limits are inclusive (exactly on the limit still counts). If either
+#   (b) the gap from the glass to the edge of a doorway is less than
+#       SIDE_PANEL_GAP_MAX_MM.
+# The height limit is inclusive (exactly 1200 still counts). The gap limit is
+# strictly less than (a gap of exactly 300 does NOT count; 299 does). If either
 # test fails the glass is treated as an ordinary window, even if someone
 # labelled it a side panel.
 #
@@ -15,8 +17,8 @@
 # to be reached by the body. Glass that is high up or well away from the
 # door is not exposed to that kind of accidental impact.
 #
-# Sahil confirmed the 1200 mm sightline and 300 mm gap limits on
-# 14 Oct 2026; not yet checked against the AS 1288 text itself.
+# Sahil confirmed the 1200 mm sightline limit (inclusive) and the 300 mm gap
+# limit (strictly less than) on 14 Oct 2026; not yet checked against the AS 1288 text itself.
 #
 # Kept in one place so the Configurator-schedule layer (which can measure
 # both limits from geometry) and the standalone human impact page (which

@@ -216,11 +216,23 @@ def test_t4_side_panel_gap_boundary():
     door = _t4_door()
     row = make_row(ffl_height_mm=0, building_use='residential')
 
+    # Gap is strictly less than 300: exactly 300 is NOT a side panel, 299 is.
+    # Door visible right edge = 60 + 900 - 40 = 920.
+    # 299 case: sidelight xMM=1219, no sash -> visible left edge 1219.
+    #           gap = 1219 - 920 = 299 -> side panel.
+    # 300 case: sidelight xMM=1220 -> visible left edge 1220.
+    #           gap = 1220 - 920 = 300 -> not a side panel.
+    sidelight_299 = make_pane(id='side', productClass='window', type='fixed',
+                               xMM=1219, yMM=60, widthMM=330, heightMM=2000)
+    panes_299 = [door, sidelight_299]
+    result_299 = translate_pane(sidelight_299, panes_299, None, row, NO_ANSWERS)
+    assert result_299['payload']['is_side_panel'] is True
+
     sidelight_300 = make_pane(id='side', productClass='window', type='fixed',
                                xMM=1220, yMM=60, widthMM=330, heightMM=2000)
     panes_300 = [door, sidelight_300]
     result_300 = translate_pane(sidelight_300, panes_300, None, row, NO_ANSWERS)
-    assert result_300['payload']['is_side_panel'] is True
+    assert result_300['payload']['is_side_panel'] is False
 
     sidelight_301 = make_pane(id='side', productClass='window', type='fixed',
                                xMM=1221, yMM=60, widthMM=330, heightMM=2000)
@@ -265,10 +277,21 @@ def test_t4_side_panel_gap_boundary_door_on_right_of_pane():
     result_100 = translate_pane(sidelight_100, [door, sidelight_100], None, row, NO_ANSWERS)
     assert result_100['payload']['is_side_panel'] is True
 
+    # Gap is strictly less than 300: exactly 300 is NOT a side panel, 299 is.
+    # Door visible left edge = 3040. Sidelight width 330, no sash.
+    # 299 case: sidelight xMM=2411 -> visible right edge 2411 + 330 = 2741.
+    #           gap = 3040 - 2741 = 299 -> side panel.
+    # 300 case: sidelight xMM=2410 -> visible right edge 2740.
+    #           gap = 3040 - 2740 = 300 -> not a side panel.
+    sidelight_299 = make_pane(id='side', productClass='window', type='fixed',
+                               xMM=2411, yMM=60, widthMM=330, heightMM=2000)
+    result_299 = translate_pane(sidelight_299, [door, sidelight_299], None, row, NO_ANSWERS)
+    assert result_299['payload']['is_side_panel'] is True
+
     sidelight_300 = make_pane(id='side', productClass='window', type='fixed',
                                xMM=2410, yMM=60, widthMM=330, heightMM=2000)
     result_300 = translate_pane(sidelight_300, [door, sidelight_300], None, row, NO_ANSWERS)
-    assert result_300['payload']['is_side_panel'] is True
+    assert result_300['payload']['is_side_panel'] is False
 
     sidelight_301 = make_pane(id='side', productClass='window', type='fixed',
                               xMM=2409, yMM=60, widthMM=330, heightMM=2000)
@@ -303,11 +326,23 @@ def test_t4_side_panel_gap_boundary_door_on_left_of_pane():
     result_100 = translate_pane(sidelight_100, [door_100, sidelight_100], None, row, NO_ANSWERS)
     assert result_100['payload']['is_side_panel'] is True
 
+    # Gap is strictly less than 300: exactly 300 is NOT a side panel, 299 is.
+    # Pane visible left edge = 1000.
+    # 299 case: door_at(-159) -> door visible right edge = -159 + 860 = 701.
+    #           gap = 1000 - 701 = 299 -> side panel.
+    # 300 case: door_at(-160) -> door visible right edge = -160 + 860 = 700.
+    #           gap = 1000 - 700 = 300 -> not a side panel.
+    sidelight_299 = make_pane(id='side', productClass='window', type='fixed',
+                               xMM=1000, yMM=60, widthMM=330, heightMM=2000)
+    door_299 = door_at(-159)
+    result_299 = translate_pane(sidelight_299, [door_299, sidelight_299], None, row, NO_ANSWERS)
+    assert result_299['payload']['is_side_panel'] is True
+
     sidelight_300 = make_pane(id='side', productClass='window', type='fixed',
                                xMM=1000, yMM=60, widthMM=330, heightMM=2000)
     door_300 = door_at(-160)
     result_300 = translate_pane(sidelight_300, [door_300, sidelight_300], None, row, NO_ANSWERS)
-    assert result_300['payload']['is_side_panel'] is True
+    assert result_300['payload']['is_side_panel'] is False
 
     sidelight_301 = make_pane(id='side', productClass='window', type='fixed',
                               xMM=1000, yMM=60, widthMM=330, heightMM=2000)

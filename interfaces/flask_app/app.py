@@ -421,7 +421,7 @@ def _apply_side_panel_height_test(ctx, opening_type, declared_side_panel):
     Sets ctx['opening_type'] and ctx['is_side_panel'] for one glazing
     method, using that method's own sightline (already in ctx).
 
-    On this page the person supplies the "within 300 mm of a doorway" half
+    On this page the person supplies the "less than 300 mm from a doorway" half
     of the side panel test by choosing Side panel (or answering Yes to the
     300 mm question for a window); the tool can only check the height half.
     A declared side panel whose lowest sightline is above the height limit
