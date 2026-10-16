@@ -58,7 +58,7 @@ def test_1():
         'opening_type': 'door',
         'reclassified_as_side_panel': False,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'fixed': {
@@ -88,7 +88,7 @@ def test_2():
         'opening_type': 'door',
         'reclassified_as_side_panel': False,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'fixed': {
@@ -114,7 +114,7 @@ def test_3():
         'opening_type': 'window',
         'reclassified_as_side_panel': False,
         'building_use': 'other',
-        'is_bathroom': True,
+        'room': 'bathroom',
         'high_risk': False,
         'methods': {
             'fixed': {
@@ -146,7 +146,7 @@ def test_4():
         'opening_type': 'window',
         'reclassified_as_side_panel': False,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'sashless': {'span_mm': 1000, 'sightline_mm': 300,
@@ -175,7 +175,7 @@ def test_5():
         'opening_type': 'window',
         'reclassified_as_side_panel': True,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'fixed': {
@@ -229,7 +229,7 @@ def _fixed_side_panel_request(opening_type, reclassified, sightline_mm):
         'opening_type': opening_type,
         'reclassified_as_side_panel': reclassified,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'fixed': {
@@ -310,7 +310,7 @@ def _louvre_side_panel_request(exposed_edges):
         'opening_type': 'side_panel',
         'reclassified_as_side_panel': False,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': {
             'louvre': {
@@ -371,7 +371,7 @@ def test_route_inc_1():
     try:
         data = post({
             'opening_type': 'door', 'reclassified_as_side_panel': False,
-            'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+            'building_use': 'residential', 'room': 'neither', 'high_risk': False,
             'methods': {'fixed': {'unframed_edges': [], 'sightline_mm': 0}},
         })
     finally:
@@ -390,14 +390,14 @@ def test_route_inc_1():
 def test_route_inc_2():
     door = post({
         'opening_type': 'door', 'reclassified_as_side_panel': False,
-        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'building_use': 'residential', 'room': 'neither', 'high_risk': False,
         'methods': {'fixed': {'unframed_edges': [], 'sightline_mm': 0,
                               'panel_width_mm': 100, 'panel_height_mm': 800}},
     })['results']['fixed']
     # Low-level residential window, partly framed: not assessed by this tool.
     oos = post({
         'opening_type': 'window', 'reclassified_as_side_panel': False,
-        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'building_use': 'residential', 'room': 'neither', 'high_risk': False,
         'methods': {'fixed': {'unframed_edges': ['left', 'right'], 'sightline_mm': 300,
                               'sight_width_mm': 900, 'sight_height_mm': 1500}},
     })['results']['fixed']
@@ -422,7 +422,7 @@ def _request(opening_type, methods, reclassified=False):
         'opening_type': opening_type,
         'reclassified_as_side_panel': reclassified,
         'building_use': 'residential',
-        'is_bathroom': False,
+        'room': 'neither',
         'high_risk': False,
         'methods': methods,
     }
@@ -545,6 +545,116 @@ def test_route_fr_exposed_ignored_at_zero():
     report('route_fr_9', 'exposed_edges has no effect when nothing is unframed', checks)
 
 
+# ---------------------------------------------------------------------------
+# TESTS route_room_ — the room question through the route (900 x 2000 mm
+# opening, 1.8 m2; hand-derived expectations)
+# ---------------------------------------------------------------------------
+
+from engine.shared.room import MISSING_ROOM_TEXT
+
+MIRRORS_NOTE = "Mirrors and backed annealed glass are not assessed by this tool."
+
+
+def _room_request(opening_type, room, method_name, method, **top):
+    body = {
+        'opening_type': opening_type,
+        'reclassified_as_side_panel': False,
+        'building_use': 'residential',
+        'high_risk': False,
+        'methods': {method_name: method},
+    }
+    if room is not _ABSENT:
+        body['room'] = room
+    body.update(top)
+    return body
+
+
+_ABSENT = object()
+_FIXED = {'sightline_mm': 1000, 'panel_width_mm': 900, 'panel_height_mm': 2000}
+
+
+def test_route_room_unanswered():
+    checks = []
+    methods = {
+        'fixed': dict(_FIXED, unframed_edges=[]),
+        'louvre': {'sightline_mm': 1000, 'louvre_framing': 'fully', 'blade_width_mm': 150, 'blade_length_mm': 800},
+        'sashless': {'span_mm': 1000, 'sightline_mm': 1000, 'sight_width_mm': 1000, 'sight_height_mm': 1000},
+    }
+    for name, method in methods.items():
+        opening = 'window'
+        for label, room in (('absent', _ABSENT), ('null', None)):
+            data = post(_room_request(opening, room, name, method))
+            r = data['results'][name]
+            ok = (data['success'] is True and r['outcome'] == 'incomplete'
+                  and r['missing_answers'] == [MISSING_ROOM_TEXT] and r['grade_a_required'] is None)
+            checks.append((f'{name}, room {label}', 'incomplete, room question', r['outcome'], ok))
+        old = _room_request(opening, _ABSENT, name, method, is_bathroom=True)
+        r = post(old)['results'][name]
+        checks.append((f'{name}, old client sending only is_bathroom', 'incomplete', r['outcome'],
+                       r['outcome'] == 'incomplete'))
+    report('route_room_1', 'Room unanswered (or only the old is_bathroom flag) -> Incomplete on every method', checks)
+
+
+def test_route_room_bathroom_door():
+    none = post(_room_request('door', 'bathroom', 'fixed', dict(_FIXED, unframed_edges=[])))['results']['fixed']
+    one = post(_room_request('door', 'bathroom', 'fixed', dict(_FIXED, unframed_edges=['head'])))['results']['fixed']
+    adj = post(_room_request('door', 'bathroom', 'fixed', dict(_FIXED, unframed_edges=['head', 'left'])))['results']['fixed']
+    mt1, lt1 = get_type(one, 'monolithic_toughened'), get_type(one, 'laminated_toughened')
+    mta = get_type(adj, 'monolithic_toughened')
+    checks = [
+        ('R6: none unframed, room rule only', ('5.1', ['5.8']), (none['table'], none['clauses']),
+         none['table'] == '5.1' and none['clauses'] == ['5.8']),
+        ('R7: one edge, partly rule (not the 10 mm door rule)', ('5.4', 5, 6),
+         (one['table'], mt1['min_thickness'], lt1['min_thickness']),
+         one['table'] == '5.4' and mt1['min_thickness'] == 5 and lt1['min_thickness'] == 6),
+        ('R8: adjacent, unframed rule, no allowance', ('5.4', 6), (adj['table'], mta['min_thickness']),
+         adj['table'] == '5.4' and mta['min_thickness'] == 6),
+        ('mirrors note present for a bathroom', True, MIRRORS_NOTE in one['notes'], MIRRORS_NOTE in one['notes']),
+    ]
+    report('route_room_2', 'R6-R8, R13: a bathroom door through the route', checks)
+
+
+def test_route_room_kitchen_window():
+    kitchen = post(_room_request('window', 'kitchen', 'fixed',
+                                 dict(_FIXED, unframed_edges=['head', 'left'], sight_width_mm=900,
+                                      sight_height_mm=2000, opaque_or_patterned=True)))['results']['fixed']
+    bathroom = post(_room_request('window', 'bathroom', 'fixed',
+                                  dict(_FIXED, unframed_edges=['head', 'left'], sight_width_mm=900,
+                                       sight_height_mm=2000, opaque_or_patterned=True)))['results']['fixed']
+    mt = get_type(kitchen, 'monolithic_toughened')
+    checks = [
+        ('kitchen unframed: table and MT minimum', ('5.4', 6), (kitchen['table'], mt['min_thickness']),
+         kitchen['table'] == '5.4' and mt['min_thickness'] == 6),
+        ('kitchen equals bathroom result', True, kitchen['types'] == bathroom['types'],
+         kitchen['types'] == bathroom['types'] and kitchen['table'] == bathroom['table']),
+        ('no mirrors note for a kitchen', False, MIRRORS_NOTE in kitchen['notes'], MIRRORS_NOTE not in kitchen['notes']),
+    ]
+    report('route_room_3', 'R9, R13: a kitchen window through the route', checks)
+
+
+def test_route_room_louvre():
+    checks = []
+    for answer in ('fully', 'partly'):
+        r = post(_room_request('window', 'kitchen', 'louvre', {
+            'sightline_mm': 1000, 'louvre_framing': answer, 'blade_width_mm': 150, 'blade_length_mm': 900,
+        }))['results']['louvre']
+        mt = get_type(r, 'monolithic_toughened')
+        checks.append((f'louvre {answer} in a kitchen', ('5.4', 6), (r['table'], mt['min_thickness']),
+                       r['table'] == '5.4' and mt['min_thickness'] == 6))
+    report('route_room_4', 'R11: louvre in a kitchen follows the explicit rule via the route', checks)
+
+
+def test_route_room_invalid_value():
+    checks = []
+    for value in ('Bathroom', 'shower', True, ['bathroom'], ''):
+        data = post(_room_request('window', value, 'fixed', dict(_FIXED, unframed_edges=[])))
+        r = data['results']['fixed']
+        checks.append((f'{value!r}', 'success true, Incomplete', (data['success'], r['outcome']),
+                       data['success'] is True and r['outcome'] == 'incomplete'
+                       and r['missing_answers'] == [MISSING_ROOM_TEXT]))
+    report('route_room_5', 'An invalid room value over the route -> Incomplete, no server error', checks)
+
+
 def run_tests():
     # report() now asserts internally, so a test function either completes
     # (pass) or raises AssertionError (fail) - it no longer returns a bool.
@@ -563,7 +673,10 @@ def run_tests():
              test_route_fr_stale_framing_key, test_route_fr_invalid_values,
              test_route_fr_door_opposite, test_route_fr_none_unframed,
              test_route_fr_louvre_door_partly, test_route_fr_sashless_info,
-             test_route_fr_exposed_ignored_at_zero]
+             test_route_fr_exposed_ignored_at_zero,
+             test_route_room_unanswered, test_route_room_bathroom_door,
+             test_route_room_kitchen_window, test_route_room_louvre,
+             test_route_room_invalid_value]
     passed = 0
     for t in tests:
         try:

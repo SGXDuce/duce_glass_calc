@@ -28,6 +28,7 @@ from engine.shared.data_loader import (
 )
 from engine.shared.results import make_human_impact_result, make_human_impact_incomplete
 from engine.shared.framing import derive_from_edges, derive_from_louvre, sashless_framing_info
+from engine.shared.room import validate_room, room_rule_applies
 from engine.human_impact.location_rules import (
     match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES, NOT_OFFERED_SENTENCE,
     LOW_LEVEL_NOT_ASSESSED_NOTE,
@@ -72,10 +73,28 @@ def _load_data(data_dir=None):
 
 
 FRAMING_INCOMPLETE_TRAIL = (
-    "The framing answer is missing or not valid, so no result is given until it is answered."
+    "A required answer (framing or room) is missing or not valid, so no "
+    "result is given until it is answered."
 )
 
 NEEDS_DIMENSIONS_REASON = "daylight width and height needed to set the thickness"
+
+# Shown on an unframed result in a bathroom, ensuite, spa room or kitchen when
+# no panel area has been entered: the minimum is known, the table check is not.
+NEEDS_TABLE_CHECK_REASON = "enter dimensions to check Table 5.4"
+
+
+def _incomplete_if_unanswered(ctx, framing_missing):
+    """
+    Collects every missing answer (framing first, then room) into one
+    Incomplete result, or returns None when all are answered. An unanswered
+    room is never read as 'neither'.
+    """
+    _, room_missing = validate_room(ctx.get('room'))
+    missing = list(framing_missing or []) + list(room_missing or [])
+    if not missing:
+        return None
+    return make_human_impact_incomplete(missing, trail=[FRAMING_INCOMPLETE_TRAIL])
 
 
 def _table_5_4_largest_area(data):
@@ -90,7 +109,7 @@ def _table_5_4_oversize_reason():
             "load result is still returned.")
 
 
-def _table_5_4_thickness_for_type(data, type_id, area_m2):
+def _table_5_4_thickness_for_type(data, type_id, area_m2, allowance=True):
     """
     Minimum thickness for a bathroom panel (partly framed / unframed) of
     the given area. Returns None when area is None - the caller must then
@@ -99,13 +118,15 @@ def _table_5_4_thickness_for_type(data, type_id, area_m2):
     Small monolithic toughened panels may use the thinner allowance
     thickness; everything else (and larger monolithic panels) takes the
     thinnest row of the main table that is big enough, limits inclusive.
+    allowance=False skips the small-panel allowance (unframed, and louvres,
+    in a bathroom, ensuite, spa room or kitchen).
     The caller must already have confirmed area_m2 is within the table's
     largest size.
     """
     if area_m2 is None:
         return None
 
-    if type_id == 'monolithic_toughened':
+    if allowance and type_id == 'monolithic_toughened':
         df_allow = data['bathroom_toughened_allowance']
         row = df_allow[df_allow['glass_type'] == 'MT'].iloc[0]
         if area_m2 <= float(row['max_area_m2']):
@@ -122,7 +143,7 @@ MONOLITHIC_ANNEALED_HS_NOT_OFFERED = (
 )
 
 
-def _build_types_list(allow, min_thickness_by_type, table, ok_why=None):
+def _build_types_list(allow, min_thickness_by_type, table, ok_why=None, why_with_thickness=False):
     """
     Builds the six-type result list shared by determine_fixed()'s
     Grade-A-required branch.
@@ -135,6 +156,8 @@ def _build_types_list(allow, min_thickness_by_type, table, ok_why=None):
     area-conditional case).
     ok_why: note shown on an allowed type whose thickness could not be
     set (e.g. dimensions missing).
+    why_with_thickness: show ok_why on every allowed type even when a
+    minimum thickness is given (a known minimum that still needs a check).
 
     Monolithic annealed and monolithic heat-strengthened are never offered
     at a Grade A location.
@@ -147,7 +170,8 @@ def _build_types_list(allow, min_thickness_by_type, table, ok_why=None):
                 types.append({
                     'id': type_id, 'name': name, 'ok': True,
                     'min_thickness': min_thickness_by_type[type_id],
-                    'why': ok_why if min_thickness_by_type[type_id] is None else None,
+                    'why': (ok_why if (why_with_thickness
+                                       or min_thickness_by_type[type_id] is None) else None),
                 })
             else:
                 types.append({
@@ -183,9 +207,15 @@ def determine_fixed(ctx, data_dir=None):
 
     Returns a dict built by make_human_impact_result().
     """
-    info, missing = derive_from_edges(ctx.get('unframed_edges'), ctx.get('opening_type') == 'door')
-    if missing:
-        return make_human_impact_incomplete(missing, trail=[FRAMING_INCOMPLETE_TRAIL])
+    # In a bathroom, ensuite, spa room or kitchen a door is framed by the
+    # window/panel rule, not the door rule (the general door rule does not
+    # run there).
+    door_rule = (ctx.get('opening_type') == 'door'
+                 and not room_rule_applies(ctx.get('room'), ctx.get('sightline_mm')))
+    info, framing_missing = derive_from_edges(ctx.get('unframed_edges'), door_rule)
+    incomplete = _incomplete_if_unanswered(ctx, framing_missing)
+    if incomplete:
+        return incomplete
     ctx = dict(ctx)
     ctx['framing'] = info['framing']
 
@@ -221,6 +251,7 @@ def determine_fixed(ctx, data_dir=None):
 
     min_thickness_by_type = {}
     ok_why = None
+    why_with_thickness = False
     if table == '5.4':
         # Only the bathroom rule (partly framed / unframed) uses this table.
         if panel_area_m2 is not None and panel_area_m2 > _table_5_4_largest_area(data):
@@ -230,24 +261,35 @@ def determine_fixed(ctx, data_dir=None):
                 trail=r['trail'], notes=r['notes'], clauses=clauses,
                 framing_info=info,
             )
+        # An unframed bathroom/kitchen rule skips the small-panel allowance.
+        no_allowance = any(m['no_allowance'] for m in grade_a_matches if m['table'] == '5.4')
         for type_id in allow:
             table_thickness = _table_5_4_thickness_for_type(
-                data, type_id, panel_area_m2,
+                data, type_id, panel_area_m2, allowance=not no_allowance,
             )
             # Other matching rules (e.g. a side panel with exposed edges)
             # can demand a thicker glass than the bathroom table does. The
             # most stringent requirement governs, so take the larger. If
-            # the table figure is None (no area given) it stays None.
+            # the table figure is None (no area given) it stays None,
+            # except for the no-allowance case below.
             if table_thickness is not None and min_thickness is not None:
                 table_thickness = max(table_thickness, min_thickness)
             min_thickness_by_type[type_id] = table_thickness
         if panel_area_m2 is None:
-            ok_why = NEEDS_DIMENSIONS_REASON
+            if no_allowance:
+                # The minimum is known without an area; the table check is not.
+                for type_id in allow:
+                    min_thickness_by_type[type_id] = min_thickness
+                ok_why = NEEDS_TABLE_CHECK_REASON
+                why_with_thickness = True
+            else:
+                ok_why = NEEDS_DIMENSIONS_REASON
     else:
         for type_id in allow:
             min_thickness_by_type[type_id] = min_thickness
 
-    types = _build_types_list(allow, min_thickness_by_type, table, ok_why=ok_why)
+    types = _build_types_list(allow, min_thickness_by_type, table, ok_why=ok_why,
+                              why_with_thickness=why_with_thickness)
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=table, types=types,
@@ -270,9 +312,14 @@ def determine_louvre(ctx, data_dir=None):
     ctx = dict(ctx)
     ctx['is_louvre'] = True
 
-    info, missing = derive_from_louvre(ctx.get('louvre_framing'), ctx.get('opening_type') == 'door')
-    if missing:
-        return make_human_impact_incomplete(missing, trail=[FRAMING_INCOMPLETE_TRAIL])
+    # Stored framing follows the window rule for a louvre door in a bathroom,
+    # ensuite, spa room or kitchen (the louvre rule there ignores the answer).
+    door_rule = (ctx.get('opening_type') == 'door'
+                 and not room_rule_applies(ctx.get('room'), ctx.get('sightline_mm')))
+    info, framing_missing = derive_from_louvre(ctx.get('louvre_framing'), door_rule)
+    incomplete = _incomplete_if_unanswered(ctx, framing_missing)
+    if incomplete:
+        return incomplete
     ctx['framing'] = info['framing']
 
     data = _load_data(data_dir)
@@ -324,7 +371,10 @@ def determine_louvre(ctx, data_dir=None):
         # blade size check above has already confirmed both dimensions
         # are present and within the blade limits.
         blade_area_m2 = blade_width_mm * blade_length_mm / 1_000_000
-        table_thickness = _table_5_4_thickness_for_type(data, 'monolithic_toughened', blade_area_m2)
+        no_allowance = any(m['no_allowance'] for m in r['matches']
+                           if m['grade_a'] and m['table'] == '5.4')
+        table_thickness = _table_5_4_thickness_for_type(
+            data, 'monolithic_toughened', blade_area_m2, allowance=not no_allowance)
         # Other matching rules can demand a thicker glass than the
         # bathroom table does; the most stringent requirement governs, so
         # take the larger before the louvre floor is applied below.
@@ -389,6 +439,9 @@ def determine_sashless(span_mm, ctx, data_dir=None):
     """
     if ctx.get('opening_type') == 'door':
         return _sashless_out_of_scope("Sashless doors are not assessed by this tool")
+    incomplete = _incomplete_if_unanswered(ctx, None)
+    if incomplete:
+        return incomplete
     if ctx.get('sightline_mm') is None:
         return _sashless_out_of_scope("Sightline above floor is needed",
                                       framing_info=sashless_framing_info())

@@ -110,7 +110,7 @@ def human_impact_check():
         "reclassified_as_side_panel": bool,  // only meaningful when
                                               // opening_type == "window"
         "building_use": "residential" | "school" | "aged" | "other",
-        "is_bathroom": bool,
+        "room": "bathroom" | "kitchen" | "neither"  (null/missing = unanswered),
         "high_risk": bool,
         "methods": {
           "fixed":    { "unframed_edges": list of "head" | "sill" | "left" |
@@ -125,8 +125,9 @@ def human_impact_check():
 
     Response JSON: { "fixed": {...result...}, "louvre": {...}, ... } -
     only keys for methods actually present in the request's "methods".
-    A missing or invalid framing answer comes back as an Incomplete result;
-    an old request that sends only "framing" is treated as unanswered.
+    A missing or invalid framing or room answer comes back as an Incomplete
+    result; an old request that sends only "framing" or only "is_bathroom"
+    is treated as unanswered.
     """
     try:
         data = request.get_json()
@@ -138,7 +139,7 @@ def human_impact_check():
         )
         shared = dict(
             building_use=data.get('building_use', 'other'),
-            is_bathroom=bool(data.get('is_bathroom')),
+            room=data.get('room'),
             high_risk=bool(data.get('high_risk')),
         )
 

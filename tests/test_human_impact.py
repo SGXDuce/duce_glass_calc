@@ -49,7 +49,7 @@ def base_ctx(**overrides):
         is_side_panel=False,
         is_louvre=False,
         building_use='residential',
-        is_bathroom=False,
+        room='neither',
         high_risk=False,
         unframed_edges=[],
         exposed_edges=None,
@@ -301,7 +301,7 @@ def test_11():
     # Bathroom, partly framed, area 1.5 m² -> table 5.4, monolithic
     # toughened at 5mm (within the interim 2.2m² allowance), laminated
     # toughened at flat 6mm (no allowance in interim data).
-    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
+    ctx = base_ctx(opening_type='window', room='bathroom', unframed_edges=['left', 'right'],
                    sightline_mm=1000, panel_area_m2=1.5)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -317,7 +317,7 @@ def test_11():
 def test_12():
     # Bathroom, partly framed, area 3.0 m² -> monolithic toughened at 6mm
     # (exceeds the 2.2m² allowance, falls back to the flat minimum).
-    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
+    ctx = base_ctx(opening_type='window', room='bathroom', unframed_edges=['left', 'right'],
                    sightline_mm=1000, panel_area_m2=3.0)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -330,7 +330,7 @@ def test_12():
 def test_13():
     # Bathroom door, fully framed -> table 5.1, Grade A, confirm the DOOR
     # rule did NOT also run (5.8 replaces 5.2 entirely for a door).
-    ctx = base_ctx(opening_type='door', is_bathroom=True, unframed_edges=[], sightline_mm=1000)
+    ctx = base_ctx(opening_type='door', room='bathroom', unframed_edges=[], sightline_mm=1000)
     result = determine_fixed(ctx)
     checks = [
         ('table', '5.1', result['table'], result['table'] == '5.1'),
@@ -345,7 +345,7 @@ def test_14():
     # bathroom, sightline 1000mm (within 2000mm) -> 5.8; side panel, fully
     # framed -> 5.3.1; both Table 5.1. Monolithic annealed ok=False (not
     # offered), monolithic toughened ok=True.
-    ctx = base_ctx(opening_type='side_panel', is_side_panel=True, is_bathroom=True,
+    ctx = base_ctx(opening_type='side_panel', is_side_panel=True, room='bathroom',
                    unframed_edges=[], sightline_mm=1000, panel_area_m2=0.2, panel_width_mm=400)
     result = determine_fixed(ctx)
     ma = get_type(result, 'monolithic_annealed')
@@ -406,12 +406,12 @@ def test_16():
 
 
 def test_17():
-    # Louvre, bathroom, partly framed, blade 150x800mm, area 1.0m² -> MT
-    # ok=True at 5mm (both 5.12's 5mm floor and Table 5.4's reduced
-    # allowance agree here). Separately, a large opening area (3.0m²) must
-    # NOT push the thickness up: a louvre is read against the area of one
-    # blade, which stays small.
-    ctx_low = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='partly',
+    # Louvre, bathroom, blade 150x800mm, area 1.0m² -> MT ok=True at 6mm:
+    # louvres in a bathroom follow the explicit louvre rule (treated as
+    # unframed, 6mm minimum, no small-panel allowance). Separately, a large
+    # opening area (3.0m²) must NOT push the thickness up: a louvre is read
+    # against the area of one blade, which stays small.
+    ctx_low = base_ctx(opening_type='window', room='bathroom', louvre_framing='partly',
                        sightline_mm=1000, panel_area_m2=1.0,
                        sight_width_mm=900, sight_height_mm=1500)
     ctx_low['blade_width_mm'] = 150
@@ -425,13 +425,13 @@ def test_17():
     mt_high = get_type(result_high, 'monolithic_toughened')
 
     checks = [
-        ('area 1.0m² -> MT ok/thickness', (True, 5.0), (mt_low['ok'], mt_low['min_thickness']),
-         mt_low['ok'] is True and mt_low['min_thickness'] == 5.0),
+        ('area 1.0m² -> MT ok/thickness', (True, 6.0), (mt_low['ok'], mt_low['min_thickness']),
+         mt_low['ok'] is True and mt_low['min_thickness'] == 6.0),
         ('opening area 3.0m² -> MT ok/thickness (blade area governs, not opening area)',
-         (True, 5.0), (mt_high['ok'], mt_high['min_thickness']),
-         mt_high['ok'] is True and mt_high['min_thickness'] == 5.0),
+         (True, 6.0), (mt_high['ok'], mt_high['min_thickness']),
+         mt_high['ok'] is True and mt_high['min_thickness'] == 6.0),
     ]
-    report('17', 'Louvre + bathroom Table 5.4 area-conditional thickness, most-restrictive-wins', checks)
+    report('17', 'Louvre + bathroom -> explicit louvre rule, MT 6mm, blade area governs', checks)
 
 
 def test_18():
@@ -627,7 +627,7 @@ def test_SH():
     # MT: 5.15 -> 5. Table 5.4 allowance row (MT, max 2.2 m2) covers 1.0 -> 5.
     # Larger of 5 and 5 = 5. Laminated: filtered out by toughened-only (and
     # L row does not cover 1000 anyway). laminated_toughened excluded by L row.
-    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=1000, sight_height_mm=1000)
+    ctx = sashless_ctx(room='bathroom', sightline_mm=1000, sight_width_mm=1000, sight_height_mm=1000)
     result = determine_sashless(1000, ctx)
     data = _load_data()
     print(f"    Table 5.4 allowance row used for MT at 1.0 m2:\n{data['bathroom_toughened_allowance'].to_string(index=False)}")
@@ -644,7 +644,7 @@ def test_SI():
     # first row with max area >= 0.7 is the 3.0 m2 row -> 6; larger = 6.
     # laminated_annealed / laminated_heat_strengthened: removed by the
     # toughened-only filter -> not ok.
-    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=700, sight_height_mm=1000)
+    ctx = sashless_ctx(room='bathroom', sightline_mm=1000, sight_width_mm=700, sight_height_mm=1000)
     result = determine_sashless(700, ctx)
     data = _load_data()
     print(f"    Table 5.4 rows used - MT allowance row:\n{data['bathroom_toughened_allowance'].to_string(index=False)}")
@@ -658,7 +658,7 @@ def test_SI():
 def test_SJ():
     # J: bathroom, 1300 x 1000, span 1300. Area 1.3 m2 is within Table 5.4,
     # but no 5.15 row covers 1300 -> scope False (span beyond 5.15).
-    ctx = sashless_ctx(is_bathroom=True, sightline_mm=1000, sight_width_mm=1300, sight_height_mm=1000)
+    ctx = sashless_ctx(room='bathroom', sightline_mm=1000, sight_width_mm=1300, sight_height_mm=1000)
     result = determine_sashless(1300, ctx)
     checks = [
         ('scope', False, result['scope'], result['scope'] is False),
@@ -742,7 +742,7 @@ def test_SP():
     # P: bathroom, sightline 1000, sight sizes missing, span 700. Area cannot
     # be worked out: types allowed (toughened only) with thickness None and
     # the "daylight width and height needed" reason, as determine_fixed does.
-    result = determine_sashless(700, sashless_ctx(is_bathroom=True, sightline_mm=1000))
+    result = determine_sashless(700, sashless_ctx(room='bathroom', sightline_mm=1000))
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     checks = [
@@ -823,7 +823,7 @@ def test_25():
     # read in plain words, never interpolate the missing value raw. Also
     # pins grade_a_required/table/types to the pre-fix values so the fix
     # is confirmed to only change trail wording, not any matching result.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=[],
+    ctx = base_ctx(opening_type='window', room='bathroom', unframed_edges=[],
                    sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000)
     result = determine_fixed(ctx)
     no_none_in_trail = all('None' not in line for line in result['trail'])
@@ -848,7 +848,7 @@ def test_25():
 
     # Real sightline (2100mm, above the 2000mm trigger) must keep the
     # original wording unchanged.
-    ctx_real = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=[],
+    ctx_real = base_ctx(opening_type='window', room='bathroom', unframed_edges=[],
                         sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000)
     result_real = determine_fixed(ctx_real)
     has_above_trigger_text = any(ABOVE_TRIGGER_TEXT in line for line in result_real['trail'])
@@ -860,7 +860,7 @@ def test_25():
 
 def test_26():
     # Same missing-sightline check for determine_louvre.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='fully',
+    ctx = base_ctx(opening_type='window', room='bathroom', louvre_framing='fully',
                    sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000,
                    blade_width_mm=200, blade_length_mm=900)
     result = determine_louvre(ctx)
@@ -888,7 +888,7 @@ def test_26():
     ]
 
     # Real sightline (2100mm) must keep the original wording for louvres too.
-    ctx_real = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='fully',
+    ctx_real = base_ctx(opening_type='window', room='bathroom', louvre_framing='fully',
                         sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000,
                         blade_width_mm=200, blade_length_mm=900)
     result_real = determine_louvre(ctx_real)
@@ -1007,7 +1007,7 @@ def test_31():
 def test_32():
     # F: bathroom window, partly framed, bottom of glass 1000mm -> Table 5.4
     # toughened-only filter, laminated annealed/HS excluded.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
+    ctx = base_ctx(opening_type='window', room='bathroom', unframed_edges=['left', 'right'],
                    sightline_mm=1000)
     result = determine_fixed(ctx)
     checks = [
@@ -1037,7 +1037,7 @@ def test_33():
 # ---------------------------------------------------------------------------
 
 def _bathroom_ctx(area):
-    return base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
+    return base_ctx(opening_type='window', room='bathroom', unframed_edges=['left', 'right'],
                     sightline_mm=1000, panel_area_m2=area)
 
 
@@ -1118,15 +1118,15 @@ def test_B10():
     checks = [
         ('allowed types', ['monolithic_toughened'], ok_ids(result),
          ok_ids(result) == ['monolithic_toughened']),
-        ('monolithic_toughened min_thickness', 5.0, mt['min_thickness'], mt['min_thickness'] == 5.0),
+        ('monolithic_toughened min_thickness', 6.0, mt['min_thickness'], mt['min_thickness'] == 6.0),
     ]
-    report('B10', 'Bathroom louvre, blade 230x1000 -> monolithic toughened 5mm only', checks)
+    report('B10', 'Bathroom louvre, blade 230x1000 -> monolithic toughened 6mm only', checks)
 
 
 def test_B11():
     # Bathroom side panel with exposed edges: the side-panel rule's higher
     # minimum governs over the bathroom table.
-    ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
+    ctx = base_ctx(opening_type='window', is_side_panel=True, room='bathroom',
                    unframed_edges=['left', 'right'], exposed_edges='y', sightline_mm=800,
                    panel_area_m2=1.0)
     result = determine_fixed(ctx)
@@ -1142,7 +1142,7 @@ def test_B11():
 
 
 def test_B12():
-    ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
+    ctx = base_ctx(opening_type='window', is_side_panel=True, room='bathroom',
                    louvre_framing='partly', exposed_edges='y', sightline_mm=800)
     ctx['blade_width_mm'] = 150
     ctx['blade_length_mm'] = 900
@@ -1228,23 +1228,24 @@ def test_L2():
 
 
 def test_L3():
-    # Louvre, bathroom, fully framed, sightline 300. 5.8 matches (300 <= 2000,
-    # fully framed -> Table 5.1). 5.4 and 5.5 skipped. Only 5.8 -> Grade A,
-    # clauses ['5.8']. Louvre rule: toughened only, 5 mm floor -> MT 5.
-    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=300, is_bathroom=True))
+    # Louvre, bathroom, answered fully framed, sightline 300. 5.8 matches (300
+    # <= 2000) and a louvre there follows the explicit louvre rule whatever the
+    # framing answer: Table 5.4, toughened only, 6 mm minimum, no small-panel
+    # allowance. 5.4 and 5.5 skipped. Only 5.8 -> Grade A, clauses ['5.8'].
+    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=300, room='bathroom'))
     mt = get_type(result, 'monolithic_toughened')
     others = all(not t['ok'] for t in result['types'] if t['id'] != 'monolithic_toughened')
     checks = [
         ('grade_a_required', True, result['grade_a_required'], result['grade_a_required'] is True),
-        ('table', '5.1', result['table'], result['table'] == '5.1'),
+        ('table', '5.4', result['table'], result['table'] == '5.4'),
         ('clauses', ['5.8'], result['clauses'], result['clauses'] == ['5.8']),
-        ('monolithic_toughened ok/thickness', (True, 5), (mt['ok'], mt['min_thickness']),
-         mt['ok'] is True and mt['min_thickness'] == 5),
+        ('monolithic_toughened ok/thickness', (True, 6), (mt['ok'], mt['min_thickness']),
+         mt['ok'] is True and mt['min_thickness'] == 6),
         ('every other type blocked', True, others, others),
         ('vanity note present', True, any('vanity' in n for n in result['notes']),
          any('vanity' in n for n in result['notes'])),
     ]
-    report('L3', 'Louvre, bathroom, fully framed, sightline 300 -> only 5.8, MT 5', checks)
+    report('L3', 'Louvre, bathroom, answered fully framed, sightline 300 -> only 5.8, louvre rule, MT 6', checks)
 
 
 def test_L4():
@@ -1371,7 +1372,7 @@ def test_inc_5():
         determine_louvre(dict(base_ctx(opening_type='window', high_risk=True, louvre_framing='fully',
                                        sight_width_mm=900, sight_height_mm=1500),
                               blade_width_mm=300, blade_length_mm=800)),   # oversize blade
-        determine_sashless(1300, sashless_ctx(is_bathroom=True, sightline_mm=1000,
+        determine_sashless(1300, sashless_ctx(room='bathroom', sightline_mm=1000,
                                               sight_width_mm=1300, sight_height_mm=1000)),  # span beyond coverage
         determine_sashless(None, sashless_ctx(sightline_mm=300)),  # missing span
         determine_sashless(1000, sashless_ctx(sightline_mm=None)), # missing sightline
@@ -1693,6 +1694,281 @@ def test_fr_make_result_framing_info():
 
 
 # ---------------------------------------------------------------------------
+# TESTS room_ — the room question (bathroom, ensuite or spa room / kitchen /
+# neither) through the engine. Hand cases use a 900 x 2000 mm opening
+# (1.8 m2); expectations are derived by hand from the approved rules.
+# ---------------------------------------------------------------------------
+
+from engine.shared.room import MISSING_ROOM_TEXT
+
+MIRRORS_NOTE = "Mirrors and backed annealed glass are not assessed by this tool."
+ROOM_EDGE_ROWS = [
+    # (edges, expected rule): 'fully' / 'partly' / 'unframed'
+    ([], 'fully'),
+    (['head'], 'partly'), (['head', 'sill'], 'partly'), (['left', 'right'], 'partly'),
+    (['head', 'left'], 'unframed'), (['sill', 'right'], 'unframed'),
+    (['head', 'sill', 'left'], 'unframed'), (['head', 'sill', 'left', 'right'], 'unframed'),
+]
+# rule -> (table, monolithic toughened min, laminated toughened min)
+ROOM_RULE_RESULT = {
+    'fully': ('5.1', None, None),
+    'partly': ('5.4', 5, 6),
+    'unframed': ('5.4', 6, 6),
+}
+
+
+def _room_window(room, edges, **kw):
+    ctx = dict(opening_type='window', room=room, unframed_edges=edges, sightline_mm=1000,
+               sight_width_mm=900, sight_height_mm=2000, panel_area_m2=1.8,
+               panel_width_mm=900, opaque_or_patterned=True)
+    ctx.update(kw)
+    return base_ctx(**ctx)
+
+
+def _room_door(room, edges, **kw):
+    ctx = dict(opening_type='door', room=room, unframed_edges=edges, sightline_mm=1000,
+               panel_area_m2=1.8, panel_width_mm=900)
+    ctx.update(kw)
+    return base_ctx(**ctx)
+
+
+def _room_summary(result):
+    mt = get_type(result, 'monolithic_toughened')
+    lt = get_type(result, 'laminated_toughened')
+    return (result['table'], mt['min_thickness'], lt['min_thickness'], ok_ids(result))
+
+
+def _room_expected(rule):
+    table, mt, lt = ROOM_RULE_RESULT[rule]
+    ids = GRADE_A_CAPABLE if rule == 'fully' else TOUGHENED_ONLY
+    return (table, mt, lt, ids)
+
+
+def test_room_window_rows():
+    checks = []
+    for room in ('bathroom', 'kitchen'):
+        for edges, rule in ROOM_EDGE_ROWS:
+            r = determine_fixed(_room_window(room, edges))
+            want = _room_expected(rule)
+            got = _room_summary(r)
+            checks.append((f'{room} window {edges} ({rule})', want, got, got == want))
+    report('room_window_rows', 'R1-R5 and R9: window/panel in a bathroom or kitchen', checks)
+
+
+def test_room_door_rows():
+    checks = []
+    for room in ('bathroom', 'kitchen'):
+        for edges, rule in ROOM_EDGE_ROWS:
+            r = determine_fixed(_room_door(room, edges))
+            want = _room_expected(rule)
+            got = _room_summary(r)
+            only_room_rule = r['clauses'] == ['5.8']
+            checks.append((f'{room} door {edges} ({rule}), no door rule', (want, ['5.8']),
+                           (got, r['clauses']), got == want and only_room_rule))
+    report('room_door_rows', 'R6-R9: a door in a bathroom or kitchen uses the window rule, not the door rule', checks)
+
+
+def test_room_kitchen_equals_bathroom():
+    checks = []
+    for kind, build in (('window', _room_window), ('door', _room_door)):
+        for edges, _ in ROOM_EDGE_ROWS:
+            b = determine_fixed(build('bathroom', edges))
+            k = determine_fixed(build('kitchen', edges))
+            same = (b['table'], b['types'], b['clauses'], b['framing_info']) == \
+                   (k['table'], k['types'], k['clauses'], k['framing_info'])
+            checks.append((f'{kind} {edges}', 'same result', 'same' if same else 'different', same))
+    report('room_kitchen_equals_bathroom', 'R9: a kitchen gives the same result as a bathroom', checks)
+
+
+def test_room_neither_unchanged():
+    # Room 'neither': the general door rule and the window rules are as before.
+    fully = determine_fixed(_room_door('neither', []))
+    one = determine_fixed(_room_door('neither', ['head']))
+    opp = determine_fixed(_room_door('neither', ['left', 'right']))
+    win = determine_fixed(_room_window('neither', ['head', 'left']))
+    mt_one = get_type(one, 'monolithic_toughened')
+    mt_opp = get_type(opp, 'monolithic_toughened')
+    checks = [
+        ('door none unframed: general door rule only', (['5.2'], '5.1', GRADE_A_CAPABLE),
+         (fully['clauses'], fully['table'], ok_ids(fully)),
+         fully['clauses'] == ['5.2'] and fully['table'] == '5.1' and ok_ids(fully) == GRADE_A_CAPABLE),
+        ('door one edge: toughened only, 10 mm', (TOUGHENED_ONLY, 10), (ok_ids(one), mt_one['min_thickness']),
+         ok_ids(one) == TOUGHENED_ONLY and mt_one['min_thickness'] == 10),
+        ('door left+right: toughened only, 10 mm', (TOUGHENED_ONLY, 10), (ok_ids(opp), mt_opp['min_thickness']),
+         ok_ids(opp) == TOUGHENED_ONLY and mt_opp['min_thickness'] == 10),
+        ('window: room rule not run', True, '5.8' not in win['clauses'], '5.8' not in win['clauses']),
+    ]
+    report('room_neither_unchanged', 'R10: room Neither leaves today\'s rules unchanged', checks)
+
+
+def test_room_louvre_rule():
+    checks = []
+    for room in ('bathroom', 'kitchen'):
+        for opening in ('window', 'door'):
+            for answer in ('fully', 'partly'):
+                r = determine_louvre(louvre_ctx(opening_type=opening, room=room,
+                                                louvre_framing=answer, sightline_mm=1000))
+                mt = get_type(r, 'monolithic_toughened')
+                ok = (r['table'] == '5.4' and ok_ids(r) == ['monolithic_toughened']
+                      and mt['min_thickness'] == 6 and r['clauses'] == ['5.8'])
+                checks.append((f'{room} {opening} louvre {answer}', ('5.4', 6, ['5.8']),
+                               (r['table'], mt['min_thickness'], r['clauses']), ok))
+    report('room_louvre_rule', 'R11: louvres in these rooms follow the explicit rule whatever the answer', checks)
+
+
+def test_room_sightline_limit():
+    at = determine_fixed(_room_door('bathroom', [], sightline_mm=2000))
+    above = determine_fixed(_room_door('bathroom', [], sightline_mm=2001))
+    kitchen_above = determine_fixed(_room_door('kitchen', [], sightline_mm=2001))
+    none_line = determine_fixed(_room_door('kitchen', [], sightline_mm=None))
+    win_above = determine_fixed(_room_window('bathroom', ['head', 'left'], sightline_mm=2001))
+    door_above = determine_fixed(_room_door('bathroom', ['left', 'right'], sightline_mm=2001))
+    door_in = determine_fixed(_room_door('bathroom', ['left', 'right'], sightline_mm=2000))
+    mt_above = get_type(door_above, 'monolithic_toughened')
+    checks = [
+        ('at the limit: room rule applies', ['5.8'], at['clauses'], at['clauses'] == ['5.8']),
+        ('above the limit: general door rule instead', ['5.2'], above['clauses'], above['clauses'] == ['5.2']),
+        ('kitchen above the limit: general door rule', ['5.2'], kitchen_above['clauses'],
+         kitchen_above['clauses'] == ['5.2']),
+        ('window above the limit: room rule not run', True, '5.8' not in win_above['clauses'],
+         '5.8' not in win_above['clauses']),
+        ('door above the limit keeps the door rule (10 mm)', (TOUGHENED_ONLY, 10),
+         (ok_ids(door_above), mt_above['min_thickness']),
+         ok_ids(door_above) == TOUGHENED_ONLY and mt_above['min_thickness'] == 10),
+        ('stored framing: door above the limit unframed, inside it partly',
+         ('unframed', 'partly'), (door_above['framing_info']['framing'], door_in['framing_info']['framing']),
+         door_above['framing_info']['framing'] == 'unframed' and door_in['framing_info']['framing'] == 'partly'),
+        ('missing sightline: kitchen wording in the trail', True,
+         any('Clause 5.8 (kitchen) could not be checked' in t for t in none_line['trail']),
+         any('Clause 5.8 (kitchen) could not be checked' in t for t in none_line['trail'])),
+    ]
+    report('room_sightline_limit', 'R12: above the sightline limit the room rule does not apply', checks)
+
+
+def test_room_unframed_no_area():
+    unframed = determine_fixed(_room_window('bathroom', ['head', 'left'], panel_area_m2=None))
+    partly = determine_fixed(_room_window('bathroom', ['head'], panel_area_m2=None))
+    mt_u, lt_u = get_type(unframed, 'monolithic_toughened'), get_type(unframed, 'laminated_toughened')
+    mt_p = get_type(partly, 'monolithic_toughened')
+    checks = [
+        ('unframed: 6 mm minimum with the table-check note', (6, 6, 'enter dimensions to check Table 5.4'),
+         (mt_u['min_thickness'], lt_u['min_thickness'], mt_u['why']),
+         mt_u['min_thickness'] == 6 and lt_u['min_thickness'] == 6
+         and mt_u['why'] == 'enter dimensions to check Table 5.4'),
+        ('partly: no thickness, dimensions needed (as before)', (None, NEEDS_DIMENSIONS_REASON),
+         (mt_p['min_thickness'], mt_p['why']),
+         mt_p['min_thickness'] is None and mt_p['why'] == NEEDS_DIMENSIONS_REASON),
+    ]
+    report('room_unframed_no_area', 'Unframed in a room with no area shows 6 mm and the table-check note', checks)
+
+
+def test_room_note():
+    def has(r):
+        return MIRRORS_NOTE in r['notes']
+
+    bathroom = determine_fixed(_room_window('bathroom', []))
+    kitchen = determine_fixed(_room_window('kitchen', []))
+    neither = determine_fixed(_room_window('neither', []))
+    above = determine_fixed(_room_window('bathroom', [], sightline_mm=2001))
+    louvre = determine_louvre(louvre_ctx(room='bathroom', louvre_framing='fully', sightline_mm=1000))
+    sashless = determine_sashless(1000, sashless_ctx(room='bathroom', sightline_mm=1000,
+                                                     sight_width_mm=1000, sight_height_mm=1000))
+    sashless_k = determine_sashless(1000, sashless_ctx(room='kitchen', sightline_mm=1000,
+                                                       sight_width_mm=1000, sight_height_mm=1000))
+    checks = [
+        ('bathroom, rule applies', True, has(bathroom), has(bathroom)),
+        ('bathroom louvre', True, has(louvre), has(louvre)),
+        ('bathroom sashless', True, has(sashless), has(sashless)),
+        ('kitchen never', False, has(kitchen), not has(kitchen)),
+        ('kitchen sashless never', False, has(sashless_k), not has(sashless_k)),
+        ('neither never', False, has(neither), not has(neither)),
+        ('bathroom above the limit never', False, has(above), not has(above)),
+        ('vanity note still shown for a kitchen', True, any('vanity' in n for n in kitchen['notes']),
+         any('vanity' in n for n in kitchen['notes'])),
+    ]
+    report('room_note', 'R13: the mirrors note is for bathroom, ensuite and spa room results only', checks)
+
+
+def test_room_incomplete_fixed():
+    kw = dict(opening_type='window', sightline_mm=1000, unframed_edges=[])
+    variants = {
+        'key missing': base_ctx(**kw),
+        'None': base_ctx(room=None, **kw),
+        'wrong case': base_ctx(room='Bathroom', **kw),
+        'boolean': base_ctx(room=True, **kw),
+    }
+    for name, ctx in variants.items():
+        if name == 'key missing':
+            ctx.pop('room')
+    stale = base_ctx(**kw)
+    stale.pop('room')
+    stale['is_bathroom'] = True
+    variants['only a stale is_bathroom key'] = stale
+    checks = []
+    for name, ctx in variants.items():
+        r = determine_fixed(ctx)
+        ok = (r['outcome'] == 'incomplete' and r['missing_answers'] == [MISSING_ROOM_TEXT]
+              and r['grade_a_required'] is None and r['table'] is None and r['types'] == [])
+        checks.append((name, 'incomplete, room question', r['outcome'], ok))
+    both = base_ctx(opening_type='window', sightline_mm=1000, unframed_edges=None, room=None)
+    r = determine_fixed(both)
+    checks.append(('framing and room both unanswered', [MISSING_EDGES_TEXT, MISSING_ROOM_TEXT],
+                   r['missing_answers'], r['missing_answers'] == [MISSING_EDGES_TEXT, MISSING_ROOM_TEXT]))
+    report('room_incomplete_fixed', 'An unanswered or invalid room is Incomplete, never Neither', checks)
+
+
+def test_room_incomplete_louvre():
+    ctx = louvre_ctx(louvre_framing='fully', sightline_mm=1000)
+    ctx.pop('room')
+    r = determine_louvre(ctx)
+    both = louvre_ctx(sightline_mm=1000)
+    both.pop('room')
+    r2 = determine_louvre(both)
+    checks = [
+        ('room missing', [MISSING_ROOM_TEXT], r['missing_answers'],
+         r['outcome'] == 'incomplete' and r['missing_answers'] == [MISSING_ROOM_TEXT]),
+        ('louvre framing and room both missing', [MISSING_LOUVRE_TEXT, MISSING_ROOM_TEXT],
+         r2['missing_answers'], r2['missing_answers'] == [MISSING_LOUVRE_TEXT, MISSING_ROOM_TEXT]),
+    ]
+    report('room_incomplete_louvre', 'Louvre: unanswered room is Incomplete', checks)
+
+
+def test_room_incomplete_sashless():
+    ctx = sashless_ctx(sightline_mm=1000, sight_width_mm=1000, sight_height_mm=1000)
+    ctx.pop('room')
+    r = determine_sashless(1000, ctx)
+    door = base_ctx(opening_type='door')
+    door.pop('room')
+    d = determine_sashless(1000, door)
+    checks = [
+        ('room missing', [MISSING_ROOM_TEXT], r['missing_answers'],
+         r['outcome'] == 'incomplete' and r['missing_answers'] == [MISSING_ROOM_TEXT]),
+        ('sashless door is still not assessed', 'out_of_scope', d['outcome'], d['outcome'] == 'out_of_scope'),
+    ]
+    report('room_incomplete_sashless', 'Sashless: unanswered room is Incomplete', checks)
+
+
+def test_room_sashless_unchanged():
+    def run(room, span, width, height):
+        return determine_sashless(span, sashless_ctx(room=room, sightline_mm=1000,
+                                                     sight_width_mm=width, sight_height_mm=height))
+    b1, k1 = run('bathroom', 1000, 1000, 1000), run('kitchen', 1000, 1000, 1000)
+    b2, k2 = run('bathroom', 700, 700, 1000), run('kitchen', 700, 700, 1000)
+    checks = [
+        ('bathroom 1.0 m2 span 1000: MT 5 only', {'monolithic_toughened': 5},
+         {t['id']: t['min_thickness'] for t in b1['types'] if t['ok']},
+         {t['id']: t['min_thickness'] for t in b1['types'] if t['ok']} == {'monolithic_toughened': 5}),
+        ('bathroom 0.7 m2 span 700: MT 5, LT 6', {'monolithic_toughened': 5, 'laminated_toughened': 6},
+         {t['id']: t['min_thickness'] for t in b2['types'] if t['ok']},
+         {t['id']: t['min_thickness'] for t in b2['types'] if t['ok']} == {'monolithic_toughened': 5, 'laminated_toughened': 6}),
+        ('kitchen equals bathroom', True, k1['types'] == b1['types'] and k2['types'] == b2['types'],
+         k1['types'] == b1['types'] and k2['types'] == b2['types']),
+        ('5.8 listed in clauses', True, '5.8' in b1['clauses'], '5.8' in b1['clauses']),
+    ]
+    report('room_sashless_unchanged', 'Sashless in a bathroom or kitchen keeps its existing rules', checks)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -1725,6 +2001,11 @@ def run_tests():
         test_fr_windroute_sashless, test_fr_human_impact_always_returned,
         test_fr_key_set_incomplete, test_fr_framing_info_every_path,
         test_fr_make_result_framing_info,
+        test_room_window_rows, test_room_door_rows, test_room_kitchen_equals_bathroom,
+        test_room_neither_unchanged, test_room_louvre_rule, test_room_sightline_limit,
+        test_room_unframed_no_area, test_room_note, test_room_incomplete_fixed,
+        test_room_incomplete_louvre, test_room_incomplete_sashless,
+        test_room_sashless_unchanged,
     ]
     passed = 0
     for t in tests:

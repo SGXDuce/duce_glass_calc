@@ -15,6 +15,8 @@
 #
 # Duce Timber Windows and Doors
 
+from engine.shared.room import room_rule_applies
+
 # Glass type ids that count as Grade A safety glass in their own right.
 # Toughened glass qualifies because of how it breaks; laminated glass
 # qualifies whatever its ply type, because the interlayer holds the broken
@@ -75,16 +77,29 @@ NOT_OFFERED_SENTENCE = (
     "Monolithic annealed and monolithic heat-strengthened are not offered by this tool."
 )
 
+# Minimum thickness (mm) for the unframed case, and for louvres, in a
+# bathroom, ensuite, spa room or kitchen. The small-panel allowance is not
+# applied there.
+ROOM_UNFRAMED_MIN_THICKNESS_MM = 6
+
+# Added to bathroom, ensuite and spa room results only (not kitchens).
+MIRRORS_NOT_ASSESSED_NOTE = (
+    "Mirrors and backed annealed glass are not assessed by this tool."
+)
+
 LOUVRE_54_SKIP_NOTE = (
     "Louvres are never assessed against Clause 5.4 - a louvre assembly "
     "cannot present as a solid doorway or opening."
 )
 
 
-def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None):
+def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None,
+           no_allowance=False):
     """
     One matching rule's contribution. type_filter is a list of glass type
     ids this rule restricts eligibility to (None = no restriction).
+    no_allowance: the small-panel allowance must not be applied to this
+    rule's Table 5.4 thickness.
     """
     return {
         'clause': clause,
@@ -92,6 +107,7 @@ def _match(clause, grade_a, table=None, type_filter=None, min_thickness=None):
         'table': table,
         'type_filter': type_filter,
         'min_thickness': min_thickness,
+        'no_allowance': no_allowance,
     }
 
 
@@ -122,7 +138,7 @@ def match_location(ctx, data):
     is_side_panel = ctx.get('is_side_panel', False)
     is_louvre = ctx.get('is_louvre', False)
     building_use = ctx.get('building_use', 'other')
-    is_bathroom = ctx.get('is_bathroom', False)
+    room = ctx.get('room')
     high_risk = ctx.get('high_risk', False)
     framing = ctx['framing']
     sight_width_mm = ctx.get('sight_width_mm')
@@ -134,14 +150,42 @@ def match_location(ctx, data):
     rail_lower_edge_mm = ctx.get('rail_lower_edge_mm')
     level_difference_mm = ctx.get('level_difference_mm')
 
-    bathroom_triggered = is_bathroom and sightline_mm is not None and sightline_mm <= 2000
+    # Bathroom, ensuite, spa room or kitchen with the sightline in range.
+    bathroom_triggered = room_rule_applies(room, sightline_mm)
+    in_room = room in ('bathroom', 'kitchen')
+    label = 'kitchen' if room == 'kitchen' else 'bathroom'
 
-    # --- Bathroom (Clause 5.8) ---
+    # --- Bathroom / kitchen (Clause 5.8) ---
     if bathroom_triggered:
-        if framing == 'fully':
+        if is_louvre:
+            # Louvres follow their own explicit rule here: the unframed
+            # case whatever the louvre framing answer.
+            matches.append(_match(
+                '5.8', grade_a=True, table='5.4',
+                type_filter=TOUGHENED_TYPES,
+                min_thickness=ROOM_UNFRAMED_MIN_THICKNESS_MM,
+                no_allowance=True,
+            ))
+            trail.append(f"Clause 5.8 ({label}, louvre, sightline <=2000mm): "
+                          "Grade A required, Table 5.4, types restricted to "
+                          "monolithic toughened, treated as unframed whatever the "
+                          "louvre framing answer (no small-panel allowance). "
+                          + NOT_OFFERED_SENTENCE)
+        elif framing == 'fully':
             matches.append(_match('5.8', grade_a=True, table='5.1'))
-            trail.append("Clause 5.8 (bathroom, fully framed, sightline <=2000mm): "
+            trail.append(f"Clause 5.8 ({label}, fully framed, sightline <=2000mm): "
                           "Grade A required, Table 5.1. " + NOT_OFFERED_SENTENCE)
+        elif framing == 'unframed':
+            matches.append(_match(
+                '5.8', grade_a=True, table='5.4',
+                type_filter=TOUGHENED_TYPES,
+                min_thickness=ROOM_UNFRAMED_MIN_THICKNESS_MM,
+                no_allowance=True,
+            ))
+            trail.append(f"Clause 5.8 ({label}, unframed, sightline <=2000mm): "
+                          "Grade A required, Table 5.4, types restricted to "
+                          "monolithic/laminated toughened, no small-panel allowance. "
+                          + NOT_OFFERED_SENTENCE)
         else:
             # No fixed thickness here: the thickness depends on panel area
             # and glass type, so the engine works it out per type from the
@@ -153,16 +197,18 @@ def match_location(ctx, data):
                 type_filter=TOUGHENED_TYPES,
                 min_thickness=None,
             ))
-            trail.append("Clause 5.8 (bathroom, partly/unframed, sightline <=2000mm): "
+            trail.append(f"Clause 5.8 ({label}, partly framed, sightline <=2000mm): "
                           "Grade A required, Table 5.4, types restricted to "
                           "monolithic/laminated toughened. " + NOT_OFFERED_SENTENCE)
         notes.append(VANITY_EXEMPTION_NOTE)
-    elif is_bathroom:
+        if room == 'bathroom':
+            notes.append(MIRRORS_NOT_ASSESSED_NOTE)
+    elif in_room:
         if sightline_mm is None:
-            trail.append("Clause 5.8 (bathroom) could not be checked - sightline not "
+            trail.append(f"Clause 5.8 ({label}) could not be checked - sightline not "
                           "provided, so the 2000mm trigger was not tested.")
         else:
-            trail.append("Clause 5.8 (bathroom) considered but "
+            trail.append(f"Clause 5.8 ({label}) considered but "
                           f"sightline {sightline_mm}mm is above the 2000mm trigger - not matched.")
 
     # --- Doors (Clause 5.2) --- only when not bathroom-triggered
