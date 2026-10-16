@@ -459,6 +459,8 @@ function setOpeningType(type) {
 
     buildMethodCheckboxes();
     buildMethodCards();
+    syncExposedRow('fixed');
+    syncExposedRow('louvre');
     runCheck();
 }
 
@@ -466,6 +468,8 @@ function setReclassified(value) {
     hiState.reclassifiedAsSidePanel = value;
     document.getElementById('hi-reclass-no').classList.toggle('active', !value);
     document.getElementById('hi-reclass-yes').classList.toggle('active', value);
+    syncExposedRow('fixed');
+    syncExposedRow('louvre');
     onSharedInputChanged();
 }
 
@@ -571,8 +575,10 @@ function buildEdgeChecks() {
         </div>`;
 }
 
-function buildExposedRow(method, isSidePanel) {
-    if (!isSidePanel) return '';
+// Always built, whatever the opening type is when the card is drawn: the
+// doorway question can change afterwards without redrawing the cards, so
+// syncExposedRow() decides whether the row shows.
+function buildExposedRow(method) {
     const state = hiMethodState[method];
     return `
         <div class="field-group" id="hi-${method}-exposed-row" ${exposedRowVisible(method) ? '' : 'hidden'}>
@@ -587,7 +593,7 @@ function buildExposedRow(method, isSidePanel) {
 }
 
 function buildFixedCard(isSidePanel, isGenuineWindow) {
-    let extra = buildExposedRow('fixed', isSidePanel);
+    let extra = buildExposedRow('fixed');
 
     if (isGenuineWindow) {
         extra += `
@@ -670,7 +676,7 @@ function buildFixedCard(isSidePanel, isGenuineWindow) {
 }
 
 function buildLouvreCard(isSidePanel) {
-    const extra = buildExposedRow('louvre', isSidePanel);
+    const extra = buildExposedRow('louvre');
     const lf = hiMethodState.louvre.louvre_framing;
 
     return `

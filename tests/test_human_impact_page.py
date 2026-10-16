@@ -88,3 +88,23 @@ def test_page_fr_payload_and_exposed():
     assert 'checked ? [] : null' in none_fn
     sync = src[src.index('function syncExposedRow('):src.index('function onEdgeToggled(')]
     assert "exposed_edges = 'n'" in sync
+
+
+def test_page_fr_exposed_row_always_built():
+    """
+    Source-text guard only (no JavaScript runtime here): proves structure, not
+    on-screen behaviour. The exposed-edges row is built for both cards
+    whatever the opening type is when the card is drawn (hidden by default
+    through exposedRowVisible), and both the doorway question and the opening
+    type call syncExposedRow for the fixed and louvre methods.
+    """
+    src = _read_template()
+    build = src[src.index('function buildExposedRow('):src.index('function buildFixedCard(')]
+    assert 'if (!isSidePanel) return' not in build, "row must not depend on the opening type at draw time"
+    assert "exposedRowVisible(method) ? '' : 'hidden'" in build
+    assert "buildExposedRow('fixed')" in src and "buildExposedRow('louvre')" in src
+
+    for fn, end in (('function setReclassified(', 'function setBathroom('),
+                    ('function setOpeningType(', 'function setReclassified(')):
+        body = src[src.index(fn):src.index(end)]
+        assert "syncExposedRow('fixed')" in body and "syncExposedRow('louvre')" in body, fn
