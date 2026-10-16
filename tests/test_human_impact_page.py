@@ -145,3 +145,18 @@ def test_page_room_label_door():
     assert 'Room the door serves or opens into' in update
     set_opening = src[src.index('function setOpeningType('):src.index('function setReclassified(')]
     assert 'updateRoomLabel()' in set_opening
+
+
+def test_page_room_label_set_on_load():
+    """
+    Source-text guard only (no JavaScript runtime here): proves structure, not
+    on-screen behaviour. The page's load handler calls updateRoomLabel(), so
+    the room label already matches the default opening type (Door) on first
+    load, before setOpeningType() has been used.
+    """
+    src = _read_template()
+    start = src.index("document.addEventListener('DOMContentLoaded'")
+    init = src[start:src.index('});', start)]
+    assert 'updateRoomLabel()' in init
+    assert 'buildMethodCards()' in init, "must sit with the initial card build"
+    assert "openingType: 'door'" in src, "label depends on the default opening type"
