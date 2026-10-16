@@ -104,7 +104,59 @@ def test_page_fr_exposed_row_always_built():
     assert "exposedRowVisible(method) ? '' : 'hidden'" in build
     assert "buildExposedRow('fixed')" in src and "buildExposedRow('louvre')" in src
 
-    for fn, end in (('function setReclassified(', 'function setBathroom('),
+    for fn, end in (('function setReclassified(', 'function setRoom('),
                     ('function setOpeningType(', 'function setReclassified(')):
         body = src[src.index(fn):src.index(end)]
         assert "syncExposedRow('fixed')" in body and "syncExposedRow('louvre')" in body, fn
+
+
+def test_page_room_nothing_preselected():
+    """
+    Source-text guard only (no JavaScript runtime here): the room question
+    starts unanswered (null) with three answers including Kitchen and none
+    pre-selected, the old bathroom Yes/No toggle is gone, and the payload
+    sends room and no is_bathroom.
+    """
+    src = _read_template()
+    state_start = src.index('const hiState = {')
+    state_block = src[state_start:src.index('};', state_start)]
+    assert 'room: null' in state_block, "room must start unanswered (null)"
+    assert 'isBathroom' not in src and 'is_bathroom' not in src and 'setBathroom' not in src
+    assert 'hi-bathroom-no' not in src and 'hi-bathroom-yes' not in src
+    for label in ('Bathroom, ensuite or spa room', 'Kitchen', 'Neither'):
+        assert label in src, label
+    for r in ('bathroom', 'kitchen', 'neither'):
+        assert f'id="hi-room-{r}" onclick="setRoom(' in src
+        assert f'class="toggle-btn active" id="hi-room-{r}"' not in src, "no room answer may start active"
+    payload = src[src.index('return {\n        opening_type: hiState.openingType'):]
+    assert 'room: hiState.room' in payload[:400]
+
+
+def test_page_room_label_door():
+    """
+    Source-text guard only: the room label mentions kitchens, and for a door
+    it asks about the room the door serves or opens into.
+    """
+    src = _read_template()
+    assert 'Is the glazing in a bathroom, ensuite, spa room or kitchen?' in src
+    update = src[src.index('function updateRoomLabel('):]
+    update = update[:update.index('\n}\n')]
+    assert "hiState.openingType === 'door'" in update
+    assert 'Room the door serves or opens into' in update
+    set_opening = src[src.index('function setOpeningType('):src.index('function setReclassified(')]
+    assert 'updateRoomLabel()' in set_opening
+
+
+def test_page_room_label_set_on_load():
+    """
+    Source-text guard only (no JavaScript runtime here): proves structure, not
+    on-screen behaviour. The page's load handler calls updateRoomLabel(), so
+    the room label already matches the default opening type (Door) on first
+    load, before setOpeningType() has been used.
+    """
+    src = _read_template()
+    start = src.index("document.addEventListener('DOMContentLoaded'")
+    init = src[start:src.index('});', start)]
+    assert 'updateRoomLabel()' in init
+    assert 'buildMethodCards()' in init, "must sit with the initial card build"
+    assert "openingType: 'door'" in src, "label depends on the default opening type"

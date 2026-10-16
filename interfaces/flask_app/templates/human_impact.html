@@ -270,7 +270,7 @@
 
     <div class="hi-scope-note">
         <strong>What this checks:</strong> doors, side panels, and windows — each glazed as a fixed panel/sash,
-        a louvre, or sashless — in residential, school/early childhood, aged care, or bathroom locations, against
+        a louvre, or sashless — in residential, school/early childhood, aged care, bathroom, ensuite, spa room or kitchen locations, against
         AS 1288 Section 5's Grade A safety glass requirements.
         <br><br>
         <strong>What it does not cover:</strong> shopfronts, stairways, balustrades, mirrors/backed glass,
@@ -317,12 +317,13 @@
         </div>
         <div class="hi-method-inputs" style="grid-template-columns: 1fr 1fr;">
             <div class="field-group">
-                <label class="field-label" id="lbl-hi-bathroom">Bathroom / ensuite / spa room?
-                    <span class="tip" tabindex="0" role="button" data-tip="AS 1288 Clause 5.8 applies extra requirements to glazing within 2000mm of the lowest sightline in a bathroom.">?</span>
+                <label class="field-label" id="lbl-hi-room"><span id="hi-room-label-text">Is the glazing in a bathroom, ensuite, spa room or kitchen?</span>
+                    <span class="tip" tabindex="0" role="button" data-tip="AS 1288 Clause 5.8 applies to glazing within 2000mm of the lowest sightline in a bathroom, ensuite, spa room or kitchen. One of these must be chosen.">?</span>
                 </label>
-                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-bathroom">
-                    <button class="toggle-btn active" id="hi-bathroom-no" onclick="setBathroom(false)">No</button>
-                    <button class="toggle-btn" id="hi-bathroom-yes" onclick="setBathroom(true)">Yes</button>
+                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-room">
+                    <button class="toggle-btn" id="hi-room-bathroom" onclick="setRoom('bathroom')">Bathroom, ensuite or spa room</button>
+                    <button class="toggle-btn" id="hi-room-kitchen" onclick="setRoom('kitchen')">Kitchen</button>
+                    <button class="toggle-btn" id="hi-room-neither" onclick="setRoom('neither')">Neither</button>
                 </div>
             </div>
             <div class="field-group">
@@ -368,7 +369,7 @@
             <ul class="hi-gate-list">
                 <li>Doors, side panels, and windows</li>
                 <li>Glazed as a fixed panel/sash, a louvre, or sashless</li>
-                <li>Residential, school/early childhood, aged care, and bathroom locations</li>
+                <li>Residential, school/early childhood, aged care, bathroom, ensuite, spa room and kitchen locations</li>
             </ul>
 
             <div class="hi-gate-section-title">Not covered</div>
@@ -405,7 +406,7 @@ const hiState = {
     openingType: 'door',
     reclassifiedAsSidePanel: false,
     buildingUse: 'residential',
-    isBathroom: false,
+    room: null,                   // null (unanswered) | 'bathroom' | 'kitchen' | 'neither'
     highRisk: false,
     selectedMethods: new Set(),   // subset of 'fixed' | 'louvre' | 'sashless'
 };
@@ -442,6 +443,7 @@ function acknowledgeGate() {
 
 function setOpeningType(type) {
     hiState.openingType = type;
+    updateRoomLabel();
     ['door', 'side_panel', 'window'].forEach(t => {
         document.getElementById(`hi-opening-${t}`).classList.toggle('active', t === type);
     });
@@ -473,11 +475,23 @@ function setReclassified(value) {
     onSharedInputChanged();
 }
 
-function setBathroom(value) {
-    hiState.isBathroom = value;
-    document.getElementById('hi-bathroom-no').classList.toggle('active', !value);
-    document.getElementById('hi-bathroom-yes').classList.toggle('active', value);
+// The room question has no default: until it is answered the engine returns
+// Incomplete for every selected method.
+function setRoom(value) {
+    hiState.room = value;
+    ['bathroom', 'kitchen', 'neither'].forEach(r => {
+        document.getElementById(`hi-room-${r}`).classList.toggle('active', r === value);
+    });
     onSharedInputChanged();
+}
+
+// For a door the question is about the room the door serves or opens into.
+function updateRoomLabel() {
+    const el = document.getElementById('hi-room-label-text');
+    if (!el) return;
+    el.textContent = hiState.openingType === 'door'
+        ? 'Room the door serves or opens into'
+        : 'Is the glazing in a bathroom, ensuite, spa room or kitchen?';
 }
 
 function setHighRisk(value) {
@@ -951,7 +965,7 @@ function buildPayload() {
         opening_type: hiState.openingType,
         reclassified_as_side_panel: hiState.reclassifiedAsSidePanel,
         building_use: hiState.buildingUse,
-        is_bathroom: hiState.isBathroom,
+        room: hiState.room,
         high_risk: hiState.highRisk,
         methods,
     };
@@ -1153,6 +1167,7 @@ function attachTooltipListeners() {
 // ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
+    updateRoomLabel();
     buildMethodCheckboxes();
     buildMethodCards();
     attachTooltipListeners();
