@@ -1,6 +1,6 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.55 (PRs #72-74 merged; Table 5.1 moved to CSV and a shared module; design decisions recorded)
+### Version: V1.56 (PRs #75-80 merged; stocked thicknesses shared module, Incomplete outcome, edge layout ticks, room question)
 ### Last Updated: 16 October 2026
 
 ---
@@ -8,6 +8,49 @@
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.56 - 16 October 2026 - PRs #75-80 merged: stocked thicknesses to a shared module, true Incomplete outcome, edge layout ticks, room question; decisions recorded
+
+Source: master and git history (git log --merges), the Claude Code reports, the browser checks Sahil ran, and the decisions Sahil gave in chat, 16 October 2026. Tags follow the ledger. This entry names clauses and tables by number only. It holds no AS 1288 clause text and no table cell values. The only numbers used are decision parameters already in v1.55 (the 2000 mm room limit, the 6 mm and 10 mm minimums, the 1.5 IGU factor, the 8 m2 door trigger, the 12 mm extrapolation point) and PR, hash and test numbers. Where this entry supersedes an older statement it says so here; the older entries are not edited.
+
+**A. Merged since v1.55.** REPORTED BY CLAUDE CODE (git log --merges; master is at a570453, the merge of PR #80):
+- PR #75, 4c9d433: docs v1.55.
+- PR #76, 2f45da2: stocked thickness guard tests. tests/test_stocked_thicknesses_guard.py and tests/golden/glass_type_thicknesses_golden.json. The golden file was generated once and must never be regenerated.
+- PR #77 (PR 2c), 9823a47: GLASS_TYPE_THICKNESSES moved out of engine/wind_load/constants.py into data/Stocked_Glass_Thicknesses.csv and engine/shared/stocked_thicknesses.py (standard library csv, fresh copies returned, one dict built once in constants.py so that tests/test_table_5_3.py test_11 can patch it in place). These are Duce stock sizes, not AS 1288 values. 6 module tests. 170 tests after this PR.
+- PR #78 (PR A0), 4072111: a true Incomplete outcome for human impact results. New keys outcome ('determined', 'out_of_scope', 'incomplete') and missing_answers on every result, the helper make_human_impact_incomplete, and an Incomplete card on the human impact page. No behaviour change by itself. 178 tests after this PR.
+- PR #79 (edge layout), 6889ef2 (work commits 988d0b7 and cbe8564): the fully / partly / unframed toggle replaced by "which edges are unframed?" ticks (head, sill, left, right, plus an explicit "None unframed (fully framed)"). Nothing is pre-selected. An unanswered or invalid answer is Incomplete. New pure module engine/shared/framing.py. Louvres are asked "fully framed or partly framed (two opposite edges)"; sashless is always partly. A new framing_info key on every result stores the derived framing and a wind route (stored only, never acted on). exposed_edges stays a follow-up question. Includes a fix so the exposed-edges row is always built and shown when needed (found in a browser check). 217 tests after this PR.
+- PR #80 (room question), a570453 (work commits 3bcb88c and 557bb98): the bathroom yes/no flag replaced by one room question (Bathroom, ensuite or spa room / Kitchen / Neither). Nothing is pre-selected. Unanswered is Incomplete, and an old client sending only is_bathroom is Incomplete. New pure module engine/shared/room.py (the 2000 mm limit now lives there, still inclusive). Includes a fix so the room label is right on first load. 240 tests after this PR.
+- State: 240 pytest tests plus the 3 standalone runners passing in run_tests.bat. REPORTED BY CLAUDE CODE; verify with a run.
+- Browser checks by Sahil (Claude in Chrome) of the edge layout and the room question on a local server. The two defects found (the exposed-edges row not shown in one click order, the room label wrong on first load) were fixed before merge. VERIFIED BY SAHIL.
+
+**B. Decisions.** All DECIDED BY SAHIL, 16 October 2026, chat, except item 2's last sentence (OPEN).
+1. Edge layout is by ticked edges, not a count, because the wind span depends on WHICH edge is free, not only how many. All rules in v1.55 B.4 and B.5 stand. Doors: any unframed edge is unframed, EXCEPT inside a bathroom, ensuite, spa room or kitchen, where a door uses the window / panel rule (see item 4).
+2. Louvres skip the tick question and are asked "fully framed or partly framed (two opposite edges)". A louvre DOOR answered partly counts as unframed. Sashless is always partly with two opposite edges and has no question. Which opposite pair is free is not recorded for louvres or sashless (opposite_pair stays empty). OPEN: this matters only when wind is wired in.
+3. A true Incomplete outcome now exists, so there are four results: Grade A required, No requirement found, Not assessed by this tool, Incomplete. A blank required answer is never read as a default. The sashless missing-sightline and missing-span stop-gaps still return "not assessed" and become Incomplete on the new questionnaire page.
+4. Room question. Kitchens use the same rule as bathrooms, and the room limit stays inclusive. In these rooms only the general door rule (5.2) is replaced by 5.8; EVERY other rule keeps stacking (side panel, doorway look-alike, low-level, school, aged care, high risk) and the most restrictive wins. THIS NARROWS v1.55 B.6, whose wording said ONLY 5.8 applies to everything. A door's room answer means the room the door serves or opens into. Framing in these rooms: fully framed is 5.8.2 (Table 5.1); partly framed is 5.8.3 (Table 5.4 with the small-panel allowance); unframed (two adjacent edges, three or four) is 5.8.4 (Table 5.4, 6 mm minimum, allowance not applied). With no area entered, an unframed result shows the 6 mm minimum with the note "enter dimensions to check Table 5.4"; partly framed with no area behaves as before.
+5. Louvres in these rooms follow an explicit rule: monolithic toughened only, 6 mm minimum, no allowance, whatever the louvre framing answer. This confirms v1.55 B.9, which is now BUILT. Tests B10 and 17 changed from 5 mm to 6 mm, and test L3 (bathroom louvre answered fully framed) now follows the louvre rule instead of the fully framed table. These are the only expected values changed in the room PR; every other change was a renamed input.
+6. The mirrors note ("Mirrors and backed annealed glass are not assessed by this tool.") appears on bathroom, ensuite and spa room results, including sashless, when the room rule applies. It never appears for kitchens. The vanity / bench note is unchanged and shows for both rooms. This refines v1.55 B.8.
+7. Sashless in a bathroom or kitchen is unchanged (still stacks, still forced partly); only the field name changed.
+8. Wind routing is stored only (framing_info.wind_route). The wind engine and Pathways 1 to 4 are untouched.
+9. Build order unchanged: next are the shower flag (stored only), then Table 5.1 thickness inside the human impact engine plus the door rules (step D), then IGU (step E), then shopfront rules, the new questionnaire page, and the integration design chat (Opus).
+
+**C. Build plan status and notes.**
+- v1.55 C items 1 to 4 are DONE: the v1.55 docs entry (#75), stocked thickness lists to a shared CSV (#77), edge layout (#79) and the room question (#80). Two PRs not in that list were also merged: the stocked thickness guard tests (#76) and the Incomplete outcome (#78). NEXT, in order: the shower flag (stored only), step D, step E.
+- A door's lowest sightline: the new questionnaire page must treat a door's sightline as zero (the glass starts at the floor). Otherwise a door in a bathroom never gets the room rule. OPEN for that page.
+- The wording rule in v1.55 B.14 stands.
+
+**D. Open items and known issues (new or restated).**
+- Pre-selected defaults still on the standalone page: Building use, High risk of breakage, the doorway question, and exposed edges "No". The new questionnaire page replaces them.
+- Typed numbers are cleared on every opening-type change, and the doorway question resets to "No" when returning to Window (confirmed on master before this work; the new page replaces it).
+- A louvre with blank blade sizes shows "Not assessed" instead of Incomplete.
+- No JavaScript runtime (Node) is installed. Page behaviour is checked by source-text guard tests plus a manual browser pass.
+- Before the edge layout PR, human_impact.html built the exposed-edges row only when the card was drawn. This was a pre-existing weakness and is fixed in #79.
+- Leftover shims and comments from v1.55 still apply: get_safety_glass_max_area, the two _run_table_5_1_search wrappers, stale comments in pathway3.py and pathway4.py, and the unreachable None-limit branches in wind.py.
+- Still owed by Sahil: screenshots of 5.6, 5.7 and 5.12, the Section 1 sight-size definition, and the 5.4(e) rail limits. Shopfront rules wait for these.
+- human-impact-engine-notes.md and engineering-decisions-notes.md still describe the old bathroom flag, the old framing toggle and the bathroom-plus-door stacking, and they hold table-derived numbers against the no-values rule. A notes clean-up docs pass is still owed.
+- EXE and release: EXPIRY_DATE in app.py is past (launcher.py refuses to start). The next EXE build must be started and checked on Pathways 1 to 4, because two shared modules (table_5_1.py and stocked_thicknesses.py) find data/ from their own file path. The version number (2.1 live versus 2.0 documented) is unresolved. Both the cPanel site (git push cpanel master, office network only) and the EXE are to be released. The SSH key passphrase was typed into chat twice.
+
+---
 
 ### v1.55 - 16 October 2026 - Table 5.1 moved to CSV and a shared module (PRs #72-74), landing page, edge layout, bathroom, door and IGU decisions, build plan
 
