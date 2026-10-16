@@ -99,6 +99,12 @@
             color: #f4a020;
         }
 
+        .hi-verdict.incomplete {
+            background: #1c2430;
+            border: 2px dashed #7f9bbd;
+            color: #a9c1de;
+        }
+
         .hi-table-tag {
             display: inline-block;
             background: #1a1a1a;
@@ -950,6 +956,17 @@ function renderNeedsInput(method, message) {
 function renderMethodResult(method, result) {
     const container = document.getElementById(`hi-result-${method}`);
     if (!container) return;
+
+    if (result.outcome === 'incomplete') {
+        container.innerHTML = `
+            <div class="hi-verdict incomplete">Incomplete: answer the questions listed below to see a result.</div>
+            <ul class="hi-notes">
+                ${(result.missing_answers || []).map(m => `<li>${escapeHtml(m)}</li>`).join('')}
+            </ul>
+            ${buildTrailHtml(method, result.trail)}
+        `;
+        return;
+    }
 
     if (!result.scope) {
         container.innerHTML = `

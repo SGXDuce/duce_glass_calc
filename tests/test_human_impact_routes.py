@@ -360,6 +360,56 @@ def test_r9():
     report('R9', 'sightline_within_side_panel_limit boundary and None', checks)
 
 
+def test_route_inc_1():
+    # determine_fixed is imported by name into the app module, so patching
+    # the module attribute swaps what the route calls. The route must pass
+    # an Incomplete result through intact.
+    from engine.shared.results import make_human_impact_incomplete
+    answers = ['Which edges are unframed?']
+    original = flask_app_module.determine_fixed
+    flask_app_module.determine_fixed = lambda ctx: make_human_impact_incomplete(answers)
+    try:
+        data = post({
+            'opening_type': 'door', 'reclassified_as_side_panel': False,
+            'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+            'methods': {'fixed': {'framing': 'fully', 'sightline_mm': 0}},
+        })
+    finally:
+        flask_app_module.determine_fixed = original
+    result = data['results']['fixed']
+    checks = [
+        ('success', True, data['success'], data['success'] is True),
+        ('outcome', 'incomplete', result['outcome'], result['outcome'] == 'incomplete'),
+        ('missing_answers', answers, result['missing_answers'], result['missing_answers'] == answers),
+        ('grade_a_required', None, result['grade_a_required'], result['grade_a_required'] is None),
+        ('types', [], result['types'], result['types'] == []),
+    ]
+    report('inc_1', 'POST /human_impact/check - Incomplete result passes through the route', checks)
+
+
+def test_route_inc_2():
+    door = post({
+        'opening_type': 'door', 'reclassified_as_side_panel': False,
+        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'methods': {'fixed': {'framing': 'fully', 'sightline_mm': 0,
+                              'panel_width_mm': 100, 'panel_height_mm': 800}},
+    })['results']['fixed']
+    # Low-level residential window, partly framed: not assessed by this tool.
+    oos = post({
+        'opening_type': 'window', 'reclassified_as_side_panel': False,
+        'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
+        'methods': {'fixed': {'framing': 'partly', 'sightline_mm': 300,
+                              'sight_width_mm': 900, 'sight_height_mm': 1500}},
+    })['results']['fixed']
+    checks = [
+        ('door outcome', 'determined', door['outcome'], door['outcome'] == 'determined'),
+        ('door has missing_answers []', [], door['missing_answers'], door['missing_answers'] == []),
+        ('out-of-scope scope', False, oos['scope'], oos['scope'] is False),
+        ('out-of-scope outcome', 'out_of_scope', oos['outcome'], oos['outcome'] == 'out_of_scope'),
+    ]
+    report('inc_2', 'POST /human_impact/check - determined and out_of_scope outcomes present', checks)
+
+
 def run_tests():
     # report() now asserts internally, so a test function either completes
     # (pass) or raises AssertionError (fail) - it no longer returns a bool.
@@ -372,7 +422,8 @@ def run_tests():
     print('=' * 70)
 
     tests = [test_1, test_2, test_3, test_4, test_5,
-             test_r1, test_r2, test_r3, test_r4, test_r5, test_r6, test_r7, test_r8, test_r9]
+             test_r1, test_r2, test_r3, test_r4, test_r5, test_r6, test_r7, test_r8, test_r9,
+             test_route_inc_1, test_route_inc_2]
     passed = 0
     for t in tests:
         try:
