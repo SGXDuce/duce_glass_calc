@@ -353,9 +353,13 @@ def make_pathway4_result(status, subtype=None, glass_type=None, glass_subtype=No
     }
 
 
+HUMAN_IMPACT_OUTCOMES = ('determined', 'out_of_scope', 'incomplete')
+
+
 def make_human_impact_result(scope=True, grade_a_required=None, table=None,
                               types=None, notes=None, trail=None,
-                              clauses=None, out_of_scope_reasons=None):
+                              clauses=None, out_of_scope_reasons=None,
+                              outcome=None, missing_answers=None):
     """
     Builds an engine/human_impact result dictionary with a guaranteed,
     consistent set of keys. Every return path in determine_fixed(),
@@ -386,8 +390,25 @@ def make_human_impact_result(scope=True, grade_a_required=None, table=None,
     result (e.g. ['5.2', '5.8']).
 
     out_of_scope_reasons: populated only when scope is False.
+
+    outcome: one of HUMAN_IMPACT_OUTCOMES - 'determined' (the tool reached
+    an answer: Grade A required or no requirement found), 'out_of_scope'
+    (not assessed by this tool), or 'incomplete' (required answers are
+    missing, see missing_answers). When None it is derived from scope:
+    True -> 'determined', False -> 'out_of_scope'. Any other value raises
+    ValueError. Build Incomplete results with make_human_impact_incomplete().
+
+    missing_answers: list of short strings naming the answers still
+    needed. Empty unless outcome is 'incomplete'.
     """
+    if outcome is None:
+        outcome = 'determined' if scope else 'out_of_scope'
+    if outcome not in HUMAN_IMPACT_OUTCOMES:
+        raise ValueError(
+            f"outcome must be one of {HUMAN_IMPACT_OUTCOMES}, got {outcome!r}")
     return {
+        'outcome': outcome,
+        'missing_answers': list(missing_answers) if missing_answers is not None else [],
         'scope': scope,
         'grade_a_required': grade_a_required,
         'table': table,
@@ -397,6 +418,27 @@ def make_human_impact_result(scope=True, grade_a_required=None, table=None,
         'clauses': clauses if clauses is not None else [],
         'out_of_scope_reasons': out_of_scope_reasons if out_of_scope_reasons is not None else [],
     }
+
+
+def make_human_impact_incomplete(missing_answers, trail=None, notes=None):
+    """
+    Builds an Incomplete human impact result: required answers are missing,
+    so the tool must say neither "Grade A required" nor "no requirement".
+    Goes through make_human_impact_result() so the key set is identical to
+    every other human impact result.
+
+    missing_answers: non-empty list of non-empty strings naming the answers
+    still needed. Raises ValueError otherwise - an Incomplete result with
+    nothing to answer would show a blank list.
+    """
+    if (not isinstance(missing_answers, list) or not missing_answers
+            or not all(isinstance(m, str) and m.strip() for m in missing_answers)):
+        raise ValueError("missing_answers must be a non-empty list of non-empty strings")
+    return make_human_impact_result(
+        scope=False, grade_a_required=None, table=None, types=[],
+        notes=notes, trail=trail, out_of_scope_reasons=[],
+        outcome='incomplete', missing_answers=missing_answers,
+    )
 
 
 def make_structural_glazing_result(status, height_m=None, width_m=None,

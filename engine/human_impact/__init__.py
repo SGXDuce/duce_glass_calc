@@ -357,9 +357,10 @@ def determine_sashless(span_mm, ctx, data_dir=None):
     filter and raised by any thickness those rules (or Table 5.4, for a
     bathroom) demand. Sashless doors are not assessed.
 
-    TODO: when the sashless card has an "Incomplete" state, drop the
-    sightline stop-gap below; a missing sightline then becomes incomplete
-    rather than out of scope.
+    TODO: the Incomplete outcome now exists (make_human_impact_incomplete()
+    in engine/shared/results.py). The sightline stop-gap below is removed in
+    a later PR; a missing sightline then becomes incomplete rather than out
+    of scope.
 
     TODO (next session): when this gets wired into the calculator's glass-
     type checkboxes, the resulting per-type minimum thickness must combine

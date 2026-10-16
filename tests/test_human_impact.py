@@ -11,6 +11,7 @@ from engine.human_impact import (
     _load_data, NEEDS_DIMENSIONS_REASON,
 )
 from engine.human_impact.location_rules import LOW_LEVEL_OOS_MESSAGE
+from engine.shared.results import make_human_impact_result, make_human_impact_incomplete
 
 
 # ---------------------------------------------------------------------------
@@ -759,8 +760,10 @@ def test_SP():
 # path (same discipline as tests/test_structural_consistency.py)
 # ---------------------------------------------------------------------------
 
-def test_24():
-    results = [
+def _engine_path_results():
+    """The ten engine calls test_24 has always used (one per distinct
+    result shape). Shared with test_inc_5."""
+    return [
         determine_fixed(base_ctx()),
         determine_fixed(base_ctx(framing='unframed')),
         determine_fixed(base_ctx(opening_type='window', framing='partly', sightline_mm=300,
@@ -780,10 +783,19 @@ def test_24():
         determine_sashless(1000, base_ctx(opening_type='door')),
         determine_sashless(1000, sashless_ctx(sightline_mm=None)),
     ]
+
+
+def test_24():
+    results = _engine_path_results() + [
+        make_human_impact_incomplete(['Which edges are unframed?']),
+    ]
     key_sets = [frozenset(r.keys()) for r in results]
     all_same = len(set(key_sets)) == 1
     checks = [
         ('every return path has an identical key set', True, all_same, all_same),
+        ("'outcome' and 'missing_answers' in the shared key set", True,
+         {'outcome', 'missing_answers'} <= key_sets[0],
+         {'outcome', 'missing_answers'} <= key_sets[0]),
     ]
     if not all_same:
         for i, ks in enumerate(key_sets):
@@ -1286,6 +1298,96 @@ def test_L6():
 
 
 # ---------------------------------------------------------------------------
+# TESTS inc_1-inc_5 — the Incomplete outcome (helper and constructor only;
+# no engine path returns it yet)
+# ---------------------------------------------------------------------------
+
+def test_inc_1():
+    inc = make_human_impact_incomplete(['Which edges are unframed?'])
+    determined = determine_fixed(base_ctx())
+    oos = determine_sashless(1000, base_ctx(opening_type='door'))
+    same = frozenset(inc.keys()) == frozenset(determined.keys()) == frozenset(oos.keys())
+    checks = [
+        ('Incomplete key set equals determined and out-of-scope key sets', True, same, same),
+    ]
+    report('inc_1', 'Incomplete result has the same key set as determined and out-of-scope', checks)
+
+
+def test_inc_2():
+    answers = ['Which edges are unframed?', 'Lowest sightline']
+    inc = make_human_impact_incomplete(answers)
+    checks = [
+        ('outcome', 'incomplete', inc['outcome'], inc['outcome'] == 'incomplete'),
+        ('scope', False, inc['scope'], inc['scope'] is False),
+        ('grade_a_required', None, inc['grade_a_required'], inc['grade_a_required'] is None),
+        ('table', None, inc['table'], inc['table'] is None),
+        ('types', [], inc['types'], inc['types'] == []),
+        ('out_of_scope_reasons', [], inc['out_of_scope_reasons'], inc['out_of_scope_reasons'] == []),
+        ('missing_answers', answers, inc['missing_answers'], inc['missing_answers'] == answers),
+    ]
+    report('inc_2', 'Incomplete result carries the expected field values', checks)
+
+
+def test_inc_3():
+    def raises(value):
+        try:
+            make_human_impact_incomplete(value)
+        except ValueError:
+            return True
+        return False
+    checks = [
+        ('empty list raises ValueError', True, raises([]), raises([])),
+        ('non-list raises ValueError', True, raises('Which edges?'), raises('Which edges?')),
+        ('None raises ValueError', True, raises(None), raises(None)),
+        ('list holding an empty string raises ValueError', True, raises(['ok', '']), raises(['ok', ''])),
+        ('list holding a non-string raises ValueError', True, raises([3]), raises([3])),
+    ]
+    report('inc_3', 'make_human_impact_incomplete rejects empty or malformed missing_answers', checks)
+
+
+def test_inc_4():
+    determined = make_human_impact_result(scope=True)
+    oos = make_human_impact_result(scope=False)
+    try:
+        make_human_impact_result(scope=True, outcome='bogus')
+        bogus_raises = False
+    except ValueError:
+        bogus_raises = True
+    checks = [
+        ('scope=True -> determined', 'determined', determined['outcome'], determined['outcome'] == 'determined'),
+        ('scope=False -> out_of_scope', 'out_of_scope', oos['outcome'], oos['outcome'] == 'out_of_scope'),
+        ('missing_answers defaults to []', [], determined['missing_answers'], determined['missing_answers'] == []),
+        ('unknown outcome raises ValueError', True, bogus_raises, bogus_raises),
+    ]
+    report('inc_4', 'Constructor derives outcome from scope and rejects unknown values', checks)
+
+
+def test_inc_5():
+    # One call per distinct return path not already in test_24's ten calls.
+    results = _engine_path_results() + [
+        determine_fixed(_bathroom_ctx(8.0)),                       # oversize panel
+        determine_louvre(dict(base_ctx(opening_type='window', high_risk=True,
+                                       sight_width_mm=900, sight_height_mm=1500),
+                              blade_width_mm=300, blade_length_mm=800)),   # oversize blade
+        determine_sashless(1300, sashless_ctx(is_bathroom=True, sightline_mm=1000,
+                                              sight_width_mm=1300, sight_height_mm=1000)),  # span beyond coverage
+        determine_sashless(None, sashless_ctx(sightline_mm=300)),  # missing span
+        determine_sashless(1000, sashless_ctx(sightline_mm=None)), # missing sightline
+        determine_sashless(1000, base_ctx(opening_type='door')),   # sashless door
+    ]
+    none_incomplete = all(r['outcome'] != 'incomplete' for r in results)
+    consistent = all(r['outcome'] == ('determined' if r['scope'] else 'out_of_scope') for r in results)
+    checks = [
+        ('no existing engine path returns Incomplete', True, none_incomplete, none_incomplete),
+        ('outcome is consistent with scope on every path', True, consistent, consistent),
+        ('missing_answers empty on every path', True,
+         all(r['missing_answers'] == [] for r in results),
+         all(r['missing_answers'] == [] for r in results)),
+    ]
+    report('inc_5', 'No existing engine path returns Incomplete', checks)
+
+
+# ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
 
@@ -1311,6 +1413,7 @@ def run_tests():
         test_B1, test_B2, test_B3, test_B4, test_B5, test_B6, test_B7,
         test_B8, test_B9, test_B10, test_B11, test_B12,
         test_L1, test_L2, test_L3, test_L4, test_L5, test_L6,
+        test_inc_1, test_inc_2, test_inc_3, test_inc_4, test_inc_5,
     ]
     passed = 0
     for t in tests:
