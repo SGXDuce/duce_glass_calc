@@ -28,10 +28,9 @@
 
 from engine.silicone_bite import run_bite_calculation
 from engine.wind_load.checks.wind import check_glass_type, check_table_5_3_thickness
-from engine.wind_load.formulas import get_safety_glass_max_area
+from engine.shared import table_5_1
 from engine.wind_load.constants import (
     GLASS_TYPE_THICKNESSES,
-    SAFETY_GLASS_INELIGIBLE,
     TABLE_5_3_SAFETY_GLASS_INELIGIBLE,
 )
 from engine.shared.data_loader import load_table_data
@@ -73,27 +72,7 @@ def _run_table_5_1_search(glass_type, glass_subtype, panel_area_m2, thickness_li
     its Table 5.3 gate when support_condition == '4-edge' - see module
     docstring.
     """
-    if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
-        return {'status': 'INELIGIBLE', 'minimum_thickness_mm': None, 'trace': []}
-
-    trace = []
-    for thickness in thickness_list:
-        max_area = get_safety_glass_max_area(glass_type, glass_subtype, thickness)
-        if max_area is None:
-            continue
-        elif panel_area_m2 <= max_area:
-            trace.append({
-                'check': 'SG', 'thickness': thickness, 'max_area': max_area,
-                'actual_area': panel_area_m2, 'result': 'PASS',
-            })
-            return {'status': 'COMPLIANT', 'minimum_thickness_mm': thickness, 'trace': trace}
-        else:
-            trace.append({
-                'check': 'SG', 'thickness': thickness, 'max_area': max_area,
-                'actual_area': panel_area_m2, 'result': 'FAIL',
-            })
-
-    return {'status': 'NON_COMPLIANT', 'minimum_thickness_mm': None, 'trace': trace}
+    return table_5_1.search(glass_type, glass_subtype, panel_area_m2, thickness_list)
 
 
 def run_pathway3_calculation(height_mm, width_1_mm, width_2_mm, angle_deg,

@@ -1,5 +1,5 @@
 from engine.wind_load.constants import (
-    GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE,
+    GLASS_TYPE_THICKNESSES,
     TABLE_5_3_GLASS_TYPE_MAP, UNFRAMED_EDGE_JOINT_COUNTS,
     TABLE_5_3_SAFETY_GLASS_INELIGIBLE,
 )
@@ -7,9 +7,10 @@ from engine.wind_load.formulas import (
     get_ar_interpolation_bounds, calculate_ar, calculate_span, get_kpane_for_config,
     get_c1_factor, get_uls_k_values, get_sls_k_values,
     calculate_uls_capacity, calculate_sls_capacity, calculate_kpane,
-    check_bal_eligibility, get_bal_min_thickness, get_safety_glass_max_area
+    check_bal_eligibility, get_bal_min_thickness
 )
 from engine.shared.data_loader import get_nominal_thickness
+from engine.shared import table_5_1
 from engine.shared.results import make_mode1_result, make_mode2_result
 from engine.shared.table_5_3 import check_table_5_3
 
@@ -159,7 +160,7 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
 
     # --- Safety glass eligibility check (Table 5.1, 4-edge only) ---
     if safety_glass_required and support_condition == '4-edge':
-        if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
+        if table_5_1.is_ineligible(glass_type, glass_subtype):
             return make_mode1_result(
                 status='SG_INELIGIBLE',
                 glass_type=glass_type, glass_subtype=glass_subtype,
@@ -317,33 +318,11 @@ def check_glass_type(df, glass_type, glass_subtype, height_mm, width_mm,
         # Safety Glass now searches its OWN full thickness range
         # independently, reporting its true minimum on its own terms,
         # rather than starting from the wind load governing thickness.
-        sg_trace = []
-
-        for thickness in thickness_list:
-            max_area = get_safety_glass_max_area(
-                glass_type, glass_subtype, thickness
-            )
-
-            if max_area is None:
-                continue
-            elif panel_area <= max_area:
-                sg_trace.append({
-                    'check': 'SG',
-                    'thickness': thickness,
-                    'max_area': max_area,
-                    'actual_area': round(panel_area, 4),
-                    'result': 'PASS'
-                })
-                sg_minimum_thickness = thickness
-                break
-            else:
-                sg_trace.append({
-                    'check': 'SG',
-                    'thickness': thickness,
-                    'max_area': max_area,
-                    'actual_area': round(panel_area, 4),
-                    'result': 'FAIL'
-                })
+        sg_result = table_5_1.search(
+            glass_type, glass_subtype, panel_area, thickness_list, round_area=4
+        )
+        sg_trace = sg_result['trace']
+        sg_minimum_thickness = sg_result['minimum_thickness_mm']
 
         if sg_minimum_thickness is None:
             return make_mode1_result(
@@ -556,7 +535,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
 
     # --- Safety glass eligibility (Table 5.1, 4-edge only) ---
     if safety_glass_required and support_condition == '4-edge':
-        if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
+        if table_5_1.is_ineligible(glass_type, glass_subtype):
             return make_mode2_result(
                 status='SG_INELIGIBLE',
                 pane_label=pane_label,
@@ -799,7 +778,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
     sg_trace = []
 
     if safety_glass_required and support_condition == '4-edge':
-        max_area = get_safety_glass_max_area(
+        max_area = table_5_1.max_area(
             glass_type, glass_subtype, nominal_thickness
         )
         if max_area is None:
@@ -932,7 +911,7 @@ def check_pane_compliance(df, df_nominal, glass_type, glass_subtype,
 
             # Safety Glass Area check
             if safety_glass_required and support_condition == '4-edge':
-                cmax = get_safety_glass_max_area(
+                cmax = table_5_1.max_area(
                     glass_type, glass_subtype, candidate
                 )
                 if cmax is None:

@@ -1,0 +1,13 @@
+category,nominal_thickness_mm,max_area_m2,monolithic_only
+cat1,3,1.0,yes
+cat1,4,2.0,yes
+cat1,5,3.0,no
+cat1,6,4.0,no
+cat1,8,6.0,no
+cat1,10,8.0,no
+cat1,12,10.0,no
+cat2,5,2.2,no
+cat2,6,3.0,no
+cat2,8,5.0,no
+cat2,10,7.0,no
+cat2,12,9.0,no

@@ -1,4 +1,5 @@
 import pandas as pd
+from engine.shared import table_5_1
 GLASS_TYPE_THICKNESSES = {
     ('Monolithic', 'Annealed'):           [4, 5, 6, 8, 10, 12, 15, 19, 25],
     ('Monolithic', 'Toughened'):          [4, 5, 6, 8, 10, 12, 15, 19, 25],
@@ -7,34 +8,11 @@ GLASS_TYPE_THICKNESSES = {
     ('Laminated',  'Heat-strengthened'):  [5, 6, 8, 10, 12, 16, 20, 24],
     ('Laminated',  'Toughened'):          [5, 6, 8, 10, 12, 16, 20, 24],
 }
-SAFETY_GLASS_AREA_CAT1 = {
-    3:  1.0,
-    4:  2.0,
-    5:  3.0,
-    6:  4.0,
-    8:  6.0,
-    10: 8.0,
-    12: 10.0,
-}
-SAFETY_GLASS_AREA_CAT2 = {
-    5:  2.2,
-    6:  3.0,
-    8:  5.0,
-    10: 7.0,
-    12: 9.0,
-}
-SAFETY_GLASS_CATEGORY = {
-    ('Monolithic', 'Toughened'):          'cat1',
-    ('Laminated',  'Toughened'):          'cat1',
-    ('Laminated',  'Annealed'):           'cat2',
-    ('Laminated',  'Heat-strengthened'):  'cat2',
-}
+# Table 5.1 category / eligibility data lives in data/Table_5_1_*.csv
+SAFETY_GLASS_CATEGORY = table_5_1.safety_glass_category()
 
 # Glass types ineligible for safety glass
-SAFETY_GLASS_INELIGIBLE = [
-    ('Monolithic', 'Annealed'),
-    ('Monolithic', 'Heat-strengthened'),
-]
+SAFETY_GLASS_INELIGIBLE = table_5_1.safety_glass_ineligible()
 
 MONOLITHIC_TOUGHENED_ONLY = [('Monolithic', 'Toughened')]
 

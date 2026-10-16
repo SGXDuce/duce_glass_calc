@@ -89,8 +89,8 @@
 
 from engine.structural_glazing.formulas import run_structural_glazing_calculation
 from engine.wind_load.checks.wind import check_glass_type
-from engine.wind_load.constants import GLASS_TYPE_THICKNESSES, SAFETY_GLASS_INELIGIBLE
-from engine.wind_load.formulas import get_safety_glass_max_area
+from engine.wind_load.constants import GLASS_TYPE_THICKNESSES
+from engine.shared import table_5_1
 from engine.shared.data_loader import load_table_data
 from engine.shared.table_4_1 import (
     TABLE_4_1_MONOLITHIC, TABLE_4_1_LAMINATED, find_min_nominal_for_usable_bite,
@@ -123,27 +123,7 @@ def _run_table_5_1_search(glass_type, glass_subtype, panel_area_m2, thickness_li
     for why this is a local reimplementation rather than an import from
     pathway3.py's equivalent private helper.
     """
-    if (glass_type, glass_subtype) in SAFETY_GLASS_INELIGIBLE:
-        return {'status': 'INELIGIBLE', 'minimum_thickness_mm': None, 'trace': []}
-
-    trace = []
-    for thickness in thickness_list:
-        max_area = get_safety_glass_max_area(glass_type, glass_subtype, thickness)
-        if max_area is None:
-            continue
-        elif panel_area_m2 <= max_area:
-            trace.append({
-                'check': 'SG', 'thickness': thickness, 'max_area': max_area,
-                'actual_area': panel_area_m2, 'result': 'PASS',
-            })
-            return {'status': 'COMPLIANT', 'minimum_thickness_mm': thickness, 'trace': trace}
-        else:
-            trace.append({
-                'check': 'SG', 'thickness': thickness, 'max_area': max_area,
-                'actual_area': panel_area_m2, 'result': 'FAIL',
-            })
-
-    return {'status': 'NON_COMPLIANT', 'minimum_thickness_mm': None, 'trace': trace}
+    return table_5_1.search(glass_type, glass_subtype, panel_area_m2, thickness_list)
 
 
 def run_pathway4_calculation(height_m, width_m, wind_pressure_uls_kpa,

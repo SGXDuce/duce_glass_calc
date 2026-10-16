@@ -1,0 +1,7 @@
+glass_type,glass_subtype,category
+Monolithic,Toughened,cat1
+Laminated,Toughened,cat1
+Laminated,Annealed,cat2
+Laminated,Heat-strengthened,cat2
+Monolithic,Annealed,ineligible
+Monolithic,Heat-strengthened,ineligible
