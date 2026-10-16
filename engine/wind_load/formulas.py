@@ -1,6 +1,6 @@
+from engine.shared import table_5_1
 from engine.wind_load.constants import (
-    TABLE_AR_VALUES, BAL_RULES, SAFETY_GLASS_CATEGORY,
-    SAFETY_GLASS_AREA_CAT1, SAFETY_GLASS_AREA_CAT2,
+    TABLE_AR_VALUES, BAL_RULES,
     KPANE_SINGLE, KPANE_DOUBLE, KPANE_TRIPLE,
     C1_FACTORS
 )
@@ -355,17 +355,4 @@ def get_safety_glass_max_area(glass_type, glass_subtype, nominal_thickness_mm):
                 <= 12, otherwise linearly extrapolated from the 12mm value
         None  : if glass type/subtype is not eligible for safety glass
     """
-    category = SAFETY_GLASS_CATEGORY.get((glass_type, glass_subtype))
-    if category is None:
-        return None
-
-    # 3mm and 4mm only apply to Monolithic Toughened, not Toughened Laminated
-    if category == 'cat1' and glass_type == 'Laminated' and nominal_thickness_mm in (3, 4):
-        return None
-
-    area_table = SAFETY_GLASS_AREA_CAT1 if category == 'cat1' else SAFETY_GLASS_AREA_CAT2
-
-    if nominal_thickness_mm > 12:
-        return area_table[12] + (nominal_thickness_mm - 12)
-
-    return area_table.get(nominal_thickness_mm)
+    return table_5_1.max_area(glass_type, glass_subtype, nominal_thickness_mm)
