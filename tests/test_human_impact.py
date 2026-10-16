@@ -51,7 +51,7 @@ def base_ctx(**overrides):
         building_use='residential',
         is_bathroom=False,
         high_risk=False,
-        framing='fully',
+        unframed_edges=[],
         exposed_edges=None,
         sight_width_mm=None,
         sight_height_mm=None,
@@ -137,7 +137,7 @@ def test_2():
 def test_3():
     # Door, unframed -> only monolithic/laminated toughened ok=True at 10mm;
     # annealed/heat-strengthened all ok=False.
-    result = determine_fixed(base_ctx(framing='unframed'))
+    result = determine_fixed(base_ctx(unframed_edges=['head']))
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     ma = get_type(result, 'monolithic_annealed')
@@ -161,7 +161,7 @@ def test_4():
     # Door, unframed, building_use=school, sightline 800mm -> SAME result as
     # test 3 (types still narrowed to toughened family at 10mm) - confirms
     # 5.2(c)'s restriction is not overridden by the school rule.
-    result = determine_fixed(base_ctx(framing='unframed', building_use='school', sightline_mm=800))
+    result = determine_fixed(base_ctx(unframed_edges=['head'], building_use='school', sightline_mm=800))
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     ma = get_type(result, 'monolithic_annealed')
@@ -281,7 +281,7 @@ def test_9():
 def test_10():
     # Window, partly framed, residential, sightline 300mm, not reclassified
     # as side panel -> OUT OF SCOPE (open AGWA question case).
-    ctx = base_ctx(opening_type='window', framing='partly', sightline_mm=300,
+    ctx = base_ctx(opening_type='window', unframed_edges=['left', 'right'], sightline_mm=300,
                    sight_width_mm=900, sight_height_mm=1500)
     result = determine_fixed(ctx)
     checks = [
@@ -301,7 +301,7 @@ def test_11():
     # Bathroom, partly framed, area 1.5 m² -> table 5.4, monolithic
     # toughened at 5mm (within the interim 2.2m² allowance), laminated
     # toughened at flat 6mm (no allowance in interim data).
-    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
                    sightline_mm=1000, panel_area_m2=1.5)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -317,7 +317,7 @@ def test_11():
 def test_12():
     # Bathroom, partly framed, area 3.0 m² -> monolithic toughened at 6mm
     # (exceeds the 2.2m² allowance, falls back to the flat minimum).
-    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
                    sightline_mm=1000, panel_area_m2=3.0)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -330,7 +330,7 @@ def test_12():
 def test_13():
     # Bathroom door, fully framed -> table 5.1, Grade A, confirm the DOOR
     # rule did NOT also run (5.8 replaces 5.2 entirely for a door).
-    ctx = base_ctx(opening_type='door', is_bathroom=True, framing='fully', sightline_mm=1000)
+    ctx = base_ctx(opening_type='door', is_bathroom=True, unframed_edges=[], sightline_mm=1000)
     result = determine_fixed(ctx)
     checks = [
         ('table', '5.1', result['table'], result['table'] == '5.1'),
@@ -346,7 +346,7 @@ def test_14():
     # framed -> 5.3.1; both Table 5.1. Monolithic annealed ok=False (not
     # offered), monolithic toughened ok=True.
     ctx = base_ctx(opening_type='side_panel', is_side_panel=True, is_bathroom=True,
-                   framing='fully', sightline_mm=1000, panel_area_m2=0.2, panel_width_mm=400)
+                   unframed_edges=[], sightline_mm=1000, panel_area_m2=0.2, panel_width_mm=400)
     result = determine_fixed(ctx)
     ma = get_type(result, 'monolithic_annealed')
     mt = get_type(result, 'monolithic_toughened')
@@ -368,7 +368,7 @@ def test_14():
 def test_15():
     # Louvre, not in any Grade A location -> all six types ok=True,
     # Clause 5.12 note about permitting annealed outside Grade A areas.
-    ctx = base_ctx(opening_type='window', building_use='other',
+    ctx = base_ctx(opening_type='window', building_use='other', louvre_framing='fully',
                    sight_width_mm=900, sight_height_mm=1500)
     ctx['blade_width_mm'] = 150
     ctx['blade_length_mm'] = 800
@@ -386,7 +386,7 @@ def test_15():
 def test_16():
     # Louvre, high_risk=Yes, blade 150x800mm (within envelope) -> only
     # monolithic toughened ok=True at 5mm.
-    ctx = base_ctx(opening_type='window', high_risk=True,
+    ctx = base_ctx(opening_type='window', high_risk=True, louvre_framing='fully',
                    sight_width_mm=900, sight_height_mm=1500)
     ctx['blade_width_mm'] = 150
     ctx['blade_length_mm'] = 800
@@ -411,7 +411,7 @@ def test_17():
     # allowance agree here). Separately, a large opening area (3.0m²) must
     # NOT push the thickness up: a louvre is read against the area of one
     # blade, which stays small.
-    ctx_low = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+    ctx_low = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='partly',
                        sightline_mm=1000, panel_area_m2=1.0,
                        sight_width_mm=900, sight_height_mm=1500)
     ctx_low['blade_width_mm'] = 150
@@ -438,7 +438,7 @@ def test_18():
     # Louvre, blade 300mm wide (exceeds 230mm envelope), high_risk=True ->
     # out of scope, specific design message, even though Grade A was
     # genuinely established.
-    ctx = base_ctx(opening_type='window', high_risk=True,
+    ctx = base_ctx(opening_type='window', high_risk=True, louvre_framing='fully',
                    sight_width_mm=900, sight_height_mm=1500)
     ctx['blade_width_mm'] = 300
     ctx['blade_length_mm'] = 800
@@ -459,7 +459,7 @@ def test_19():
     # require Grade A under 5.4 for an ordinary window -> confirm 5.4 is
     # SKIPPED entirely for the louvre method -> no other clause matches ->
     # grade_a_required=False.
-    ctx = base_ctx(opening_type='window', building_use='other',
+    ctx = base_ctx(opening_type='window', building_use='other', louvre_framing='fully',
                    sight_width_mm=900, sight_height_mm=1500, sightline_mm=0,
                    opaque_or_patterned=False, rail_present=False)
     ctx['blade_width_mm'] = 150
@@ -480,8 +480,8 @@ def test_19():
 # ---------------------------------------------------------------------------
 
 def sashless_ctx(**overrides):
-    """A window ctx for sashless tests. framing is deliberately left at the
-    base_ctx default ('fully'): the engine must set 'partly' itself."""
+    """A window ctx for sashless tests. unframed_edges is deliberately left at
+    the base_ctx default ([]): the engine must set 'partly' itself."""
     overrides.setdefault('opening_type', 'window')
     return base_ctx(**overrides)
 
@@ -765,13 +765,13 @@ def _engine_path_results():
     result shape). Shared with test_inc_5."""
     return [
         determine_fixed(base_ctx()),
-        determine_fixed(base_ctx(framing='unframed')),
-        determine_fixed(base_ctx(opening_type='window', framing='partly', sightline_mm=300,
+        determine_fixed(base_ctx(unframed_edges=['head'])),
+        determine_fixed(base_ctx(opening_type='window', unframed_edges=['left', 'right'], sightline_mm=300,
                                   sight_width_mm=900, sight_height_mm=1500)),
-        determine_louvre(dict(base_ctx(opening_type='window', building_use='other',
+        determine_louvre(dict(base_ctx(opening_type='window', building_use='other', louvre_framing='fully',
                                         sight_width_mm=900, sight_height_mm=1500),
                                blade_width_mm=150, blade_length_mm=800)),
-        determine_louvre(dict(base_ctx(opening_type='window', high_risk=True,
+        determine_louvre(dict(base_ctx(opening_type='window', high_risk=True, louvre_framing='fully',
                                         sight_width_mm=900, sight_height_mm=1500),
                                blade_width_mm=300, blade_length_mm=800)),
         determine_sashless(1000, sashless_ctx(sightline_mm=300, sight_width_mm=1000,
@@ -823,7 +823,7 @@ def test_25():
     # read in plain words, never interpolate the missing value raw. Also
     # pins grade_a_required/table/types to the pre-fix values so the fix
     # is confirmed to only change trail wording, not any matching result.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=[],
                    sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000)
     result = determine_fixed(ctx)
     no_none_in_trail = all('None' not in line for line in result['trail'])
@@ -848,7 +848,7 @@ def test_25():
 
     # Real sightline (2100mm, above the 2000mm trigger) must keep the
     # original wording unchanged.
-    ctx_real = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+    ctx_real = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=[],
                         sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000)
     result_real = determine_fixed(ctx_real)
     has_above_trigger_text = any(ABOVE_TRIGGER_TEXT in line for line in result_real['trail'])
@@ -860,7 +860,7 @@ def test_25():
 
 def test_26():
     # Same missing-sightline check for determine_louvre.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+    ctx = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='fully',
                    sightline_mm=None, panel_area_m2=1.0, panel_width_mm=1000,
                    blade_width_mm=200, blade_length_mm=900)
     result = determine_louvre(ctx)
@@ -888,7 +888,7 @@ def test_26():
     ]
 
     # Real sightline (2100mm) must keep the original wording for louvres too.
-    ctx_real = base_ctx(opening_type='window', is_bathroom=True, framing='fully',
+    ctx_real = base_ctx(opening_type='window', is_bathroom=True, louvre_framing='fully',
                         sightline_mm=2100, panel_area_m2=1.0, panel_width_mm=1000,
                         blade_width_mm=200, blade_length_mm=900)
     result_real = determine_louvre(ctx_real)
@@ -917,7 +917,7 @@ def test_27():
     # A: school window, sightline 800mm, sight 900x1200mm, fully framed, no
     # other triggers -> Table 5.1, clause 5.10.2, the four Grade A capable
     # types allowed, monolithic annealed/heat-strengthened blocked.
-    ctx = base_ctx(opening_type='window', building_use='school', framing='fully',
+    ctx = base_ctx(opening_type='window', building_use='school', unframed_edges=[],
                    sightline_mm=800, sight_width_mm=900, sight_height_mm=1200,
                    panel_area_m2=1.08, panel_width_mm=900)
     result = determine_fixed(ctx)
@@ -935,7 +935,7 @@ def test_27():
 
 def test_28():
     # B: same as test 27 but unframed -> Table 5.3, same allowed/blocked lists.
-    ctx = base_ctx(opening_type='window', building_use='school', framing='unframed',
+    ctx = base_ctx(opening_type='window', building_use='school', unframed_edges=['head', 'sill', 'left', 'right'],
                    sightline_mm=800, sight_width_mm=900, sight_height_mm=1200,
                    panel_area_m2=1.08, panel_width_mm=900)
     result = determine_fixed(ctx)
@@ -956,7 +956,7 @@ def test_29():
     # bathroom -> Clause 5.2 only, Grade A, Table 5.1, no type filter. Four
     # Grade A types ok=True (laminated annealed/HS allowed outright);
     # monolithic annealed ok=False (not offered).
-    ctx = base_ctx(opening_type='door', building_use='other', framing='fully',
+    ctx = base_ctx(opening_type='door', building_use='other', unframed_edges=[],
                    panel_area_m2=0.08, panel_width_mm=100)
     result = determine_fixed(ctx)
     ma = get_type(result, 'monolithic_annealed')
@@ -977,7 +977,7 @@ def test_29():
 def test_30():
     # D: unframed door -> toughened-only filter excludes laminated
     # annealed/HS; only the two toughened types at 10mm.
-    result = determine_fixed(base_ctx(framing='unframed'))
+    result = determine_fixed(base_ctx(unframed_edges=['head']))
     mt = get_type(result, 'monolithic_toughened')
     lt = get_type(result, 'laminated_toughened')
     checks = [
@@ -991,7 +991,7 @@ def test_30():
 def test_31():
     # E: window within 300mm of a doorway (side panel), bottom of glass at
     # 800mm, partly framed, exposed edges -> toughened-only filter, 10mm.
-    ctx = base_ctx(opening_type='window', is_side_panel=True, framing='partly',
+    ctx = base_ctx(opening_type='window', is_side_panel=True, unframed_edges=['left', 'right'],
                    exposed_edges='y', sightline_mm=800)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -1007,7 +1007,7 @@ def test_31():
 def test_32():
     # F: bathroom window, partly framed, bottom of glass 1000mm -> Table 5.4
     # toughened-only filter, laminated annealed/HS excluded.
-    ctx = base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+    ctx = base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
                    sightline_mm=1000)
     result = determine_fixed(ctx)
     checks = [
@@ -1037,7 +1037,7 @@ def test_33():
 # ---------------------------------------------------------------------------
 
 def _bathroom_ctx(area):
-    return base_ctx(opening_type='window', is_bathroom=True, framing='partly',
+    return base_ctx(opening_type='window', is_bathroom=True, unframed_edges=['left', 'right'],
                     sightline_mm=1000, panel_area_m2=area)
 
 
@@ -1110,6 +1110,7 @@ def test_B9():
 
 def test_B10():
     ctx = _bathroom_ctx(None)
+    ctx['louvre_framing'] = 'partly'
     ctx['blade_width_mm'] = 230
     ctx['blade_length_mm'] = 1000
     result = determine_louvre(ctx)
@@ -1126,7 +1127,7 @@ def test_B11():
     # Bathroom side panel with exposed edges: the side-panel rule's higher
     # minimum governs over the bathroom table.
     ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
-                   framing='partly', exposed_edges='y', sightline_mm=800,
+                   unframed_edges=['left', 'right'], exposed_edges='y', sightline_mm=800,
                    panel_area_m2=1.0)
     result = determine_fixed(ctx)
     mt = get_type(result, 'monolithic_toughened')
@@ -1142,7 +1143,7 @@ def test_B11():
 
 def test_B12():
     ctx = base_ctx(opening_type='window', is_side_panel=True, is_bathroom=True,
-                   framing='partly', exposed_edges='y', sightline_mm=800)
+                   louvre_framing='partly', exposed_edges='y', sightline_mm=800)
     ctx['blade_width_mm'] = 150
     ctx['blade_length_mm'] = 900
     result = determine_louvre(ctx)
@@ -1160,7 +1161,8 @@ def test_B12():
 # ---------------------------------------------------------------------------
 
 def louvre_ctx(**overrides):
-    """Residential louvre window, sight 1000 x 1000, blades 150 x 900."""
+    """Residential louvre window, sight 1000 x 1000, blades 150 x 900.
+    No louvre_framing default: every caller states it."""
     overrides.setdefault('opening_type', 'window')
     overrides.setdefault('sight_width_mm', 1000)
     overrides.setdefault('sight_height_mm', 1000)
@@ -1193,7 +1195,7 @@ def test_L1():
     # Louvre, residential, fully framed, sightline 300.
     # 5.4 skipped (louvre). 5.5 would trigger (residential, 300 < 500) but is
     # skipped for louvres. No other rule -> no requirement, clauses [].
-    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300))
+    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=300))
     checks = [
         ('scope', True, result['scope'], result['scope'] is True),
         ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
@@ -1212,7 +1214,7 @@ def test_L1():
 def test_L2():
     # Same as L1 but partly framed. Before the skip this was out of scope
     # (5.5 not fully framed); now 5.5 is skipped, so the result equals L1.
-    result = determine_louvre(louvre_ctx(framing='partly', sightline_mm=300))
+    result = determine_louvre(louvre_ctx(louvre_framing='partly', sightline_mm=300))
     checks = [
         ('scope', True, result['scope'], result['scope'] is True),
         ('no out-of-scope reasons', [], result['out_of_scope_reasons'],
@@ -1229,7 +1231,7 @@ def test_L3():
     # Louvre, bathroom, fully framed, sightline 300. 5.8 matches (300 <= 2000,
     # fully framed -> Table 5.1). 5.4 and 5.5 skipped. Only 5.8 -> Grade A,
     # clauses ['5.8']. Louvre rule: toughened only, 5 mm floor -> MT 5.
-    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300, is_bathroom=True))
+    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=300, is_bathroom=True))
     mt = get_type(result, 'monolithic_toughened')
     others = all(not t['ok'] for t in result['types'] if t['id'] != 'monolithic_toughened')
     checks = [
@@ -1249,7 +1251,7 @@ def test_L4():
     # Regression guard: louvre, school, fully framed, sightline 300.
     # 5.10.2 matches (school, 300 <= 1000, Table 5.1). 5.5 is residential
     # only, so it never applied. Grade A, MT 5 only.
-    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=300, building_use='school'))
+    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=300, building_use='school'))
     mt = get_type(result, 'monolithic_toughened')
     others = all(not t['ok'] for t in result['types'] if t['id'] != 'monolithic_toughened')
     checks = [
@@ -1268,10 +1270,10 @@ def test_L5():
     # Fully framed: 5.5 still matches -> Grade A, Table 5.1, '5.5' in clauses.
     # Partly framed: 5.5 still out of scope with LOW_LEVEL_OOS_MESSAGE.
     fully = determine_fixed(base_ctx(
-        opening_type='window', framing='fully', sightline_mm=300,
+        opening_type='window', unframed_edges=[], sightline_mm=300,
         sight_width_mm=1000, sight_height_mm=1000, opaque_or_patterned=True))
     partly = determine_fixed(base_ctx(
-        opening_type='window', framing='partly', sightline_mm=300,
+        opening_type='window', unframed_edges=['left', 'right'], sightline_mm=300,
         sight_width_mm=1000, sight_height_mm=1000, opaque_or_patterned=True))
     checks = [
         ('fully: grade_a_required', True, fully['grade_a_required'], fully['grade_a_required'] is True),
@@ -1288,7 +1290,7 @@ def test_L6():
     # Louvre, residential, fully framed, sightline 900. 5.5 needs < 500, so
     # it would not trigger anyway; the skip line is still recorded. No other
     # rule -> no requirement, clauses [].
-    result = determine_louvre(louvre_ctx(framing='fully', sightline_mm=900))
+    result = determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=900))
     checks = [
         ('grade_a_required', False, result['grade_a_required'], result['grade_a_required'] is False),
         ('all six types ok', True, all(t['ok'] for t in result['types']), all(t['ok'] for t in result['types'])),
@@ -1298,8 +1300,8 @@ def test_L6():
 
 
 # ---------------------------------------------------------------------------
-# TESTS inc_1-inc_5 — the Incomplete outcome (helper and constructor only;
-# no engine path returns it yet)
+# TESTS inc_1-inc_5 — the Incomplete outcome (helper and constructor; the
+# engine returns it only when the framing answer is missing, see the fr_ tests)
 # ---------------------------------------------------------------------------
 
 def test_inc_1():
@@ -1366,7 +1368,7 @@ def test_inc_5():
     # One call per distinct return path not already in test_24's ten calls.
     results = _engine_path_results() + [
         determine_fixed(_bathroom_ctx(8.0)),                       # oversize panel
-        determine_louvre(dict(base_ctx(opening_type='window', high_risk=True,
+        determine_louvre(dict(base_ctx(opening_type='window', high_risk=True, louvre_framing='fully',
                                        sight_width_mm=900, sight_height_mm=1500),
                               blade_width_mm=300, blade_length_mm=800)),   # oversize blade
         determine_sashless(1300, sashless_ctx(is_bathroom=True, sightline_mm=1000,
@@ -1385,6 +1387,309 @@ def test_inc_5():
          all(r['missing_answers'] == [] for r in results)),
     ]
     report('inc_5', 'No existing engine path returns Incomplete', checks)
+
+
+# ---------------------------------------------------------------------------
+# TESTS fr_ — the "which edges are unframed?" answer through the engine
+# (hand-derived expectations). Wind route is stored only; nothing reads it.
+# ---------------------------------------------------------------------------
+
+from engine.shared.framing import MISSING_EDGES_TEXT, MISSING_LOUVRE_TEXT
+
+_P1, _P23, _P22, _NA = 'pathway_1', 'pathway_2_three_edge', 'pathway_2_two_edge', 'wind_not_assessed'
+
+# edges ticked -> (count, shape, pair, wind_route); all 16 subsets, by hand.
+EDGE_GEOMETRY = {
+    (): (0, None, None, _P1),
+    ('head',): (1, None, None, _P23), ('sill',): (1, None, None, _P23),
+    ('left',): (1, None, None, _P23), ('right',): (1, None, None, _P23),
+    ('head', 'sill'): (2, 'opposite', 'head_sill', _P22),
+    ('left', 'right'): (2, 'opposite', 'left_right', _P22),
+    ('head', 'left'): (2, 'adjacent', None, _NA), ('head', 'right'): (2, 'adjacent', None, _NA),
+    ('sill', 'left'): (2, 'adjacent', None, _NA), ('sill', 'right'): (2, 'adjacent', None, _NA),
+    ('head', 'sill', 'left'): (3, None, None, _NA), ('head', 'sill', 'right'): (3, None, None, _NA),
+    ('head', 'left', 'right'): (3, None, None, _NA), ('sill', 'left', 'right'): (3, None, None, _NA),
+    ('head', 'sill', 'left', 'right'): (4, None, None, _NA),
+}
+_PARTLY_SETS = {('head',), ('sill',), ('left',), ('right',), ('head', 'sill'), ('left', 'right')}
+
+
+def _nondoor_framing(edges):
+    if not edges:
+        return 'fully'
+    return 'partly' if edges in _PARTLY_SETS else 'unframed'
+
+
+def _door_framing(edges):
+    return 'fully' if not edges else 'unframed'
+
+
+def _info_tuple(info):
+    return (info['framing'], info['unframed_count'], info['opposite_or_adjacent'],
+            info['opposite_pair'], info['wind_route'])
+
+
+def _is_incomplete_for_framing(result, text):
+    return (result['outcome'] == 'incomplete' and result['scope'] is False
+            and result['grade_a_required'] is None and result['table'] is None
+            and result['types'] == [] and result['missing_answers'] == [text]
+            and result['framing_info'] is None)
+
+
+def _no_edges(**overrides):
+    ctx = base_ctx(**overrides)
+    ctx.pop('unframed_edges', None)
+    return ctx
+
+
+def test_fr_incomplete_fixed():
+    kinds = {
+        'door': dict(opening_type='door'),
+        'window': dict(opening_type='window', sightline_mm=1500,
+                       sight_width_mm=1000, sight_height_mm=1000),
+        'side panel': dict(opening_type='side_panel', is_side_panel=True, sightline_mm=800),
+    }
+    checks = []
+    for kind, kw in kinds.items():
+        variants = {
+            'key missing': _no_edges(**kw),
+            'None': base_ctx(unframed_edges=None, **kw),
+            'string': base_ctx(unframed_edges='head', **kw),
+            'unknown edge': base_ctx(unframed_edges=['top'], **kw),
+            'duplicate': base_ctx(unframed_edges=['head', 'head'], **kw),
+            'only a stale framing key': dict(_no_edges(**kw), framing='fully'),
+        }
+        for name, ctx in variants.items():
+            r = determine_fixed(ctx)
+            ok = _is_incomplete_for_framing(r, MISSING_EDGES_TEXT)
+            checks.append((f'{kind}: {name}', 'incomplete, no verdict', r['outcome'], ok))
+    report('fr_incomplete_fixed', 'Unanswered or invalid edges -> Incomplete, never fully framed', checks)
+
+
+def test_fr_incomplete_louvre():
+    no_answer = louvre_ctx()
+    variants = {
+        'key missing (edges supplied)': louvre_ctx(unframed_edges=[]),
+        'no framing keys at all': no_answer,
+        'None': louvre_ctx(louvre_framing=None),
+        'unframed': louvre_ctx(louvre_framing='unframed'),
+        'wrong case': louvre_ctx(louvre_framing='Fully'),
+        'only a stale framing key': dict(louvre_ctx(), framing='fully'),
+    }
+    checks = []
+    for name, ctx in variants.items():
+        r = determine_louvre(ctx)
+        ok = _is_incomplete_for_framing(r, MISSING_LOUVRE_TEXT)
+        checks.append((name, 'incomplete, no verdict', r['outcome'], ok))
+    report('fr_incomplete_louvre', 'Unanswered or invalid louvre framing -> Incomplete', checks)
+
+
+def test_fr_window_rows():
+    # Residential window, sightline 300, opaque so the doorway look-alike
+    # rule is exempt. Fully framed: low-level rule gives Grade A (Table 5.1).
+    # Every other layout is not fully framed: not assessed by this tool.
+    base = dict(opening_type='window', sightline_mm=300, sight_width_mm=1000,
+                sight_height_mm=1000, opaque_or_patterned=True)
+    checks = []
+    r = determine_fixed(base_ctx(unframed_edges=[], **base))
+    checks.append(('none unframed', (True, '5.1'), (r['grade_a_required'], r['table']),
+                   r['outcome'] == 'determined' and r['grade_a_required'] is True and r['table'] == '5.1'))
+    for edges in (['head'], ['head', 'sill'], ['left', 'right'], ['head', 'left'],
+                  ['head', 'sill', 'left'], ['head', 'sill', 'left', 'right']):
+        r = determine_fixed(base_ctx(unframed_edges=edges, **base))
+        ok = (r['outcome'] == 'out_of_scope' and r['out_of_scope_reasons'] == [LOW_LEVEL_OOS_MESSAGE])
+        checks.append((f'{edges}', 'not assessed by this tool', r['outcome'], ok))
+    report('fr_window_rows', 'Window: derived framing reaches the low-level rule correctly', checks)
+
+
+def test_fr_side_panel_rows():
+    base = dict(opening_type='side_panel', is_side_panel=True, sightline_mm=1200)
+    checks = []
+    r = determine_fixed(base_ctx(unframed_edges=[], exposed_edges='y', **base))
+    checks.append(('none unframed (exposed ignored)', ('5.1', GRADE_A_CAPABLE), (r['table'], ok_ids(r)),
+                   r['table'] == '5.1' and ok_ids(r) == GRADE_A_CAPABLE))
+    layouts = [['head'], ['left', 'right'], ['head', 'sill'], ['head', 'left'],
+               ['head', 'sill', 'left'], ['head', 'sill', 'left', 'right']]
+    for edges in layouts:
+        r_n = determine_fixed(base_ctx(unframed_edges=edges, exposed_edges='n', **base))
+        r_y = determine_fixed(base_ctx(unframed_edges=edges, exposed_edges='y', **base))
+        mt = get_type(r_y, 'monolithic_toughened')
+        checks.append((f'{edges} exposed n', ('5.3', GRADE_A_CAPABLE), (r_n['table'], ok_ids(r_n)),
+                       r_n['table'] == '5.3' and ok_ids(r_n) == GRADE_A_CAPABLE))
+        checks.append((f'{edges} exposed y', ('5.3', TOUGHENED_ONLY, 10),
+                       (r_y['table'], ok_ids(r_y), mt['min_thickness']),
+                       r_y['table'] == '5.3' and ok_ids(r_y) == TOUGHENED_ONLY
+                       and mt['min_thickness'] == 10))
+    report('fr_side_panel_rows', 'Side panel: none ticked is fully; any tick is partly/unframed', checks)
+
+
+def test_fr_door_rows():
+    checks = []
+    r = determine_fixed(base_ctx(unframed_edges=[]))
+    checks.append(('none unframed', ('5.1', GRADE_A_CAPABLE), (r['table'], ok_ids(r)),
+                   r['table'] == '5.1' and ok_ids(r) == GRADE_A_CAPABLE))
+    for edges in EDGE_GEOMETRY:
+        if not edges:
+            continue
+        r = determine_fixed(base_ctx(unframed_edges=list(edges)))
+        mt = get_type(r, 'monolithic_toughened')
+        lt = get_type(r, 'laminated_toughened')
+        ok = (ok_ids(r) == TOUGHENED_ONLY and mt['min_thickness'] == 10
+              and lt['min_thickness'] == 10)
+        label = f'{list(edges)}' + (' [D6]' if edges == ('left', 'right') else '')
+        checks.append((label, 'toughened only, 10', (ok_ids(r), mt['min_thickness']), ok))
+    report('fr_door_rows', 'Door: any unframed edge -> toughened only, 10 mm minimum (D6 included)', checks)
+
+
+def test_fr_louvre_door():
+    fully = determine_louvre(louvre_ctx(opening_type='door', louvre_framing='fully'))
+    partly = determine_louvre(louvre_ctx(opening_type='door', louvre_framing='partly'))
+    mt_f = get_type(fully, 'monolithic_toughened')
+    mt_p = get_type(partly, 'monolithic_toughened')
+    checks = [
+        ('door fully', (True, '5.1', 5), (fully['grade_a_required'], fully['table'], mt_f['min_thickness']),
+         fully['grade_a_required'] is True and fully['table'] == '5.1' and mt_f['min_thickness'] == 5),
+        ('L3: door partly counts as unframed (10 mm rule)', (True, 10),
+         (partly['grade_a_required'], mt_p['min_thickness']),
+         partly['grade_a_required'] is True and mt_p['min_thickness'] == 10),
+        ('only toughened offered', ['monolithic_toughened'], ok_ids(partly),
+         ok_ids(partly) == ['monolithic_toughened']),
+    ]
+    report('fr_louvre_door', 'L3: louvre door answered partly -> unframed door rule', checks)
+
+
+_QUIET = dict(opening_type='window', sightline_mm=1500, sight_width_mm=1000,
+              sight_height_mm=1000, opaque_or_patterned=True)
+
+
+def test_fr_windroute_window():
+    checks = []
+    for edges, (count, shape, pair, route) in EDGE_GEOMETRY.items():
+        r = determine_fixed(base_ctx(unframed_edges=list(edges), **_QUIET))
+        want = (_nondoor_framing(edges), count, shape, pair, route)
+        got = _info_tuple(r['framing_info']) if r['framing_info'] else None
+        checks.append((f'{list(edges)}', want, got, got == want))
+    report('fr_windroute_window', 'Stored wind route and framing for every window layout', checks)
+
+
+def test_fr_windroute_door():
+    checks = []
+    for edges, (count, shape, pair, route) in EDGE_GEOMETRY.items():
+        r = determine_fixed(base_ctx(unframed_edges=list(edges)))
+        want = (_door_framing(edges), count, shape, pair, route)
+        got = _info_tuple(r['framing_info']) if r['framing_info'] else None
+        checks.append((f'{list(edges)}', want, got, got == want))
+    report('fr_windroute_door', 'Stored wind route from tick geometry alone, for every door layout', checks)
+
+
+def test_fr_windroute_louvre():
+    cases = [
+        ('window fully', dict(opening_type='window', louvre_framing='fully'), ('fully', 0, None, None, _P1)),
+        ('window partly', dict(opening_type='window', louvre_framing='partly'), ('partly', 2, 'opposite', None, _P22)),
+        ('door fully', dict(opening_type='door', louvre_framing='fully'), ('fully', 0, None, None, _P1)),
+        ('door partly', dict(opening_type='door', louvre_framing='partly'), ('unframed', 2, 'opposite', None, _P22)),
+    ]
+    checks = []
+    for name, kw, want in cases:
+        r = determine_louvre(louvre_ctx(**kw))
+        got = _info_tuple(r['framing_info']) if r['framing_info'] else None
+        checks.append((name, want, got, got == want))
+    report('fr_windroute_louvre', 'Stored wind route and framing for louvre windows and doors', checks)
+
+
+def test_fr_windroute_sashless():
+    want = ('partly', 2, 'opposite', None, _P22)
+    win = determine_sashless(1000, sashless_ctx(sightline_mm=900, sight_width_mm=1000, sight_height_mm=1400))
+    sp = determine_sashless(1000, sashless_ctx(opening_type='side_panel', is_side_panel=True,
+                                               sightline_mm=900, sight_width_mm=1000, sight_height_mm=1400))
+    door = determine_sashless(1000, base_ctx(opening_type='door'))
+    checks = [
+        ('window', want, _info_tuple(win['framing_info']), _info_tuple(win['framing_info']) == want),
+        ('side panel', want, _info_tuple(sp['framing_info']), _info_tuple(sp['framing_info']) == want),
+        ('sashless door is not assessed: framing_info None', None, door['framing_info'],
+         door['framing_info'] is None),
+    ]
+    report('fr_windroute_sashless', 'Sashless carries the fixed two-edge info; the sashless door carries none', checks)
+
+
+def test_fr_human_impact_always_returned():
+    checks = []
+    for edges in (['head', 'left'], ['sill', 'right'], ['head', 'sill', 'left'],
+                  ['head', 'sill', 'left', 'right']):
+        door = determine_fixed(base_ctx(unframed_edges=edges))
+        sp = determine_fixed(base_ctx(opening_type='side_panel', is_side_panel=True,
+                                      sightline_mm=800, unframed_edges=edges, exposed_edges='n'))
+        for kind, r in (('door', door), ('side panel', sp)):
+            ok = (r['outcome'] == 'determined' and r['grade_a_required'] is True
+                  and r['framing_info']['wind_route'] == 'wind_not_assessed')
+            checks.append((f'{kind} {edges}', 'determined, wind not assessed', r['outcome'], ok))
+    report('fr_human_impact_always_returned',
+           'Where wind is not assessed, human impact is still returned', checks)
+
+
+def test_fr_key_set_incomplete():
+    inc_f = determine_fixed(_no_edges())
+    inc_l = determine_louvre(louvre_ctx())
+    determined = determine_fixed(base_ctx())
+    oos = determine_sashless(1000, base_ctx(opening_type='door'))
+    sets = [frozenset(r.keys()) for r in (inc_f, inc_l, determined, oos)]
+    checks = [
+        ('all four key sets identical', True, len(set(sets)) == 1, len(set(sets)) == 1),
+        ("'framing_info' is in the shared key set", True, 'framing_info' in sets[0], 'framing_info' in sets[0]),
+        ('engine Incomplete framing_info is None', (None, None), (inc_f['framing_info'], inc_l['framing_info']),
+         inc_f['framing_info'] is None and inc_l['framing_info'] is None),
+        ('both are Incomplete', ('incomplete', 'incomplete'), (inc_f['outcome'], inc_l['outcome']),
+         inc_f['outcome'] == 'incomplete' and inc_l['outcome'] == 'incomplete'),
+    ]
+    report('fr_key_set_incomplete', 'Engine Incomplete has the full result key set including framing_info', checks)
+
+
+def test_fr_framing_info_every_path():
+    keys = {'framing', 'unframed_count', 'opposite_or_adjacent', 'opposite_pair', 'wind_route'}
+    paths = [
+        ('fixed required', determine_fixed(base_ctx()), False),
+        ('fixed no requirement', determine_fixed(base_ctx(**_QUIET)), False),
+        ('fixed out of scope', determine_fixed(base_ctx(unframed_edges=['left', 'right'],
+                                                        opening_type='window', sightline_mm=300,
+                                                        sight_width_mm=900, sight_height_mm=1500)), False),
+        ('fixed oversize', determine_fixed(_bathroom_ctx(8.0)), False),
+        ('louvre no requirement', determine_louvre(louvre_ctx(louvre_framing='fully', sightline_mm=900)), False),
+        ('louvre required', determine_louvre(louvre_ctx(louvre_framing='fully', high_risk=True)), False),
+        ('louvre oversize blade', determine_louvre(dict(louvre_ctx(louvre_framing='fully', high_risk=True),
+                                                        blade_width_mm=300)), False),
+        ('sashless no requirement', determine_sashless(1000, sashless_ctx(
+            sightline_mm=900, sight_width_mm=1000, sight_height_mm=1400)), False),
+        ('sashless required', determine_sashless(1000, sashless_ctx(
+            building_use='other', sightline_mm=300, sight_width_mm=1000, sight_height_mm=1400)), False),
+        ('sashless span beyond', determine_sashless(1300, sashless_ctx(
+            building_use='other', sightline_mm=300, sight_width_mm=1300, sight_height_mm=1400)), False),
+        ('sashless missing span', determine_sashless(None, sashless_ctx(sightline_mm=300)), False),
+        ('sashless missing sightline', determine_sashless(1000, sashless_ctx(sightline_mm=None)), False),
+        ('sashless door', determine_sashless(1000, base_ctx(opening_type='door')), True),
+    ]
+    checks = []
+    for name, r, expect_none in paths:
+        fi = r['framing_info']
+        ok = (fi is None) if expect_none else (isinstance(fi, dict) and set(fi.keys()) == keys)
+        checks.append((name, 'None' if expect_none else 'five-key dict', fi, ok))
+    report('fr_framing_info_every_path', 'framing_info present on every engine return path except the sashless door', checks)
+
+
+def test_fr_make_result_framing_info():
+    info = {'framing': 'fully', 'unframed_count': 0, 'opposite_or_adjacent': None,
+            'opposite_pair': None, 'wind_route': 'pathway_1'}
+    default = make_human_impact_result(scope=True)
+    given = make_human_impact_result(scope=True, framing_info=info)
+    info['framing'] = 'changed'
+    inc = make_human_impact_incomplete(['Which edges are unframed?'])
+    same_keys = frozenset(default) == frozenset(given) == frozenset(inc)
+    checks = [
+        ('default is None', None, default['framing_info'], default['framing_info'] is None),
+        ('a copy is stored', 'fully', given['framing_info']['framing'], given['framing_info']['framing'] == 'fully'),
+        ('Incomplete helper gives None', None, inc['framing_info'], inc['framing_info'] is None),
+        ('key set unchanged between default, given and Incomplete', True, same_keys, same_keys),
+    ]
+    report('fr_make_result_framing_info', 'make_human_impact_result stores a copy of framing_info (default None)', checks)
 
 
 # ---------------------------------------------------------------------------
@@ -1414,6 +1719,12 @@ def run_tests():
         test_B8, test_B9, test_B10, test_B11, test_B12,
         test_L1, test_L2, test_L3, test_L4, test_L5, test_L6,
         test_inc_1, test_inc_2, test_inc_3, test_inc_4, test_inc_5,
+        test_fr_incomplete_fixed, test_fr_incomplete_louvre, test_fr_window_rows,
+        test_fr_side_panel_rows, test_fr_door_rows, test_fr_louvre_door,
+        test_fr_windroute_window, test_fr_windroute_door, test_fr_windroute_louvre,
+        test_fr_windroute_sashless, test_fr_human_impact_always_returned,
+        test_fr_key_set_incomplete, test_fr_framing_info_every_path,
+        test_fr_make_result_framing_info,
     ]
     passed = 0
     for t in tests:

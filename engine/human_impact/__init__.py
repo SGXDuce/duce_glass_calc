@@ -26,7 +26,8 @@ from engine.shared.data_loader import (
     load_mistaken_doorway_exceptions,
     load_sashless_span_table,
 )
-from engine.shared.results import make_human_impact_result
+from engine.shared.results import make_human_impact_result, make_human_impact_incomplete
+from engine.shared.framing import derive_from_edges, derive_from_louvre, sashless_framing_info
 from engine.human_impact.location_rules import (
     match_location, GRADE_A_CAPABLE_TYPES, ALL_TYPES, NOT_OFFERED_SENTENCE,
     LOW_LEVEL_NOT_ASSESSED_NOTE,
@@ -69,6 +70,10 @@ def _load_data(data_dir=None):
         'sashless_span': load_sashless_span_table(os.path.join(d, 'Sashless_Span_Table.csv')),
     }
 
+
+FRAMING_INCOMPLETE_TRAIL = (
+    "The framing answer is missing or not valid, so no result is given until it is answered."
+)
 
 NEEDS_DIMENSIONS_REASON = "daylight width and height needed to set the thickness"
 
@@ -178,13 +183,19 @@ def determine_fixed(ctx, data_dir=None):
 
     Returns a dict built by make_human_impact_result().
     """
+    info, missing = derive_from_edges(ctx.get('unframed_edges'), ctx.get('opening_type') == 'door')
+    if missing:
+        return make_human_impact_incomplete(missing, trail=[FRAMING_INCOMPLETE_TRAIL])
+    ctx = dict(ctx)
+    ctx['framing'] = info['framing']
+
     data = _load_data(data_dir)
     r = match_location(ctx, data)
 
     if r['oos']:
         return make_human_impact_result(
             scope=False, out_of_scope_reasons=r['oos'], trail=r['trail'],
-            notes=r['notes'],
+            notes=r['notes'], framing_info=info,
         )
 
     grade_a_required = any(m['grade_a'] for m in r['matches'])
@@ -194,7 +205,7 @@ def determine_fixed(ctx, data_dir=None):
         return make_human_impact_result(
             scope=True, grade_a_required=False, table=None,
             types=_all_types_ok_no_restriction(), notes=r['notes'],
-            trail=r['trail'], clauses=clauses,
+            trail=r['trail'], clauses=clauses, framing_info=info,
         )
 
     table, min_thickness = resolve_table_and_thickness(r['matches'])
@@ -217,6 +228,7 @@ def determine_fixed(ctx, data_dir=None):
                 scope=False, grade_a_required=True,
                 out_of_scope_reasons=[_table_5_4_oversize_reason()],
                 trail=r['trail'], notes=r['notes'], clauses=clauses,
+                framing_info=info,
             )
         for type_id in allow:
             table_thickness = _table_5_4_thickness_for_type(
@@ -239,7 +251,7 @@ def determine_fixed(ctx, data_dir=None):
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=table, types=types,
-        notes=r['notes'], trail=r['trail'], clauses=clauses,
+        notes=r['notes'], trail=r['trail'], clauses=clauses, framing_info=info,
     )
 
 
@@ -258,13 +270,18 @@ def determine_louvre(ctx, data_dir=None):
     ctx = dict(ctx)
     ctx['is_louvre'] = True
 
+    info, missing = derive_from_louvre(ctx.get('louvre_framing'), ctx.get('opening_type') == 'door')
+    if missing:
+        return make_human_impact_incomplete(missing, trail=[FRAMING_INCOMPLETE_TRAIL])
+    ctx['framing'] = info['framing']
+
     data = _load_data(data_dir)
     r = match_location(ctx, data)
 
     if r['oos']:
         return make_human_impact_result(
             scope=False, out_of_scope_reasons=r['oos'], trail=r['trail'],
-            notes=r['notes'],
+            notes=r['notes'], framing_info=info,
         )
 
     grade_a_required = any(m['grade_a'] for m in r['matches'])
@@ -278,7 +295,7 @@ def determine_louvre(ctx, data_dir=None):
         ]
         return make_human_impact_result(
             scope=True, grade_a_required=False, table=None, types=types,
-            notes=notes, trail=r['trail'], clauses=clauses,
+            notes=notes, trail=r['trail'], clauses=clauses, framing_info=info,
         )
 
     blade_width_mm = ctx.get('blade_width_mm')
@@ -296,6 +313,7 @@ def determine_louvre(ctx, data_dir=None):
                 "this configuration. The wind load result is still returned."
             ],
             trail=r['trail'], notes=r['notes'], clauses=clauses,
+            framing_info=info,
         )
 
     table, min_thickness = resolve_table_and_thickness(r['matches'])
@@ -332,14 +350,16 @@ def determine_louvre(ctx, data_dir=None):
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=table, types=types,
-        notes=r['notes'], trail=r['trail'], clauses=clauses,
+        notes=r['notes'], trail=r['trail'], clauses=clauses, framing_info=info,
     )
 
 
-def _sashless_out_of_scope(reason, grade_a_required=None, trail=None, notes=None, clauses=None):
+def _sashless_out_of_scope(reason, grade_a_required=None, trail=None, notes=None, clauses=None,
+                            framing_info=None):
     return make_human_impact_result(
         scope=False, grade_a_required=grade_a_required,
         out_of_scope_reasons=[reason], trail=trail, notes=notes, clauses=clauses,
+        framing_info=framing_info,
     )
 
 
@@ -370,9 +390,10 @@ def determine_sashless(span_mm, ctx, data_dir=None):
     if ctx.get('opening_type') == 'door':
         return _sashless_out_of_scope("Sashless doors are not assessed by this tool")
     if ctx.get('sightline_mm') is None:
-        return _sashless_out_of_scope("Sightline above floor is needed")
+        return _sashless_out_of_scope("Sightline above floor is needed",
+                                      framing_info=sashless_framing_info())
     if span_mm is None:
-        return _sashless_out_of_scope("Span is needed")
+        return _sashless_out_of_scope("Span is needed", framing_info=sashless_framing_info())
 
     data = _load_data(data_dir)
     df = data['sashless_span']
@@ -401,7 +422,8 @@ def determine_sashless(span_mm, ctx, data_dir=None):
                       "could not be tested; Clause 5.4 is treated as not exempt (conservative).")
 
     if r['oos']:
-        return _sashless_out_of_scope(r['oos'][0], trail=trail, notes=r['notes'])
+        return _sashless_out_of_scope(r['oos'][0], trail=trail, notes=r['notes'],
+                                      framing_info=sashless_framing_info())
 
     grade_a_required = any(m['grade_a'] for m in r['matches'])
     clauses = sorted({m['clause'] for m in r['matches']})
@@ -411,7 +433,7 @@ def determine_sashless(span_mm, ctx, data_dir=None):
             scope=True, grade_a_required=False, table=None,
             types=_all_types_ok_no_restriction(),
             notes=list(r['notes']) + [LOW_LEVEL_NOT_ASSESSED_NOTE],
-            trail=trail, clauses=clauses,
+            trail=trail, clauses=clauses, framing_info=sashless_framing_info(),
         )
 
     clauses = sorted(set(clauses) | {'5.15'})
@@ -433,6 +455,7 @@ def determine_sashless(span_mm, ctx, data_dir=None):
             return _sashless_out_of_scope(
                 _table_5_4_oversize_reason(), grade_a_required=True,
                 trail=trail, notes=r['notes'], clauses=clauses,
+                framing_info=sashless_framing_info(),
             )
 
     types = []
@@ -473,9 +496,11 @@ def determine_sashless(span_mm, ctx, data_dir=None):
             "glass type allowed at this location (span beyond 5.15). This "
             "configuration is not assessed by this tool.",
             grade_a_required=True, trail=trail, notes=r['notes'], clauses=clauses,
+            framing_info=sashless_framing_info(),
         )
 
     return make_human_impact_result(
         scope=True, grade_a_required=True, table=None, types=types,
         notes=r['notes'], trail=trail, clauses=clauses,
+        framing_info=sashless_framing_info(),
     )

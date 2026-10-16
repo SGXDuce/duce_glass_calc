@@ -113,8 +113,11 @@ def human_impact_check():
         "is_bathroom": bool,
         "high_risk": bool,
         "methods": {
-          "fixed":    { ...method-specific fields... } | omitted,
-          "louvre":   { ...method-specific fields... } | omitted,
+          "fixed":    { "unframed_edges": list of "head" | "sill" | "left" |
+                          "right" ([] = none unframed, null/missing =
+                          unanswered), ...other fields... } | omitted,
+          "louvre":   { "louvre_framing": "fully" | "partly" (null/missing =
+                          unanswered), ...other fields... } | omitted,
           "sashless": { "span_mm", "sightline_mm", "sight_width_mm",
                         "sight_height_mm", ... } | omitted
         }
@@ -122,6 +125,8 @@ def human_impact_check():
 
     Response JSON: { "fixed": {...result...}, "louvre": {...}, ... } -
     only keys for methods actually present in the request's "methods".
+    A missing or invalid framing answer comes back as an Incomplete result;
+    an old request that sends only "framing" is treated as unanswered.
     """
     try:
         data = request.get_json()
@@ -146,7 +151,7 @@ def human_impact_check():
             ctx['is_louvre'] = False
             ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
             downgraded = _apply_side_panel_height_test(ctx, opening_type, declared_side_panel)
-            ctx['framing'] = m.get('framing')
+            ctx['unframed_edges'] = m.get('unframed_edges')
             ctx['exposed_edges'] = m.get('exposed_edges')
             ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
             ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
@@ -167,7 +172,7 @@ def human_impact_check():
             ctx = dict(shared)
             ctx['sightline_mm'] = _to_float(m.get('sightline_mm'))
             downgraded = _apply_side_panel_height_test(ctx, opening_type, declared_side_panel)
-            ctx['framing'] = m.get('framing')
+            ctx['louvre_framing'] = m.get('louvre_framing')
             ctx['exposed_edges'] = m.get('exposed_edges')
             ctx['sight_width_mm'] = _to_float(m.get('sight_width_mm'))
             ctx['sight_height_mm'] = _to_float(m.get('sight_height_mm'))
