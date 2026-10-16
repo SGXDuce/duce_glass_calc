@@ -1,13 +1,64 @@
 # AS 1288 Glass Thickness Calculator — Full Project Summary
 ## Duce Timber Windows and Doors
-### Version: V1.54 (PRs #65-70 merged; Configurator, schedule and system check removed; decisions recorded)
-### Last Updated: 15 October 2026
+### Version: V1.55 (PRs #72-74 merged; Table 5.1 moved to CSV and a shared module; design decisions recorded)
+### Last Updated: 16 October 2026
 
 ---
 
 ## Changelog
 
 Every update to this document is logged here. Before editing, check the latest entry — if it wasn't from your chat, another chat has updated the file since you last saw it. Read the changes before overwriting.
+
+### v1.55 - 16 October 2026 - Table 5.1 moved to CSV and a shared module (PRs #72-74), landing page, edge layout, bathroom, door and IGU decisions, build plan
+
+Source: master and git history (git log --merges), the Claude Code reports, and the decisions Sahil gave in chat, 16 October 2026. Tags follow the ledger. This entry names clauses and tables by number only. It holds no AS 1288 clause text and no table cell values. The only numbers used are decision parameters (angles, the 2000 mm high-risk limit, the 12 mm extrapolation point, the 3 and 4 mm rows, the 1.5 IGU factor, the 6 mm and 10 mm minimums, the 8 m2 door trigger) and test or PR numbers. Where this entry supersedes an older statement it says so here; the older entries are not edited.
+
+**A. Merged since v1.54.** REPORTED BY CLAUDE CODE (git log --merges; master is at e15e17c, the merge of PR #74):
+- PR #72, 7aa816f: Table 5.1 golden snapshot (tests only).
+- PR #73, 93d2754: guard tests, 8 tests, tests/test_table_5_1_guard.py. They pin the Mode 2 gates, checks and next-compliant scan; the raw-versus-rounded area comparison; lookups at non-integer thicknesses; the order of the Table 5.1 constants; and that Pathways 3 and 4 do not round the area.
+- PR #74, e15e17c (work commit ebe889d): Table 5.1 data moved out of engine/wind_load/constants.py into data/Table_5_1_Categories.csv and data/Table_5_1_Max_Area.csv. The column monolithic_only encodes the rule that the 3 and 4 mm rows do not apply to laminated. One shared module, engine/shared/table_5_1.py (max_area, is_ineligible, safety_glass_category, safety_glass_ineligible, search with area_factor default 1.0 and round_area default None). Pathways 1, 3 and 4 switched over. SAFETY_GLASS_CATEGORY and SAFETY_GLASS_INELIGIBLE are now rebuilt from the CSV. The above-12 mm extrapolation stays in code and reads the 12 mm row from the CSV. area_factor multiplies the final limit, including extrapolated ones. The golden test passed unchanged (the golden files were not touched). A throwaway comparison of old and new lookups found no difference in value or type. 10 new module tests in tests/test_table_5_1_module.py.
+- State: 159 pytest tests plus the 3 standalone runners passing in run_tests.bat. REPORTED BY CLAUDE CODE; verify with a run.
+- Kept for now (leftovers): get_safety_glass_max_area in formulas.py and both _run_table_5_1_search wrappers (the golden generator calls them); stale comments in pathway3.py and pathway4.py that still say the search is re-implemented locally; the None-limit branches in wind.py, which are unreachable with today's data and were left untouched on purpose.
+- Table 5.1 data was verified by Sahil against the standard, including the laminated annealed / heat-strengthened category at the smallest thickness row (no values recorded here). Laminated thickness is total thickness. VERIFIED BY SAHIL.
+
+**B. Decisions.** All DECIDED BY SAHIL, 16 October 2026, chat, except item 3 (OPEN).
+1. Landing page and flow (design only, not built). Two doors: "Safety glass is already decided" (the existing pathways, unchanged) and "Help me work out if safety glass is needed" (a questionnaire). The wind question comes last, after all human impact and dimension inputs. If wind does not apply, show human impact only. If it applies, the answers route to a wind pathway with no re-entry of framing. Results stay hidden until all inputs are in. The final result is collapsed, with an expandable breakdown of each criterion's minimum thickness and allowed glass types, including human impact, and which one governs.
+2. Silicone-sealed routing: over 160 degrees goes to Pathway 2; 90 to 160 inclusive goes to Pathway 3; under 90 degrees is "not assessed by this tool". The Pathway 3 message that sends under-90 to Pathway 2 is a leftover to fix when routing is built. BAL is not allowed in Pathways 2 and 3. Bushfire stays a separate question; internal glazing skips it.
+3. OPEN: which human impact logic governs in the new flow (the new human impact engine, or the pathways' own Table 5.1 / 5.3 toggle). For the integration design chat (Opus).
+4. Edge layout replaces the fully / partly / unframed toggle. Question: number of unframed edges (0 to 4), and for 2, whether they are opposite or adjacent. Windows and panels: 0 is fully framed; 1, or 2 opposite, is partly framed; 2 adjacent, 3 or 4 is unframed. Doors: 0 is fully framed; ANY unframed edge counts as unframed (Duce interpretation, conservative, because 5.2 does not address partly framed doors). This SUPERSEDES v1.54 finding F4 (the engine treated partly framed doors like fully framed).
+5. Wind routing from the edge layout (stored only for now): 0 goes to Pathway 1; 1 goes to Pathway 2 as 3-edge; 2 opposite goes to Pathway 2 as 2-edge; 2 adjacent, 3 or 4 is "wind not assessed by this tool" (human impact still shows).
+6. Bathrooms, ensuites, spa rooms and kitchens (5.8): one room question: "Bathroom, ensuite or spa room" / "Kitchen" / "Neither". Kitchens use the same 2000 mm trigger (NCC 2022 8.4.6 reference from v1.53, not re-checked). The label must mention kitchens. In these rooms ONLY 5.8 applies to everything, including doors and the entry door into the room (Duce interpretation; 5.8 does not mention entry doors); the general door rule 5.2 does not also run. Fully framed: 5.8.2, Table 5.1, the four Grade A types. Partly framed: 5.8.3, Table 5.4, toughened types, with the small-panel allowance for monolithic toughened. Unframed: 5.8.4, Table 5.4, 6 mm minimum, allowance NOT applied. 5.8.4 names frameless shower doors and panels; applying it to any unframed bathroom or kitchen glazing is a Duce interpretation.
+7. "Shower door or screen?" is asked only for bathroom, ensuite or spa room (not kitchen). It does not change the human impact answer. It skips the wind and IGU questions (wind never applies to shower doors or panels; they are never IGU). Stored only first.
+8. Mirrors and backed annealed glass are not part of the tool. Bathroom results carry the line "Mirrors and backed annealed glass are not assessed by this tool."
+9. Louvres in bathrooms are treated under the 5.8.4 reading (6 mm, no small-panel allowance) as a separate explicit louvre rule (Duce interpretation, conservative). This is not what the edge-layout rule would give (a blade has two opposite free edges, which would be partly framed). When built, existing tests B10 and 17 flip from 5 mm to 6 mm. NOT BUILT.
+10. Doors outside bathrooms (5.2): unframed doors are toughened or toughened laminated only, 10 mm minimum (the tool is already right). A partly framed door counts as unframed. The 10 mm is a thickness minimum and is never multiplied by 1.5. A door over 8 m2 also gets the Table 5.1 area check (next stocked thickness above 10 mm). With no area entered, show 10 mm with the note "enter dimensions to check Table 5.1 above 8 m2". Every matched rule's thickness is worked out and the largest governs. A school or aged-care Table 5.3 label does not skip the Table 5.1 area check.
+11. The above-12 mm extrapolation is kept exactly as today (the standard extrapolates; test TC-U depends on it); the IGU factor multiplies extrapolated areas too. The NCC cap on 4 mm monolithic toughened coincides with the table value in single glass and IGU cases, so no code, CSV or reference is needed.
+12. IGUs (5.22): the question is "Can people reach both faces of the unit?" yes / no; the inside is the reachable side by default; blank means Incomplete. Both reachable: both panes comply and every human impact MAXIMUM AREA limit is multiplied by 1.5 (Table 5.1 areas including above 12 mm, Table 5.4 areas, the small-panel allowance area, the Table 5.4 oversize cutoff). The factor does NOT apply to Table 5.3, the sashless span table, or any thickness minimum. One side reachable: only the inside pane is checked, no factor; the outside pane shows "no human impact requirement"; the result note says the safety glass pane must be on the inside face. Both panes use the same inputs, including height above the floor; the outer pane follows the same room rules (a bathroom IGU assesses both panes under 5.8); the tool does not model a different outside ground level and says so in a result note. One type list per pane plus a note. Louvres can be IGU. Sashless is never IGU. Shower doors and panels never ask the IGU question. The IGU questions come early on the page. This SUPERSEDES v1.41 decision B.3's "Table 5.1 maximum area only" and its annealed-cap wording (the annealed exception routes were removed in v1.54).
+13. Wind engine facts (survey, confirmed by Sahil): Pathway 2 handles unframed edges on either pair of opposite sides. The wind engine cannot handle 1 or 3 supported edges (it crashes with a cryptic error through the API).
+14. Wording rule restated: "not offered by this tool" or "not assessed by this tool", never "not permitted by AS 1288".
+
+**C. Build plan.** DECIDED BY SAHIL (agreed order, one PR each). DONE: golden snapshot; guard tests; Table 5.1 to CSV and shared module. NEXT, in order:
+1. This docs entry (v1.55).
+2. Stocked thickness lists (GLASS_TYPE_THICKNESSES) to a shared CSV, because the human impact engine cannot import wind_load (CONFIRMED by Sahil).
+3. Edge layout (A).
+4. Bathroom / kitchen room question and 5.8.3 versus 5.8.4 (B).
+5. Shower flag, stored only (C).
+6. Table 5.1 thickness inside the human impact engine, and the door rules (D). Tests 1, 2, 5 to 9, 13, 14, 27, 29 and 33 gain thickness checks.
+7. IGU factor and questions (E). Built last because the factor needs Table 5.1 numbers in the human impact engine; its questions still sit early on the page (CONFIRMED by Sahil).
+
+Then: shopfront rules, the new questionnaire page, and the integration design chat (Opus). About 40 existing tests need an input renamed for the edge layout. Existing tests 3, 4 and 30 and route test 2 (unframed door, no area) keep passing because of the "10 mm plus a note" answer.
+
+**D. Open items and known issues.**
+- Still owed by Sahil: screenshots of 5.6, 5.7 and 5.12, the Section 1 "sight size" definition, and the 5.4(e) rail limits. Shopfront worked cases come after the build PRs.
+- Pathway 2 always passes the entered height to the Table 5.3 lookup, even when the user picks "Width is the span". It needs its own read-only check before integration.
+- An unrecognised unframed-edge value silently skips Table 5.3; Pathway 3 with a missing value raises a KeyError.
+- The wind engine crashes on a 1-edge or 3-edge support value sent through the API; it should return "not assessed".
+- The bathroom vanity note mentions an override that does not exist.
+- Missing test coverage today: an unframed bathroom panel, a partly framed or unframed bathroom door, shower doors, and the wind edge layouts the engine cannot handle.
+- Earlier pending items still open: EXPIRY_DATE in app.py is past (launcher.py refuses to start; see v1.54); human-impact-engine-notes.md holds table-derived numbers (against the no-values rule); housekeeping on dist.zip, old branches and the three .docx files; Sahil replaces the project-knowledge copy of this summary after each docs PR.
+- EXE check owed: table_5_1.py finds data/ through its own file path (the same pattern as the human impact engine). Confirm that the next PyInstaller build loads it.
+
+---
 
 ### v1.54 - 15 October 2026 - PRs #65-70 merged, Configurator / schedule / system check removed, decisions recorded, standard text checked
 
