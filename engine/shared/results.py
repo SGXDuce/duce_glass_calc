@@ -359,7 +359,8 @@ HUMAN_IMPACT_OUTCOMES = ('determined', 'out_of_scope', 'incomplete')
 def make_human_impact_result(scope=True, grade_a_required=None, table=None,
                               types=None, notes=None, trail=None,
                               clauses=None, out_of_scope_reasons=None,
-                              outcome=None, missing_answers=None):
+                              outcome=None, missing_answers=None,
+                              framing_info=None):
     """
     Builds an engine/human_impact result dictionary with a guaranteed,
     consistent set of keys. Every return path in determine_fixed(),
@@ -400,6 +401,11 @@ def make_human_impact_result(scope=True, grade_a_required=None, table=None,
 
     missing_answers: list of short strings naming the answers still
     needed. Empty unless outcome is 'incomplete'.
+
+    framing_info: the derived framing and stored wind route (see
+    engine/shared/framing.py), or None when it could not be derived
+    (Incomplete, sashless door). A copy is stored. Recorded only - nothing
+    reads the wind route.
     """
     if outcome is None:
         outcome = 'determined' if scope else 'out_of_scope'
@@ -417,6 +423,7 @@ def make_human_impact_result(scope=True, grade_a_required=None, table=None,
         'trail': trail if trail is not None else [],
         'clauses': clauses if clauses is not None else [],
         'out_of_scope_reasons': out_of_scope_reasons if out_of_scope_reasons is not None else [],
+        'framing_info': dict(framing_info) if framing_info is not None else None,
     }
 
 

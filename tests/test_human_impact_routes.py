@@ -62,7 +62,7 @@ def test_1():
         'high_risk': False,
         'methods': {
             'fixed': {
-                'framing': 'fully',
+                'unframed_edges': [],
                 'sightline_mm': 0,
                 'panel_width_mm': 100,
                 'panel_height_mm': 800,
@@ -92,7 +92,7 @@ def test_2():
         'high_risk': False,
         'methods': {
             'fixed': {
-                'framing': 'unframed',
+                'unframed_edges': ['head'],
                 'sightline_mm': 0,
             }
         },
@@ -118,7 +118,7 @@ def test_3():
         'high_risk': False,
         'methods': {
             'fixed': {
-                'framing': 'partly',
+                'unframed_edges': ['left', 'right'],
                 'sightline_mm': 1000,
                 'panel_width_mm': 1000,
                 'panel_height_mm': 1500,  # 1.5m^2
@@ -179,13 +179,13 @@ def test_5():
         'high_risk': False,
         'methods': {
             'fixed': {
-                'framing': 'fully',
+                'unframed_edges': [],
                 'sightline_mm': 1200,
                 'panel_width_mm': 500,
                 'panel_height_mm': 500,  # 0.25 m^2
             },
             'louvre': {
-                'framing': 'fully',
+                'louvre_framing': 'fully',
                 'sightline_mm': 1200,
                 'blade_width_mm': 150,
                 'blade_length_mm': 800,
@@ -233,7 +233,7 @@ def _fixed_side_panel_request(opening_type, reclassified, sightline_mm):
         'high_risk': False,
         'methods': {
             'fixed': {
-                'framing': 'fully',
+                'unframed_edges': [],
                 'sightline_mm': sightline_mm,
                 'panel_width_mm': 500,
                 'panel_height_mm': 500,  # 0.25 m^2
@@ -314,7 +314,7 @@ def _louvre_side_panel_request(exposed_edges):
         'high_risk': False,
         'methods': {
             'louvre': {
-                'framing': 'partly',
+                'louvre_framing': 'partly',
                 'exposed_edges': exposed_edges,
                 'sightline_mm': 800,
                 'blade_width_mm': 150,
@@ -372,7 +372,7 @@ def test_route_inc_1():
         data = post({
             'opening_type': 'door', 'reclassified_as_side_panel': False,
             'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
-            'methods': {'fixed': {'framing': 'fully', 'sightline_mm': 0}},
+            'methods': {'fixed': {'unframed_edges': [], 'sightline_mm': 0}},
         })
     finally:
         flask_app_module.determine_fixed = original
@@ -391,14 +391,14 @@ def test_route_inc_2():
     door = post({
         'opening_type': 'door', 'reclassified_as_side_panel': False,
         'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
-        'methods': {'fixed': {'framing': 'fully', 'sightline_mm': 0,
+        'methods': {'fixed': {'unframed_edges': [], 'sightline_mm': 0,
                               'panel_width_mm': 100, 'panel_height_mm': 800}},
     })['results']['fixed']
     # Low-level residential window, partly framed: not assessed by this tool.
     oos = post({
         'opening_type': 'window', 'reclassified_as_side_panel': False,
         'building_use': 'residential', 'is_bathroom': False, 'high_risk': False,
-        'methods': {'fixed': {'framing': 'partly', 'sightline_mm': 300,
+        'methods': {'fixed': {'unframed_edges': ['left', 'right'], 'sightline_mm': 300,
                               'sight_width_mm': 900, 'sight_height_mm': 1500}},
     })['results']['fixed']
     checks = [
@@ -408,6 +408,141 @@ def test_route_inc_2():
         ('out-of-scope outcome', 'out_of_scope', oos['outcome'], oos['outcome'] == 'out_of_scope'),
     ]
     report('inc_2', 'POST /human_impact/check - determined and out_of_scope outcomes present', checks)
+
+
+# ---------------------------------------------------------------------------
+# TESTS route_fr_ — the edges / louvre framing answers through the route
+# ---------------------------------------------------------------------------
+
+from engine.shared.framing import MISSING_EDGES_TEXT, MISSING_LOUVRE_TEXT
+
+
+def _request(opening_type, methods, reclassified=False):
+    return {
+        'opening_type': opening_type,
+        'reclassified_as_side_panel': reclassified,
+        'building_use': 'residential',
+        'is_bathroom': False,
+        'high_risk': False,
+        'methods': methods,
+    }
+
+
+def _not_a_verdict(result):
+    return (result['outcome'] == 'incomplete' and result['scope'] is False
+            and result['grade_a_required'] is None and result['types'] == []
+            and result['framing_info'] is None)
+
+
+def test_route_fr_unanswered_fixed():
+    checks = []
+    for name, fixed in (('key absent', {'sightline_mm': 0}),
+                        ('null', {'unframed_edges': None, 'sightline_mm': 0})):
+        data = post(_request('door', {'fixed': fixed}))
+        r = data['results']['fixed']
+        checks.append((f'{name}: success', True, data['success'], data['success'] is True))
+        checks.append((f'{name}: Incomplete with the question', [MISSING_EDGES_TEXT], r['missing_answers'],
+                       _not_a_verdict(r) and r['missing_answers'] == [MISSING_EDGES_TEXT]))
+    report('route_fr_1', 'Framing unanswered -> outcome incomplete, not a verdict', checks)
+
+
+def test_route_fr_unanswered_louvre():
+    base = {'sightline_mm': 800, 'blade_width_mm': 150, 'blade_length_mm': 900}
+    checks = []
+    for name, extra in (('key absent', {}), ('null', {'louvre_framing': None}),
+                        ('unframed', {'louvre_framing': 'unframed'})):
+        r = post(_request('window', {'louvre': dict(base, **extra)}))['results']['louvre']
+        checks.append((name, [MISSING_LOUVRE_TEXT], r['missing_answers'],
+                       _not_a_verdict(r) and r['missing_answers'] == [MISSING_LOUVRE_TEXT]))
+    report('route_fr_2', 'Louvre framing unanswered or invalid -> outcome incomplete', checks)
+
+
+def test_route_fr_stale_framing_key():
+    fixed = post(_request('door', {'fixed': {'framing': 'fully', 'sightline_mm': 0}}))['results']['fixed']
+    louvre = post(_request('window', {'louvre': {
+        'framing': 'fully', 'sightline_mm': 800, 'blade_width_mm': 150, 'blade_length_mm': 900,
+    }}))['results']['louvre']
+    checks = [
+        ('old fixed payload is Incomplete', True, _not_a_verdict(fixed), _not_a_verdict(fixed)),
+        ('old louvre payload is Incomplete', True, _not_a_verdict(louvre), _not_a_verdict(louvre)),
+    ]
+    report('route_fr_3', "An old client sending only 'framing' is never read as fully framed", checks)
+
+
+def test_route_fr_invalid_values():
+    checks = []
+    for name, value in (('unknown edge', ['top']), ('string', 'head'), ('duplicate', ['head', 'head'])):
+        data = post(_request('door', {'fixed': {'unframed_edges': value, 'sightline_mm': 0}}))
+        r = data['results']['fixed']
+        checks.append((name, 'success true, Incomplete', (data['success'], r['outcome']),
+                       data['success'] is True and _not_a_verdict(r)))
+    report('route_fr_4', 'Invalid edges over the route -> Incomplete, no server error', checks)
+
+
+def test_route_fr_door_opposite():
+    data = post(_request('door', {'fixed': {'unframed_edges': ['left', 'right'], 'sightline_mm': 0}}))
+    r = data['results']['fixed']
+    mt = get_type(r, 'monolithic_toughened')
+    ids = sorted(t['id'] for t in r['types'] if t['ok'])
+    want_info = {'framing': 'unframed', 'unframed_count': 2, 'opposite_or_adjacent': 'opposite',
+                 'opposite_pair': 'left_right', 'wind_route': 'pathway_2_two_edge'}
+    checks = [
+        ('D6: toughened only, 10 mm', (['laminated_toughened', 'monolithic_toughened'], 10),
+         (ids, mt['min_thickness']),
+         ids == ['laminated_toughened', 'monolithic_toughened'] and mt['min_thickness'] == 10),
+        ('framing_info in the response', want_info, r['framing_info'], r['framing_info'] == want_info),
+    ]
+    report('route_fr_5', 'D6: door with left+right ticked via the route', checks)
+
+
+def test_route_fr_none_unframed():
+    r = post(_request('door', {'fixed': {'unframed_edges': [], 'sightline_mm': 0}}))['results']['fixed']
+    ids = sorted(t['id'] for t in r['types'] if t['ok'])
+    four = ['laminated_annealed', 'laminated_heat_strengthened', 'laminated_toughened', 'monolithic_toughened']
+    checks = [
+        ('fully framed door result', ('5.1', four), (r['table'], ids), r['table'] == '5.1' and ids == four),
+        ('wind route', 'pathway_1', r['framing_info']['wind_route'], r['framing_info']['wind_route'] == 'pathway_1'),
+    ]
+    report('route_fr_6', 'Empty list = answered "none unframed" -> fully framed', checks)
+
+
+def test_route_fr_louvre_door_partly():
+    r = post(_request('door', {'louvre': {
+        'louvre_framing': 'partly', 'sightline_mm': 0, 'blade_width_mm': 150, 'blade_length_mm': 900,
+    }}))['results']['louvre']
+    mt = get_type(r, 'monolithic_toughened')
+    checks = [
+        ('L3: toughened at 10 mm', 10, mt['min_thickness'], mt['min_thickness'] == 10),
+        ('framing_info', ('unframed', 'pathway_2_two_edge'),
+         (r['framing_info']['framing'], r['framing_info']['wind_route']),
+         r['framing_info']['framing'] == 'unframed' and r['framing_info']['wind_route'] == 'pathway_2_two_edge'),
+    ]
+    report('route_fr_7', 'L3: louvre door answered partly via the route', checks)
+
+
+def test_route_fr_sashless_info():
+    r = post(_request('window', {'sashless': {
+        'span_mm': 1000, 'sightline_mm': 900, 'sight_width_mm': 1000, 'sight_height_mm': 1400,
+    }}))['results']['sashless']
+    want = {'framing': 'partly', 'unframed_count': 2, 'opposite_or_adjacent': 'opposite',
+            'opposite_pair': None, 'wind_route': 'pathway_2_two_edge'}
+    report('route_fr_8', 'Sashless response carries the two-edge framing_info',
+           [('framing_info', want, r['framing_info'], r['framing_info'] == want)])
+
+
+def test_route_fr_exposed_ignored_at_zero():
+    def run(exposed):
+        return post(_request('side_panel', {'fixed': {
+            'unframed_edges': [], 'exposed_edges': exposed, 'sightline_mm': 800,
+            'panel_width_mm': 500, 'panel_height_mm': 500,
+        }}))['results']['fixed']
+    n, y = run('n'), run('y')
+    same = (n['table'], n['types'], n['clauses']) == (y['table'], y['types'], y['clauses'])
+    checks = [
+        ('exposed y and n give the same result at zero ticks', True, same, same),
+        ('fully framed side panel table', '5.1', y['table'], y['table'] == '5.1'),
+    ]
+    report('route_fr_9', 'exposed_edges has no effect when nothing is unframed', checks)
 
 
 def run_tests():
@@ -423,7 +558,12 @@ def run_tests():
 
     tests = [test_1, test_2, test_3, test_4, test_5,
              test_r1, test_r2, test_r3, test_r4, test_r5, test_r6, test_r7, test_r8, test_r9,
-             test_route_inc_1, test_route_inc_2]
+             test_route_inc_1, test_route_inc_2,
+             test_route_fr_unanswered_fixed, test_route_fr_unanswered_louvre,
+             test_route_fr_stale_framing_key, test_route_fr_invalid_values,
+             test_route_fr_door_opposite, test_route_fr_none_unframed,
+             test_route_fr_louvre_door_partly, test_route_fr_sashless_info,
+             test_route_fr_exposed_ignored_at_zero]
     passed = 0
     for t in tests:
         try:

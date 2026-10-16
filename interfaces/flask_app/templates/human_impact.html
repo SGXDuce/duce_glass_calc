@@ -459,6 +459,8 @@ function setOpeningType(type) {
 
     buildMethodCheckboxes();
     buildMethodCards();
+    syncExposedRow('fixed');
+    syncExposedRow('louvre');
     runCheck();
 }
 
@@ -466,6 +468,8 @@ function setReclassified(value) {
     hiState.reclassifiedAsSidePanel = value;
     document.getElementById('hi-reclass-no').classList.toggle('active', !value);
     document.getElementById('hi-reclass-yes').classList.toggle('active', value);
+    syncExposedRow('fixed');
+    syncExposedRow('louvre');
     onSharedInputChanged();
 }
 
@@ -542,21 +546,54 @@ function buildMethodCards() {
     attachTooltipListeners();
 }
 
-function buildFixedCard(isSidePanel, isGenuineWindow) {
-    let extra = '';
+const FRAMING_EDGE_LABELS = [['head', 'Head'], ['sill', 'Sill'], ['left', 'Left'], ['right', 'Right']];
 
-    if (isSidePanel) {
-        extra += `
-        <div class="field-group" id="hi-fixed-exposed-row" hidden>
-            <label class="field-label" id="lbl-hi-fixed-exposed">Unframed edges exposed?
-                <span class="tip" tabindex="0" role="button" data-tip="Only relevant when this side panel is partly framed or unframed - Clause 5.3.1's exposed-edge condition.">?</span>
+// Edge ticks are drawn from state (null = unanswered, [] = none unframed),
+// so a re-render of the cards never wipes what the person has answered.
+function buildEdgeChecks() {
+    const edges = hiMethodState.fixed.unframed_edges;
+    const answered = Array.isArray(edges);
+    const edgeRows = FRAMING_EDGE_LABELS.map(([key, label]) => `
+            <label class="checkbox-row">
+                <input type="checkbox" id="hi-fixed-edge-${key}" ${answered && edges.includes(key) ? 'checked' : ''}
+                       onchange="onEdgeToggled('${key}', this.checked)">
+                <span>${label}</span>
+            </label>`).join('');
+    return `
+        <div class="field-group">
+            <label class="field-label" id="lbl-hi-fixed-edges">Which edges are unframed?
+                <span class="tip" tabindex="0" role="button" data-tip="Tick every edge that is not held by a frame, or choose None unframed (fully framed). One of these must be answered.">?</span>
             </label>
-            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-exposed">
-                <button class="toggle-btn active" id="hi-fixed-exposed-n" onclick="setFixedField('exposed_edges', 'n')">No</button>
-                <button class="toggle-btn" id="hi-fixed-exposed-y" onclick="setFixedField('exposed_edges', 'y')">Yes</button>
+            <div role="group" aria-labelledby="lbl-hi-fixed-edges">
+                ${edgeRows}
+                <label class="checkbox-row">
+                    <input type="checkbox" id="hi-fixed-edge-none" ${answered && edges.length === 0 ? 'checked' : ''}
+                           onchange="onNoneUnframedToggled(this.checked)">
+                    <span>None unframed (fully framed)</span>
+                </label>
             </div>
         </div>`;
-    }
+}
+
+// Always built, whatever the opening type is when the card is drawn: the
+// doorway question can change afterwards without redrawing the cards, so
+// syncExposedRow() decides whether the row shows.
+function buildExposedRow(method) {
+    const state = hiMethodState[method];
+    return `
+        <div class="field-group" id="hi-${method}-exposed-row" ${exposedRowVisible(method) ? '' : 'hidden'}>
+            <label class="field-label" id="lbl-hi-${method}-exposed">Unframed edges exposed?
+                <span class="tip" tabindex="0" role="button" data-tip="Only relevant when at least one edge of this side panel is unframed - Clause 5.3.1's exposed-edge condition.">?</span>
+            </label>
+            <div class="toggle-group" role="group" aria-labelledby="lbl-hi-${method}-exposed">
+                <button class="toggle-btn ${state.exposed_edges === 'n' ? 'active' : ''}" id="hi-${method}-exposed-n" onclick="${method === 'fixed' ? 'setFixedField' : 'setLouvreField'}('exposed_edges', 'n')">No</button>
+                <button class="toggle-btn ${state.exposed_edges === 'y' ? 'active' : ''}" id="hi-${method}-exposed-y" onclick="${method === 'fixed' ? 'setFixedField' : 'setLouvreField'}('exposed_edges', 'y')">Yes</button>
+            </div>
+        </div>`;
+}
+
+function buildFixedCard(isSidePanel, isGenuineWindow) {
+    let extra = buildExposedRow('fixed');
 
     if (isGenuineWindow) {
         extra += `
@@ -605,16 +642,7 @@ function buildFixedCard(isSidePanel, isGenuineWindow) {
             <span class="hi-method-card-title">Fixed panel / sash</span>
         </div>
         <div class="hi-method-inputs">
-            <div class="field-group">
-                <label class="field-label" id="lbl-hi-fixed-framing">Framing
-                    <span class="tip" tabindex="0" role="button" data-tip="Fully framed, partly framed, or unframed.">?</span>
-                </label>
-                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-fixed-framing">
-                    <button class="toggle-btn active" id="hi-fixed-framing-fully" onclick="setFixedFraming('fully')">Fully</button>
-                    <button class="toggle-btn" id="hi-fixed-framing-partly" onclick="setFixedFraming('partly')">Partly</button>
-                    <button class="toggle-btn" id="hi-fixed-framing-unframed" onclick="setFixedFraming('unframed')">Unframed</button>
-                </div>
-            </div>
+            ${buildEdgeChecks()}
             <div class="field-group">
                 <label class="field-label" for="hi_fixed_sightline">Lowest sightline above floor/ground (mm)
                     <span class="tip" tabindex="0" role="button" data-tip="Height of the lowest point of visible glass above the floor or ground level.">?</span>
@@ -648,20 +676,8 @@ function buildFixedCard(isSidePanel, isGenuineWindow) {
 }
 
 function buildLouvreCard(isSidePanel) {
-    let extra = '';
-
-    if (isSidePanel) {
-        extra += `
-            <div class="field-group" id="hi-louvre-exposed-row" hidden>
-                <label class="field-label" id="lbl-hi-louvre-exposed">Unframed edges exposed?
-                    <span class="tip" tabindex="0" role="button" data-tip="Only relevant when this side panel is partly framed or unframed - Clause 5.3.1's exposed-edge condition.">?</span>
-                </label>
-                <div class="toggle-group" role="group" aria-labelledby="lbl-hi-louvre-exposed">
-                    <button class="toggle-btn active" id="hi-louvre-exposed-n" onclick="setLouvreField('exposed_edges', 'n')">No</button>
-                    <button class="toggle-btn" id="hi-louvre-exposed-y" onclick="setLouvreField('exposed_edges', 'y')">Yes</button>
-                </div>
-            </div>`;
-    }
+    const extra = buildExposedRow('louvre');
+    const lf = hiMethodState.louvre.louvre_framing;
 
     return `
     <div class="hi-method-card" id="hi-card-louvre">
@@ -670,11 +686,12 @@ function buildLouvreCard(isSidePanel) {
         </div>
         <div class="hi-method-inputs">
             <div class="field-group">
-                <label class="field-label" id="lbl-hi-louvre-framing">Framing</label>
+                <label class="field-label" id="lbl-hi-louvre-framing">Is the louvre fully framed or partly framed?
+                    <span class="tip" tabindex="0" role="button" data-tip="Partly framed means two opposite edges are unframed. One of these must be chosen.">?</span>
+                </label>
                 <div class="toggle-group" role="group" aria-labelledby="lbl-hi-louvre-framing">
-                    <button class="toggle-btn active" id="hi-louvre-framing-fully" onclick="setLouvreFraming('fully')">Fully</button>
-                    <button class="toggle-btn" id="hi-louvre-framing-partly" onclick="setLouvreFraming('partly')">Partly</button>
-                    <button class="toggle-btn" id="hi-louvre-framing-unframed" onclick="setLouvreFraming('unframed')">Unframed</button>
+                    <button class="toggle-btn ${lf === 'fully' ? 'active' : ''}" id="hi-louvre-layout-fully" onclick="setLouvreFraming('fully')">Fully framed</button>
+                    <button class="toggle-btn ${lf === 'partly' ? 'active' : ''}" id="hi-louvre-layout-partly" onclick="setLouvreFraming('partly')">Partly framed (two opposite edges)</button>
                 </div>
             </div>
             ${extra}
@@ -735,6 +752,7 @@ function buildSashlessCard() {
                 <input class="field-input" type="number" id="hi_sashless_sight_height" min="0" oninput="onMethodInputChanged('sashless')">
             </div>
         </div>
+        <div style="color:#888; font-size:10.5px; margin-bottom:10px;">Treated as partly framed (two opposite edges).</div>
         <div class="hi-result-card" id="hi-result-sashless">
             <div class="hi-results-placeholder">Enter span above to see the result.</div>
         </div>
@@ -745,22 +763,70 @@ function buildSashlessCard() {
 // PER-METHOD FIELD STATE HELPERS
 // ---------------------------------------------------------------------------
 
+// Framing answers start unanswered (null) - nothing is pre-selected, and an
+// unanswered question reaches the engine as null, which gives Incomplete.
+//   fixed.unframed_edges : null (unanswered) | [] (none unframed) | ['head', ...]
+//   louvre.louvre_framing: null (unanswered) | 'fully' | 'partly'
 const hiMethodState = {
-    fixed: { framing: 'fully', exposed_edges: 'n', opaque_or_patterned: false, rail_present: false, level_difference: false },
-    louvre: { framing: 'fully', exposed_edges: 'n' },
+    fixed: { unframed_edges: null, exposed_edges: 'n', opaque_or_patterned: false, rail_present: false, level_difference: false },
+    louvre: { louvre_framing: null, exposed_edges: 'n' },
     sashless: {},
 };
 
-function setFixedFraming(framing) {
-    hiMethodState.fixed.framing = framing;
-    ['fully', 'partly', 'unframed'].forEach(f => {
-        document.getElementById(`hi-fixed-framing-${f}`).classList.toggle('active', f === framing);
-    });
-    const isSidePanel = (hiState.openingType === 'side_panel') ||
-                         (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
-    const exposedRow = document.getElementById('hi-fixed-exposed-row');
-    if (exposedRow) exposedRow.hidden = !(isSidePanel && framing !== 'fully');
+function isSidePanelNow() {
+    return (hiState.openingType === 'side_panel') ||
+           (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
+}
+
+// The exposed-edges question only applies when at least one edge is unframed
+// (fixed) or the louvre is answered 'partly'.
+function exposedRowVisible(method) {
+    if (!isSidePanelNow()) return false;
+    if (method === 'fixed') {
+        const e = hiMethodState.fixed.unframed_edges;
+        return Array.isArray(e) && e.length > 0;
+    }
+    return hiMethodState.louvre.louvre_framing === 'partly';
+}
+
+// Hidden means 'n', always: reset the state and the toggle, show or hide the row.
+function syncExposedRow(method) {
+    const visible = exposedRowVisible(method);
+    if (!visible) hiMethodState[method].exposed_edges = 'n';
+    const row = document.getElementById(`hi-${method}-exposed-row`);
+    if (row) row.hidden = !visible;
+    const n = document.getElementById(`hi-${method}-exposed-n`);
+    const y = document.getElementById(`hi-${method}-exposed-y`);
+    if (n) n.classList.toggle('active', hiMethodState[method].exposed_edges === 'n');
+    if (y) y.classList.toggle('active', hiMethodState[method].exposed_edges === 'y');
+}
+
+function onEdgeToggled(edge, checked) {
+    const current = Array.isArray(hiMethodState.fixed.unframed_edges) ? hiMethodState.fixed.unframed_edges : [];
+    const next = checked ? (current.includes(edge) ? current.slice() : current.concat(edge))
+                         : current.filter(e => e !== edge);
+    // Unticking the last edge goes back to unanswered, never to "none unframed".
+    hiMethodState.fixed.unframed_edges = next.length ? next : null;
+    syncEdgeChecks();
     runCheck();
+}
+
+function onNoneUnframedToggled(checked) {
+    hiMethodState.fixed.unframed_edges = checked ? [] : null;
+    syncEdgeChecks();
+    runCheck();
+}
+
+function syncEdgeChecks() {
+    const edges = hiMethodState.fixed.unframed_edges;
+    const answered = Array.isArray(edges);
+    FRAMING_EDGE_LABELS.forEach(([key]) => {
+        const cb = document.getElementById(`hi-fixed-edge-${key}`);
+        if (cb) cb.checked = answered && edges.includes(key);
+    });
+    const none = document.getElementById('hi-fixed-edge-none');
+    if (none) none.checked = answered && edges.length === 0;
+    syncExposedRow('fixed');
 }
 
 function setFixedField(field, value) {
@@ -786,14 +852,11 @@ function setFixedBool(field, value) {
 }
 
 function setLouvreFraming(framing) {
-    hiMethodState.louvre.framing = framing;
-    ['fully', 'partly', 'unframed'].forEach(f => {
-        document.getElementById(`hi-louvre-framing-${f}`).classList.toggle('active', f === framing);
+    hiMethodState.louvre.louvre_framing = framing;
+    ['fully', 'partly'].forEach(f => {
+        document.getElementById(`hi-louvre-layout-${f}`).classList.toggle('active', f === framing);
     });
-    const isSidePanel = (hiState.openingType === 'side_panel') ||
-                         (hiState.openingType === 'window' && hiState.reclassifiedAsSidePanel);
-    const exposedRow = document.getElementById('hi-louvre-exposed-row');
-    if (exposedRow) exposedRow.hidden = !(isSidePanel && framing !== 'fully');
+    syncExposedRow('louvre');
     runCheck();
 }
 
@@ -847,8 +910,8 @@ function buildPayload() {
 
     if (hiState.selectedMethods.has('fixed') && document.getElementById('hi-card-fixed') && hasSightline('fixed')) {
         methods.fixed = {
-            framing: hiMethodState.fixed.framing,
-            exposed_edges: hiMethodState.fixed.exposed_edges,
+            unframed_edges: hiMethodState.fixed.unframed_edges,
+            exposed_edges: exposedRowVisible('fixed') ? hiMethodState.fixed.exposed_edges : 'n',
             sightline_mm: val('hi_fixed_sightline'),
             sight_width_mm: val('hi_fixed_sight_width'),
             sight_height_mm: val('hi_fixed_sight_height'),
@@ -865,8 +928,8 @@ function buildPayload() {
 
     if (hiState.selectedMethods.has('louvre') && document.getElementById('hi-card-louvre') && hasSightline('louvre')) {
         methods.louvre = {
-            framing: hiMethodState.louvre.framing,
-            exposed_edges: hiMethodState.louvre.exposed_edges,
+            louvre_framing: hiMethodState.louvre.louvre_framing,
+            exposed_edges: exposedRowVisible('louvre') ? hiMethodState.louvre.exposed_edges : 'n',
             sightline_mm: val('hi_louvre_sightline'),
             sight_width_mm: val('hi_louvre_sight_width'),
             sight_height_mm: val('hi_louvre_sight_height'),
