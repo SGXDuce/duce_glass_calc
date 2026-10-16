@@ -1,13 +1,6 @@
 import pandas as pd
-from engine.shared import table_5_1
-GLASS_TYPE_THICKNESSES = {
-    ('Monolithic', 'Annealed'):           [4, 5, 6, 8, 10, 12, 15, 19, 25],
-    ('Monolithic', 'Toughened'):          [4, 5, 6, 8, 10, 12, 15, 19, 25],
-    ('Monolithic', 'Heat-strengthened'):  [3, 4, 5, 6, 8, 10, 12],
-    ('Laminated',  'Annealed'):           [5, 6, 8, 10, 12, 16, 20, 24],
-    ('Laminated',  'Heat-strengthened'):  [5, 6, 8, 10, 12, 16, 20, 24],
-    ('Laminated',  'Toughened'):          [5, 6, 8, 10, 12, 16, 20, 24],
-}
+from engine.shared import table_5_1, stocked_thicknesses
+GLASS_TYPE_THICKNESSES = stocked_thicknesses.stocked_thicknesses()
 # Table 5.1 category / eligibility data lives in data/Table_5_1_*.csv
 SAFETY_GLASS_CATEGORY = table_5_1.safety_glass_category()
 
